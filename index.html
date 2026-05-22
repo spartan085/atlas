@@ -324,6 +324,7 @@ transform:translateY(-8px);opacity:0;transition:all .3s cubic-bezier(.34,1.56,.6
     <div class="wordmark">ATL<em>A</em>S <span style="font-family:'Geist Mono',monospace;font-size:10px;color:var(--fg3);letter-spacing:1px;">v3</span></div>
   </div>
   <div class="hdr-right">
+    <div id="aiKeyStatus" style="font-family:'Geist Mono',monospace;font-size:9px;letter-spacing:1px;color:var(--fg4);display:none;">IA ✓</div>
     <button class="sync-btn" onclick="syncAll()" id="syncBtn">
       <div class="sdot" id="syncDot"></div>
       <span id="syncLabel">Sync</span>
@@ -820,6 +821,25 @@ transform:translateY(-8px);opacity:0;transition:all .3s cubic-bezier(.34,1.56,.6
       </div>
     </div>
 
+    <!-- Anthropic API Key -->
+    <div class="card">
+      <div class="card-hdr">
+        <div><div class="t-md">IA — Anthropic API Key</div><div style="font-size:11px;color:var(--fg2);margin-top:2px;">Necesaria para análisis con IA en esta versión</div></div>
+        <div class="mono" style="font-size:10px;" id="aiKeyBadge">⬤ Sin key</div>
+      </div>
+      <div class="card-body">
+        <div class="info y" style="margin-top:0;margin-bottom:12px;"><b>Cómo obtener:</b> console.anthropic.com → API Keys → Create Key. La key se guarda solo en tu dispositivo (localStorage). Nunca sale de tu navegador.</div>
+        <div class="fg" style="margin-bottom:8px;">
+          <label class="fg-label">Anthropic API Key</label>
+          <input class="field" type="password" id="anthropicKeyInput" placeholder="sk-ant-api03-...">
+        </div>
+        <div style="display:flex;gap:8px;">
+          <button class="btn btn-p" style="flex:1;" onclick="saveAPIKeyFromSettings()">Guardar key</button>
+          <button class="btn btn-r btn-sm" onclick="clearAPIKey()">Borrar</button>
+        </div>
+      </div>
+    </div>
+
     <!-- Manual -->
     <div class="card">
       <div class="card-hdr"><span class="t-md">Entrada manual rápida</span></div>
@@ -1030,7 +1050,7 @@ function setIntStatus(state) {
 async function fetchIntervals() {
   const {aid,key}=S.int;
   if(!aid||!key) return;
-  const auth='Basic '+btoa('API_KEY:'+key);
+  const auth='Basic '+btoa('API_KEY:'+key); // Intervals: Basic base64(API_KEY:your_key)
   const today=new Date().toISOString().split('T')[0];
   const from14=new Date(Date.now()-14*864e5).toISOString().split('T')[0];
   const from30=new Date(Date.now()-30*864e5).toISOString().split('T')[0];
@@ -1040,15 +1060,27 @@ async function fetchIntervals() {
     // ── 1. WELLNESS (HRV, sueño, FC reposo, pasos, peso, fatiga subjetiva, soreness, mood) ──
     const wResp=await fetch(
       `https://intervals.icu/api/v1/athlete/${aid}/wellness?oldest=${from14}&newest=${today}`,
-      {headers:{Authorization:auth}}
+      {
+        headers:{
+          'Authorization': auth,
+          'Accept': 'application/json',
+          'Content-Type': 'application/json'
+        },
+        mode: 'cors'
+      }
     );
-    if(!wResp.ok){const e=await wResp.json().catch(()=>({}));throw new Error(e.message||'Auth error '+wResp.status);}
+    if(!wResp.ok){
+      if(wResp.status===401)throw new Error('Credenciales incorrectas. Verifica Athlete ID y API Key en Intervals.icu → Settings → Developer');
+      if(wResp.status===403)throw new Error('Sin permisos. Regenera la API Key en Intervals.icu → Settings → Developer');
+      const e=await wResp.json().catch(()=>({}));
+      throw new Error(e.message||'Error '+wResp.status+' — verifica tu Athlete ID');
+    }
     const wellness=await wResp.json();
 
     // ── 2. CTL/ATL/TSB (fitness history) ──
     const fResp=await fetch(
       `https://intervals.icu/api/v1/athlete/${aid}/ctl-history?oldest=${from14}&newest=${today}`,
-      {headers:{Authorization:auth}}
+      {headers:{'Authorization':auth,'Accept':'application/json'},mode:'cors'}
     );
     let fitnessHistory=[];
     if(fResp.ok) fitnessHistory=await fResp.json();
@@ -1056,7 +1088,7 @@ async function fetchIntervals() {
     // ── 3. ACTIVITIES (últimos 14 días: carga, zonas, FC, tipo, decoupling) ──
     const aResp=await fetch(
       `https://intervals.icu/api/v1/athlete/${aid}/activities?oldest=${from14}&newest=${today}&fields=id,name,type,start_date_local,distance,moving_time,icu_training_load,icu_zone_times,average_heartrate,max_heartrate,icu_hrss,icu_efficiency_factor,icu_aerobic_decoupling,pace,icu_rpe`,
-      {headers:{Authorization:auth}}
+      {headers:{'Authorization':auth,'Accept':'application/json'},mode:'cors'}
     );
     let activities=[];
     if(aResp.ok) activities=await aResp.json();
@@ -1819,9 +1851,28 @@ async function callAI(prompt,panelId,txtId,timeId) {
   txtEl.innerHTML='<div style="display:flex;align-items:center;gap:10px;"><div class="spin"></div><span>ATLAS analizando...</span></div>';
   setTimeout(()=>panel.scrollIntoView({behavior:'smooth',block:'start'}),150);
   try {
+    // Anthropic API — requires API key. In Claude.ai artifacts this works natively.
+    // On GitHub Pages you need to add your API key below.
+    const ANTHROPIC_KEY = localStorage.getItem('atlas_anthropic_key') || '';
+    if(!ANTHROPIC_KEY){
+      txtEl.className='ai-text';
+      txtEl.innerHTML = `<div style="padding:16px;background:rgba(234,179,8,0.08);border-radius:8px;border:1px solid rgba(234,179,8,0.2);">
+        <div style="font-family:'Geist Mono',monospace;font-size:11px;color:var(--y);letter-spacing:1px;margin-bottom:10px;">🔑 API KEY REQUERIDA</div>
+        <div style="font-size:13px;color:var(--fg2);line-height:1.6;margin-bottom:12px;">Para usar la IA en esta versión desplegada necesitas tu propia API Key de Anthropic.</div>
+        <div style="font-size:12px;color:var(--fg3);margin-bottom:12px;">1. Ve a <b style="color:var(--c);">console.anthropic.com</b> → API Keys → Create Key<br>2. Copia la key y pégala aquí:</div>
+        <input id="apiKeyInput" placeholder="sk-ant-api03-..." style="width:100%;background:var(--bg3);border:1px solid var(--line2);border-radius:6px;color:var(--fg);font-family:'Geist Mono',monospace;font-size:12px;padding:10px 12px;outline:none;margin-bottom:8px;">
+        <button onclick="saveAPIKey()" style="background:var(--c);color:#000;font-family:'Geist',sans-serif;font-size:12px;font-weight:500;padding:8px 16px;border:none;border-radius:6px;cursor:pointer;width:100%;">Guardar y usar IA</button>
+      </div>`;
+      return;
+    }
     const r=await fetch('https://api.anthropic.com/v1/messages',{
       method:'POST',
-      headers:{'Content-Type':'application/json'},
+      headers:{
+        'Content-Type':'application/json',
+        'x-api-key': ANTHROPIC_KEY,
+        'anthropic-version': '2023-06-01',
+        'anthropic-dangerous-direct-browser-access': 'true'
+      },
       body:JSON.stringify({model:'claude-sonnet-4-20250514',max_tokens:1000,system:SYS,messages:[{role:'user',content:prompt}]})
     });
     if(!r.ok){const e=await r.json().catch(()=>({}));throw new Error(e.error?.message||'Error '+r.status);}
@@ -1964,6 +2015,33 @@ Analiza: 1) ¿El sRPE (${srpe}) es adecuado para esta sesión en semana ${week||
 // ════════════════════════════════
 // INIT
 // ════════════════════════════════
+function saveAPIKeyFromSettings() {
+  const key = document.getElementById('anthropicKeyInput')?.value?.trim();
+  if(!key||!key.startsWith('sk-ant')){toast('Key inválida','Debe empezar por sk-ant-...','⚠️');return;}
+  localStorage.setItem('atlas_anthropic_key', key);
+  const badge=document.getElementById('aiKeyBadge');
+  if(badge){badge.textContent='⬤ Activa';badge.style.color='var(--g)';}
+  const aiEl=document.getElementById('aiKeyStatus');
+  if(aiEl){aiEl.style.display='block';aiEl.style.color='var(--g)';}
+  toast('API Key guardada','La IA está activa en toda la app.','✅');
+}
+
+function clearAPIKey() {
+  localStorage.removeItem('atlas_anthropic_key');
+  const badge=document.getElementById('aiKeyBadge');
+  if(badge){badge.textContent='⬤ Sin key';badge.style.color='var(--fg4)';}
+  const aiEl=document.getElementById('aiKeyStatus');
+  if(aiEl){aiEl.style.display='none';}
+  toast('Key eliminada','La IA ha sido desactivada.','🔌');
+}
+
+function saveAPIKey() {
+  const key = document.getElementById('apiKeyInput')?.value?.trim();
+  if(!key||!key.startsWith('sk-ant')){toast('Key inválida','Debe empezar por sk-ant-...','⚠️');return;}
+  localStorage.setItem('atlas_anthropic_key', key);
+  toast('API Key guardada','La IA ya está activa. Pulsa de nuevo el botón de análisis.','✅');
+}
+
 function init() {
   if(S.int.aid)document.getElementById('intAid').value=S.int.aid;
   if(S.int.key)document.getElementById('intKey').value=S.int.key;
@@ -1974,6 +2052,14 @@ function init() {
   renderLog();
   renderMAV();
   if(S.int.aid&&S.int.key&&S.int.ok)fetchIntervals();
+  // Show AI key status
+  const hasKey=localStorage.getItem('atlas_anthropic_key');
+  const aiEl=document.getElementById('aiKeyStatus');
+  if(aiEl){aiEl.style.display=hasKey?'block':'none';aiEl.style.color=hasKey?'var(--g)':'var(--fg4)';}
+  const badge=document.getElementById('aiKeyBadge');
+  if(badge&&hasKey){badge.textContent='⬤ Activa';badge.style.color='var(--g)';}
+  const keyInput=document.getElementById('anthropicKeyInput');
+  if(keyInput&&hasKey)keyInput.value='••••••••••••••••';
 }
 
 init();
