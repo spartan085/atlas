@@ -1,0 +1,1982 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="ATLAS">
+<meta name="theme-color" content="#08090c">
+<title>ATLAS v3 — Hybrid Fatigue Engine</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=Geist+Mono:wght@300;400;500;600&family=Geist:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+<style>
+:root {
+  --bg:#08090c; --bg1:#0e0f14; --bg2:#13141a; --bg3:#1a1b23; --bg4:#22232e;
+  --line:rgba(255,255,255,0.055); --line2:rgba(255,255,255,0.09);
+  --fg:#f2f3f7; --fg2:#9899a8; --fg3:#4e4f62; --fg4:#33344a;
+  --g:#22c55e; --y:#eab308; --r:#ef4444; --b:#3b82f6; --c:#06b6d4; --o:#f97316; --p:#a855f7;
+  --g-a:rgba(34,197,94,0.1); --y-a:rgba(234,179,8,0.1); --r-a:rgba(239,68,68,0.1);
+  --b-a:rgba(59,130,246,0.1); --c-a:rgba(6,182,212,0.1); --o-a:rgba(249,115,22,0.1); --p-a:rgba(168,85,247,0.1);
+  --radius:12px; --sb:env(safe-area-inset-bottom,0px); --st:env(safe-area-inset-top,0px);
+}
+*,*::before,*::after{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent;}
+html{height:100%;overscroll-behavior:none;}
+body{background:var(--bg);color:var(--fg);font-family:'Geist',system-ui,sans-serif;font-size:14px;line-height:1.5;min-height:100%;-webkit-font-smoothing:antialiased;overflow-x:hidden;}
+
+/* GRAIN */
+body::after{content:'';position:fixed;inset:0;z-index:9999;pointer-events:none;
+background-image:url("data:image/svg+xml,%3Csvg viewBox='0 0 512 512' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.75' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.04'/%3E%3C/svg%3E");opacity:.45;}
+
+/* LAYOUT */
+.app{display:flex;flex-direction:column;min-height:100svh;padding-top:var(--st);}
+.main{flex:1;padding-bottom:calc(72px + var(--sb));overflow-y:auto;}
+.screen{display:none;animation:si .28s ease;}
+.screen.active{display:block;}
+@keyframes si{from{opacity:0;transform:translateY(5px);}to{opacity:1;transform:translateY(0);}}
+
+/* HEADER */
+.hdr{position:sticky;top:0;z-index:100;height:52px;padding:0 18px;
+display:flex;align-items:center;justify-content:space-between;
+background:rgba(8,9,12,0.88);backdrop-filter:blur(22px);-webkit-backdrop-filter:blur(22px);
+border-bottom:1px solid var(--line);}
+.hdr-logo{display:flex;align-items:center;gap:9px;}
+.hdr-hex{width:26px;height:26px;}
+.hdr-hex svg{width:100%;height:100%;}
+.wordmark{font-family:'Instrument Serif',serif;font-size:19px;letter-spacing:-.3px;}
+.wordmark em{font-style:italic;color:var(--c);}
+.hdr-right{display:flex;align-items:center;gap:10px;}
+.sync-btn{display:flex;align-items:center;gap:6px;padding:5px 11px;
+background:var(--bg2);border:1px solid var(--line2);border-radius:6px;
+font-family:'Geist Mono',monospace;font-size:10px;letter-spacing:.5px;color:var(--fg2);
+cursor:pointer;transition:all .2s;}
+.sync-btn:hover{border-color:var(--c);color:var(--c);}
+.sync-btn.active{border-color:var(--c);color:var(--c);}
+.sdot{width:5px;height:5px;border-radius:50%;background:var(--g);animation:pd 2s ease-in-out infinite;}
+@keyframes pd{0%,100%{opacity:1;}50%{opacity:.25;}}
+
+/* BOTTOM NAV */
+.nav{position:fixed;bottom:0;left:0;right:0;z-index:100;
+display:flex;justify-content:space-around;
+padding:6px 0 calc(6px + var(--sb));
+background:rgba(8,9,12,0.94);backdrop-filter:blur(22px);-webkit-backdrop-filter:blur(22px);
+border-top:1px solid var(--line);}
+.ni{display:flex;flex-direction:column;align-items:center;gap:3px;
+padding:5px 14px;background:none;border:none;cursor:pointer;color:var(--fg3);
+transition:color .2s;min-width:52px;}
+.ni.active{color:var(--c);}
+.ni svg{width:21px;height:21px;stroke-width:1.5;}
+.nl{font-family:'Geist Mono',monospace;font-size:9px;letter-spacing:.5px;text-transform:uppercase;}
+
+/* PAD */
+.pad{padding:16px 18px;}
+.pad-t{padding:12px 18px 0;}
+
+/* TYPOGRAPHY */
+.over{font-family:'Geist Mono',monospace;font-size:9px;letter-spacing:2.5px;text-transform:uppercase;color:var(--fg3);margin-bottom:5px;}
+.t-xl{font-family:'Instrument Serif',serif;font-size:26px;line-height:1.15;letter-spacing:-.4px;}
+.t-xl em{font-style:italic;color:var(--c);}
+.t-md{font-family:'Geist',sans-serif;font-size:15px;font-weight:600;line-height:1.3;}
+.t-sm{font-size:13px;color:var(--fg2);line-height:1.6;}
+.mono{font-family:'Geist Mono',monospace;}
+
+/* CARDS */
+.card{background:var(--bg2);border:1px solid var(--line);border-radius:var(--radius);overflow:hidden;margin-bottom:10px;}
+.card-hdr{padding:12px 15px;border-bottom:1px solid var(--line);display:flex;align-items:center;justify-content:space-between;gap:10px;}
+.card-body{padding:14px 15px;}
+
+/* STAT GRID */
+.sg{display:grid;grid-template-columns:1fr 1fr;gap:9px;margin-bottom:10px;}
+.sg3{grid-template-columns:1fr 1fr 1fr;}
+.st{background:var(--bg2);border:1px solid var(--line);border-radius:var(--radius);padding:13px;position:relative;overflow:hidden;}
+.st::before{content:'';position:absolute;top:0;left:0;right:0;height:2px;}
+.st.c::before{background:var(--c);} .st.g::before{background:var(--g);}
+.st.y::before{background:var(--y);} .st.r::before{background:var(--r);}
+.st.b::before{background:var(--b);} .st.o::before{background:var(--o);}
+.st.p::before{background:var(--p);}
+.st-src{font-family:'Geist Mono',monospace;font-size:9px;letter-spacing:1.5px;text-transform:uppercase;color:var(--fg3);margin-bottom:5px;}
+.st-val{font-family:'Instrument Serif',serif;font-size:34px;line-height:1;color:var(--fg);margin-bottom:2px;}
+.st-val.dim{color:var(--fg4);font-size:22px;}
+.st-unit{font-family:'Geist Mono',monospace;font-size:9px;color:var(--fg3);letter-spacing:.5px;}
+.st-label{font-size:11px;color:var(--fg2);margin-top:3px;}
+.st-delta{font-family:'Geist Mono',monospace;font-size:10px;margin-top:3px;}
+.up{color:var(--g);} .dn{color:var(--r);} .nt{color:var(--fg3);}
+
+/* FATIGUE ENGINE */
+.fe-hero{margin:16px 18px 10px;background:var(--bg2);border:1px solid var(--line);border-radius:16px;padding:20px;position:relative;overflow:hidden;}
+.fe-hero::before{content:'';position:absolute;inset:0;opacity:.035;transition:opacity .5s;}
+.fe-hero.ok::before{background:var(--g);}
+.fe-hero.warn::before{background:var(--y);}
+.fe-hero.bad::before{background:var(--r);}
+.fe-hero.idle::before{background:transparent;}
+.fe-grid{display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px;margin-bottom:14px;}
+.fe-tile{text-align:center;padding:12px 8px;background:var(--bg3);border-radius:10px;border:1px solid var(--line);}
+.fe-tile-val{font-family:'Instrument Serif',serif;font-size:28px;line-height:1;margin-bottom:3px;}
+.fe-tile-label{font-family:'Geist Mono',monospace;font-size:9px;letter-spacing:1px;text-transform:uppercase;color:var(--fg3);}
+.fe-tile-sub{font-size:11px;color:var(--fg2);margin-top:2px;}
+.fe-verdict{display:flex;align-items:flex-start;gap:14px;padding-top:14px;border-top:1px solid var(--line);}
+.fe-orb{width:48px;height:48px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:22px;flex-shrink:0;}
+.fe-hero.ok .fe-orb{background:var(--g-a);border:1.5px solid var(--g);}
+.fe-hero.warn .fe-orb{background:var(--y-a);border:1.5px solid var(--y);}
+.fe-hero.bad .fe-orb{background:var(--r-a);border:1.5px solid var(--r);}
+.fe-hero.idle .fe-orb{background:var(--bg3);border:1.5px solid var(--fg4);}
+.fe-txt{}
+.fe-status{font-family:'Geist Mono',monospace;font-size:9px;letter-spacing:2px;text-transform:uppercase;color:var(--fg3);margin-bottom:3px;}
+.fe-title{font-family:'Instrument Serif',serif;font-size:20px;margin-bottom:4px;}
+.fe-msg{font-size:12px;color:var(--fg2);line-height:1.55;}
+
+/* MEV MAV BARS */
+.mav-row{margin-bottom:12px;}
+.mav-row:last-child{margin-bottom:0;}
+.mav-header{display:flex;align-items:baseline;justify-content:space-between;margin-bottom:5px;}
+.mav-muscle{font-size:13px;font-weight:500;}
+.mav-nums{font-family:'Geist Mono',monospace;font-size:10px;color:var(--fg3);}
+.mav-track{height:8px;background:var(--bg4);border-radius:4px;position:relative;overflow:visible;}
+.mav-mev{position:absolute;top:0;bottom:0;left:0;background:var(--b-a);border-right:1.5px dashed var(--b);z-index:1;border-radius:4px 0 0 4px;}
+.mav-fill{position:absolute;top:0;bottom:0;left:0;border-radius:4px;z-index:2;transition:width 1.2s cubic-bezier(.16,1,.3,1);}
+.mav-mrv{position:absolute;top:-3px;bottom:-3px;width:2px;background:var(--r);z-index:3;border-radius:1px;}
+.mav-zone{font-size:11px;margin-top:4px;}
+
+/* PROG BARS */
+.pb{margin-bottom:10px;}
+.pb:last-child{margin-bottom:0;}
+.pb-row{display:flex;justify-content:space-between;align-items:baseline;margin-bottom:4px;}
+.pb-label{font-size:12px;color:var(--fg2);}
+.pb-val{font-family:'Geist Mono',monospace;font-size:10px;color:var(--fg3);}
+.pb-track{height:4px;background:var(--bg4);border-radius:2px;overflow:hidden;}
+.pb-fill{height:100%;border-radius:2px;background:var(--c);transition:width 1.1s cubic-bezier(.16,1,.3,1);}
+.pb-fill.g{background:var(--g);} .pb-fill.y{background:var(--y);} .pb-fill.r{background:var(--r);} .pb-fill.o{background:var(--o);}
+
+/* HRV CHART */
+.hrv-chart{display:flex;align-items:flex-end;gap:3px;height:44px;margin-top:8px;}
+.hrv-bar{flex:1;border-radius:2px 2px 0 0;border-top:1.5px solid;min-height:4px;transition:height .8s cubic-bezier(.16,1,.3,1);}
+.hrv-bar.hi{background:var(--g-a);border-color:var(--g);}
+.hrv-bar.mid{background:var(--c-a);border-color:var(--c);}
+.hrv-bar.lo{background:var(--r-a);border-color:var(--r);}
+.hrv-bar.today{background:rgba(6,182,212,.2);border-color:var(--c);}
+
+/* SRPE RING */
+.srpe-wrap{width:90px;height:90px;position:relative;margin:0 auto 10px;}
+.srpe-wrap svg{width:100%;height:100%;transform:rotate(-90deg);}
+.srpe-track{fill:none;stroke:var(--bg4);stroke-width:7;}
+.srpe-fill{fill:none;stroke-width:7;stroke-linecap:round;transition:stroke-dashoffset 1.1s cubic-bezier(.16,1,.3,1);}
+.srpe-center{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;}
+.srpe-num{font-family:'Instrument Serif',serif;font-size:24px;line-height:1;}
+.srpe-lbl{font-family:'Geist Mono',monospace;font-size:8px;color:var(--fg3);margin-top:1px;letter-spacing:.5px;}
+
+/* FATIGUE BREAKDOWN */
+.fat-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:12px;}
+.fat-tile{background:var(--bg3);border:1px solid var(--line);border-radius:10px;padding:12px;text-align:center;}
+.fat-val{font-family:'Instrument Serif',serif;font-size:26px;line-height:1;margin-bottom:2px;}
+.fat-label{font-family:'Geist Mono',monospace;font-size:8px;letter-spacing:1.5px;text-transform:uppercase;color:var(--fg3);}
+.fat-bar{height:3px;background:var(--bg4);border-radius:2px;margin-top:8px;overflow:hidden;}
+.fat-bar-fill{height:100%;border-radius:2px;transition:width 1s ease;}
+
+/* MUSCLE FATIGUE */
+.mf-row{display:flex;align-items:center;gap:10px;padding:8px 0;border-bottom:1px solid var(--line);}
+.mf-row:last-child{border-bottom:none;}
+.mf-name{font-size:12px;width:100px;flex-shrink:0;}
+.mf-bar-wrap{flex:1;}
+.mf-bar-track{height:6px;background:var(--bg4);border-radius:3px;overflow:hidden;}
+.mf-bar-fill{height:100%;border-radius:3px;transition:width 1s ease;}
+.mf-status{font-family:'Geist Mono',monospace;font-size:10px;width:60px;text-align:right;flex-shrink:0;}
+
+/* WEEK GRID */
+.wg{display:grid;grid-template-columns:repeat(7,1fr);gap:5px;}
+.wd{aspect-ratio:1;background:var(--bg3);border:1px solid var(--line);border-radius:7px;
+display:flex;flex-direction:column;align-items:center;justify-content:center;cursor:pointer;transition:all .15s;padding:3px;}
+.wd:active{transform:scale(.92);}
+.wd.done{background:var(--g-a);border-color:var(--g);}
+.wd.rest{opacity:.4;cursor:default;}
+.wd-n{font-family:'Geist Mono',monospace;font-size:10px;font-weight:600;color:var(--fg3);}
+.wd.done .wd-n{color:var(--g);}
+.wd-l{font-size:8px;color:var(--fg3);text-align:center;margin-top:2px;line-height:1.1;}
+
+/* FIELDS */
+.field{width:100%;background:var(--bg3);border:1px solid var(--line2);border-radius:8px;
+color:var(--fg);font-family:'Geist Mono',monospace;font-size:13px;
+padding:10px 12px;outline:none;transition:border-color .2s;-webkit-appearance:none;}
+.field:focus{border-color:var(--c);}
+.field::placeholder{color:var(--fg4);font-size:12px;}
+select.field{background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%234e4f62' stroke-width='2'%3E%3Cpath d='M6 9l6 6 6-6'/%3E%3C/svg%3E");background-repeat:no-repeat;background-position:right 11px center;padding-right:30px;cursor:pointer;}
+select.field option{background:#1a1b23;}
+textarea.field{resize:none;font-size:12px;line-height:1.5;min-height:75px;}
+
+/* FIELD GROUP */
+.fg{margin-bottom:10px;}
+.fg-label{font-family:'Geist Mono',monospace;font-size:9px;letter-spacing:2px;text-transform:uppercase;color:var(--fg3);margin-bottom:5px;display:block;}
+.fg2{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:10px;}
+.fg3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;margin-bottom:10px;}
+
+/* BTNS */
+.btn{font-family:'Geist',sans-serif;font-size:13px;font-weight:500;padding:10px 16px;
+border:none;border-radius:8px;cursor:pointer;display:flex;align-items:center;gap:6px;transition:all .2s;white-space:nowrap;}
+.btn-p{background:var(--c);color:#000;}
+.btn-p:hover{background:#22d3ee;}
+.btn-p:active{transform:scale(.97);}
+.btn-p:disabled{background:var(--fg4);color:var(--bg2);cursor:not-allowed;}
+.btn-g{background:var(--bg3);border:1px solid var(--line2);color:var(--fg2);}
+.btn-g:hover{border-color:var(--c);color:var(--c);}
+.btn-r{background:var(--r-a);border:1px solid rgba(239,68,68,.2);color:var(--r);}
+.btn-full{width:100%;justify-content:center;}
+.btn-sm{padding:7px 12px;font-size:12px;}
+
+/* AI PANEL */
+.ai-panel{margin:0 18px 10px;background:var(--bg2);border:1px solid var(--line);border-left:2.5px solid var(--c);border-radius:var(--radius);overflow:hidden;}
+.ai-panel-hdr{padding:11px 14px;border-bottom:1px solid var(--line);display:flex;align-items:center;gap:9px;}
+.ai-av{width:24px;height:24px;background:var(--c-a);border:1px solid rgba(6,182,212,.2);border-radius:6px;display:flex;align-items:center;justify-content:center;font-size:11px;flex-shrink:0;}
+.ai-body{padding:14px;}
+.ai-text{font-family:'Instrument Serif',serif;font-size:15px;line-height:1.85;color:var(--fg);white-space:pre-wrap;}
+.ai-text.loading{font-family:'Geist Mono',monospace;font-size:12px;color:var(--fg3);}
+.tc{display:inline-block;width:7px;height:15px;background:var(--c);margin-left:2px;animation:blink .9s step-end infinite;vertical-align:text-bottom;border-radius:1px;}
+@keyframes blink{0%,100%{opacity:1;}50%{opacity:0;}}
+
+/* UPLOAD */
+.upload{border:1.5px dashed var(--line2);border-radius:9px;padding:18px;text-align:center;cursor:pointer;transition:all .2s;position:relative;}
+.upload:hover,.upload.drag{border-color:var(--c);background:var(--c-a);}
+.upload input{position:absolute;inset:0;opacity:0;cursor:pointer;width:100%;height:100%;}
+.upload-icon{font-size:26px;margin-bottom:7px;}
+.upload-label{font-size:13px;color:var(--fg2);}
+.upload-hint{font-size:11px;color:var(--fg3);margin-top:2px;}
+
+/* LOG LIST */
+.log-row{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:10px 0;border-bottom:1px solid var(--line);}
+.log-row:last-child{border-bottom:none;}
+.log-left{flex:1;min-width:0;}
+.log-name{font-size:13px;font-weight:500;margin-bottom:1px;}
+.log-meta{font-family:'Geist Mono',monospace;font-size:10px;color:var(--fg3);}
+.log-chips{display:flex;flex-direction:column;align-items:flex-end;gap:3px;}
+.chip{font-family:'Geist Mono',monospace;font-size:10px;padding:2px 7px;border-radius:4px;}
+.chip-c{background:var(--c-a);color:var(--c);}
+.chip-g{background:var(--g-a);color:var(--g);}
+.chip-y{background:var(--y-a);color:var(--y);}
+.chip-r{background:var(--r-a);color:var(--r);}
+.chip-b{background:var(--b-a);color:var(--b);}
+.chip-p{background:var(--p-a);color:var(--p);}
+
+/* ACCORDION */
+.acc-item{border-bottom:1px solid var(--line);}
+.acc-item:last-child{border-bottom:none;}
+.acc-hdr{padding:13px 0;display:flex;align-items:center;justify-content:space-between;cursor:pointer;}
+.acc-icon{color:var(--fg3);transition:transform .2s;flex-shrink:0;}
+.acc-item.open .acc-icon{transform:rotate(180deg);}
+.acc-body{display:none;padding-bottom:12px;}
+.acc-item.open .acc-body{display:block;}
+.ex-row{padding:8px 0;border-bottom:1px solid var(--line);}
+.ex-row:last-child{border-bottom:none;}
+.ex-name{font-size:12px;font-weight:500;margin-bottom:3px;}
+.ex-chips{display:flex;gap:5px;flex-wrap:wrap;}
+.ex-chip{font-family:'Geist Mono',monospace;font-size:9px;padding:2px 6px;background:var(--bg3);border-radius:3px;color:var(--fg2);}
+
+/* STATUS INDICATOR */
+.status-dot{display:inline-flex;align-items:center;gap:5px;font-family:'Geist Mono',monospace;font-size:10px;letter-spacing:.5px;}
+.sdot-sm{width:6px;height:6px;border-radius:50%;flex-shrink:0;}
+.sdot-g{background:var(--g);} .sdot-y{animation:pd 1.5s ease-in-out infinite;background:var(--y);}
+.sdot-r{background:var(--r);} .sdot-k{background:var(--fg4);}
+
+/* TOAST */
+.toast{position:fixed;top:calc(58px + var(--st));right:14px;left:14px;
+background:var(--bg3);border:1px solid var(--line2);border-radius:10px;
+padding:11px 14px;display:flex;align-items:center;gap:9px;z-index:9000;
+transform:translateY(-8px);opacity:0;transition:all .3s cubic-bezier(.34,1.56,.64,1);pointer-events:none;}
+.toast.show{transform:translateY(0);opacity:1;}
+.toast-icon{font-size:17px;flex-shrink:0;}
+.toast-title{font-size:13px;font-weight:500;}
+.toast-msg{font-size:11px;color:var(--fg2);}
+
+/* SPINNER */
+.spin{width:17px;height:17px;border:2px solid var(--bg4);border-top-color:var(--c);border-radius:50%;animation:sp .7s linear infinite;flex-shrink:0;}
+@keyframes sp{to{transform:rotate(360deg);}}
+
+/* DIVIDER */
+.div{height:1px;background:var(--line);margin:12px 0;}
+
+/* EMPTY */
+.empty{text-align:center;padding:28px 20px;color:var(--fg3);}
+.empty-icon{font-size:32px;margin-bottom:8px;}
+.empty-title{font-size:14px;color:var(--fg2);margin-bottom:3px;}
+.empty-msg{font-size:12px;}
+
+/* INFO BOX */
+.info{padding:11px 13px;border-left:2px solid;margin:10px 0;font-size:12px;color:var(--fg2);line-height:1.55;border-radius:0 6px 6px 0;}
+.info.c{border-color:var(--c);background:var(--c-a);}
+.info.y{border-color:var(--y);background:var(--y-a);}
+.info.r{border-color:var(--r);background:var(--r-a);}
+.info.g{border-color:var(--g);background:var(--g-a);}
+
+@media(min-width:600px){.main{max-width:680px;margin:0 auto;}}
+</style>
+</head>
+<body>
+<div class="app">
+
+<!-- HEADER -->
+<header class="hdr">
+  <div class="hdr-logo">
+    <div class="hdr-hex">
+      <svg viewBox="0 0 28 28" fill="none">
+        <path d="M14 2L25 8.5V19.5L14 26L3 19.5V8.5Z" stroke="#06b6d4" stroke-width="1.4" fill="rgba(6,182,212,0.07)"/>
+        <circle cx="14" cy="14" r="2.5" fill="#06b6d4"/>
+        <line x1="14" y1="4.5" x2="14" y2="11.5" stroke="#06b6d4" stroke-width="1" opacity=".4"/>
+        <line x1="14" y1="16.5" x2="14" y2="23.5" stroke="#06b6d4" stroke-width="1" opacity=".4"/>
+      </svg>
+    </div>
+    <div class="wordmark">ATL<em>A</em>S <span style="font-family:'Geist Mono',monospace;font-size:10px;color:var(--fg3);letter-spacing:1px;">v3</span></div>
+  </div>
+  <div class="hdr-right">
+    <button class="sync-btn" onclick="syncAll()" id="syncBtn">
+      <div class="sdot" id="syncDot"></div>
+      <span id="syncLabel">Sync</span>
+    </button>
+  </div>
+</header>
+
+<!-- MAIN -->
+<main class="main">
+
+<!-- ══ HOY ══ -->
+<div class="screen active" id="s-hoy">
+
+  <!-- Fatigue Engine Hero -->
+  <div class="fe-hero idle" id="feHero">
+    <div class="fe-grid">
+      <div class="fe-tile">
+        <div class="fe-tile-val" id="fe-cardio" style="color:var(--b);">—</div>
+        <div class="fe-tile-label">Fatiga Cardio</div>
+        <div class="fe-tile-sub" id="fe-cardio-sub">HRV + TSB</div>
+      </div>
+      <div class="fe-tile">
+        <div class="fe-tile-val" id="fe-neuro" style="color:var(--o);">—</div>
+        <div class="fe-tile-label">Fatiga Neuro</div>
+        <div class="fe-tile-sub" id="fe-neuro-sub">sRPE + DOMS</div>
+      </div>
+      <div class="fe-tile">
+        <div class="fe-tile-val" id="fe-sys" style="color:var(--p);">—</div>
+        <div class="fe-tile-label">Sistémica</div>
+        <div class="fe-tile-sub" id="fe-sys-sub">Índice global</div>
+      </div>
+    </div>
+    <div class="fe-verdict">
+      <div class="fe-orb" id="feOrb">⬡</div>
+      <div class="fe-txt">
+        <div class="fe-status" id="feStatus">MOTOR DE FATIGA HÍBRIDO</div>
+        <div class="fe-title" id="feTitle">Sin datos</div>
+        <div class="fe-msg" id="feMsg">Conecta Intervals.icu en "Datos" o introduce métricas manualmente.</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Metrics -->
+  <div class="pad" style="padding-top:0;">
+    <!-- Row 1: biometrics -->
+    <div class="sg">
+      <div class="st c">
+        <div class="st-src">Intervals · HRV</div>
+        <div class="st-val dim" id="m-hrv">—</div>
+        <div class="st-unit">ms · variabilidad</div>
+        <div class="st-delta" id="m-hrv-d">—</div>
+        <div style="font-size:10px;color:var(--fg3);margin-top:3px;" id="m-hrv-trend">—</div>
+      </div>
+      <div class="st b">
+        <div class="st-src">Garmin → Intervals</div>
+        <div class="st-val dim" id="m-sleep">—</div>
+        <div class="st-unit">h · sueño</div>
+        <div class="st-label" id="m-sleep-score">—</div>
+      </div>
+      <div class="st p">
+        <div class="st-src">Garmin → Intervals</div>
+        <div class="st-val dim" id="m-rhr">—</div>
+        <div class="st-unit">ppm · FC reposo</div>
+        <div class="st-label">Al despertar</div>
+      </div>
+      <div class="st g">
+        <div class="st-src">Garmin → Intervals</div>
+        <div class="st-val dim" id="m-bb">—</div>
+        <div class="st-unit">Body Battery</div>
+        <div class="st-label">Al despertar</div>
+      </div>
+      <div class="st o">
+        <div class="st-src">Garmin → Intervals</div>
+        <div class="st-val dim" id="m-steps">—</div>
+        <div class="st-unit">pasos</div>
+        <div class="st-label">Hoy</div>
+      </div>
+      <div class="st c">
+        <div class="st-src">Báscula → Intervals</div>
+        <div class="st-val dim" id="m-weight">—</div>
+        <div class="st-unit">kg · peso</div>
+        <div class="st-label">Última medición</div>
+      </div>
+    </div>
+
+    <!-- Row 2: training load -->
+    <div class="sg">
+      <div class="st o">
+        <div class="st-src">Intervals · CTL</div>
+        <div class="st-val dim" id="m-ctl">—</div>
+        <div class="st-unit">Fitness (42d)</div>
+        <div class="st-label">Carga crónica</div>
+      </div>
+      <div class="st r">
+        <div class="st-src">Intervals · ATL</div>
+        <div class="st-val dim" id="m-atl">—</div>
+        <div class="st-unit">Fatiga (7d)</div>
+        <div class="st-label">Carga aguda</div>
+      </div>
+      <div class="st g">
+        <div class="st-src">Intervals · TSB</div>
+        <div class="st-val dim" id="m-tsb">—</div>
+        <div class="st-unit">Forma (TSB)</div>
+        <div class="st-delta" id="m-tsb-d">—</div>
+      </div>
+      <div class="st b">
+        <div class="st-src">Intervals · Semana</div>
+        <div class="st-val dim" id="m-load">—</div>
+        <div class="st-unit">Carga semanal</div>
+        <div class="st-label">Training load 7d</div>
+      </div>
+      <div class="st p">
+        <div class="st-src">Intervals · CTL</div>
+        <div class="st-val dim" id="m-ramp">—</div>
+        <div class="st-unit">pts/sem Ramp</div>
+        <div class="st-label">Progresión CTL</div>
+      </div>
+      <div class="st c">
+        <div class="st-src">Intervals · Running</div>
+        <div class="st-val dim" id="m-decoup">—</div>
+        <div class="st-unit">Decoupling</div>
+        <div class="st-label">Eficiencia aeróbica</div>
+      </div>
+    </div>
+
+    <!-- Zone distribution -->
+    <div class="card" style="margin-bottom:10px;">
+      <div class="card-hdr">
+        <span class="t-md">Distribución de zonas — 7 días</span>
+        <span class="mono" style="font-size:10px;color:var(--fg3);" id="m-week-acts">—</span>
+      </div>
+      <div class="card-body">
+        <div style="display:flex;gap:8px;align-items:flex-end;" id="zoneDist">
+          <div style="width:100%;text-align:center;color:var(--fg4);font-size:11px;padding:8px;">Conecta Intervals.icu para ver distribución de zonas</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Recent activities -->
+    <div class="card" style="margin-bottom:10px;">
+      <div class="card-hdr">
+        <span class="t-md">Actividades recientes</span>
+        <span class="mono" style="font-size:10px;color:var(--fg3);">14 días · Intervals</span>
+      </div>
+      <div class="card-body" id="activityList">
+        <div style="text-align:center;color:var(--fg4);font-size:11px;padding:8px;">Sin actividades aún</div>
+      </div>
+    </div>
+
+    <!-- HRV Chart -->
+    <div class="card">
+      <div class="card-hdr">
+        <span class="t-md">HRV — 14 días</span>
+        <span class="mono" style="font-size:10px;color:var(--fg3);" id="hrvAvg">—</span>
+      </div>
+      <div class="card-body">
+        <div class="hrv-chart" id="hrvChart"><div style="width:100%;text-align:center;color:var(--fg4);font-size:11px;padding:10px;">Conecta Intervals.icu</div></div>
+        <div style="display:flex;justify-content:space-between;margin-top:5px;">
+          <span style="font-size:10px;color:var(--fg4);" id="hrvFrom">—</span>
+          <span style="font-size:10px;color:var(--fg4);">Hoy</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- Session today -->
+    <div class="card">
+      <div class="card-hdr"><span class="t-md">Sesión de hoy</span></div>
+      <div class="card-body">
+        <div class="fg2" style="margin-bottom:10px;">
+          <div>
+            <label class="fg-label">Sesión planificada</label>
+            <select class="field" id="todaySess" style="padding:9px 28px 9px 10px;font-size:12px;">
+              <option value="">Sin sesión</option>
+              <option>D1 — Torso Empuje + Core</option>
+              <option>D2 — Pierna A · Cuád/Glúteo</option>
+              <option>D3 — Cardio Z2</option>
+              <option>D4 — Torso Tirón + Core</option>
+              <option>D5 — Pierna B · Isquio/Glúteo</option>
+              <option>D6 — Z2 + Movilidad</option>
+              <option>D7 — Descanso</option>
+            </select>
+          </div>
+          <div>
+            <label class="fg-label">Rodilla (0-10)</label>
+            <input class="field" type="number" id="kneeToday" placeholder="0=sin dolor" min="0" max="10" oninput="computeFatigue()">
+          </div>
+        </div>
+        <div class="fg" style="margin-bottom:12px;">
+          <label class="fg-label">Sensaciones + notas</label>
+          <textarea class="field" id="notesToday" placeholder="Piernas cargadas, espalda bien, motivado..."></textarea>
+        </div>
+        <button class="btn btn-p btn-full" onclick="analyzeTodayAI()">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M12 8v4l3 3"/></svg>
+          Analizar día con IA
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <div class="ai-panel" id="aiDayP" style="display:none;">
+    <div class="ai-panel-hdr">
+      <div class="ai-av">⬡</div>
+      <div style="flex:1;"><div style="font-size:12px;font-weight:500;">ATLAS · Análisis del día</div><div class="mono" style="font-size:10px;color:var(--fg3);" id="aiDayT"></div></div>
+    </div>
+    <div class="ai-body"><div class="ai-text" id="aiDayTxt"></div></div>
+  </div>
+</div>
+
+<!-- ══ FATIGA ══ -->
+<div class="screen" id="s-fatiga">
+  <div class="pad">
+    <div class="over">Motor híbrido</div>
+    <div class="t-xl">Desglose de <em>fatiga</em></div>
+    <p class="t-sm" style="margin-top:4px;margin-bottom:16px;">Fatiga cardiovascular, neuromuscular y sistémica calculadas de forma independiente y cruzadas.</p>
+
+    <!-- 4 fatigue indices -->
+    <div class="fat-grid">
+      <div class="fat-tile">
+        <div class="fat-val" id="fat-cv" style="color:var(--b);">—</div>
+        <div class="fat-label">Cardiovascular</div>
+        <div class="fat-bar"><div class="fat-bar-fill" id="fat-cv-b" style="width:0%;background:var(--b);"></div></div>
+        <div style="font-size:10px;color:var(--fg3);margin-top:5px;" id="fat-cv-src">HRV + TSB</div>
+      </div>
+      <div class="fat-tile">
+        <div class="fat-val" id="fat-nm" style="color:var(--o);">—</div>
+        <div class="fat-label">Neuromuscular</div>
+        <div class="fat-bar"><div class="fat-bar-fill" id="fat-nm-b" style="width:0%;background:var(--o);"></div></div>
+        <div style="font-size:10px;color:var(--fg3);margin-top:5px;" id="fat-nm-src">sRPE + DOMS</div>
+      </div>
+      <div class="fat-tile">
+        <div class="fat-val" id="fat-sy" style="color:var(--p);">—</div>
+        <div class="fat-label">Sistémica</div>
+        <div class="fat-bar"><div class="fat-bar-fill" id="fat-sy-b" style="width:0%;background:var(--p);"></div></div>
+        <div style="font-size:10px;color:var(--fg3);margin-top:5px;">CV + NM cruzado</div>
+      </div>
+      <div class="fat-tile">
+        <div class="fat-val" id="fat-nn" style="color:var(--c);">—</div>
+        <div class="fat-label">Neural Readiness</div>
+        <div class="fat-bar"><div class="fat-bar-fill" id="fat-nn-b" style="width:0%;background:var(--c);"></div></div>
+        <div style="font-size:10px;color:var(--fg3);margin-top:5px;">HRV Δ baseline</div>
+      </div>
+    </div>
+
+    <!-- Muscle fatigue by group -->
+    <div class="card">
+      <div class="card-hdr"><span class="t-md">Fatiga por grupo muscular</span><span class="mono" style="font-size:9px;color:var(--fg3);">sRPE acumulado 72h</span></div>
+      <div class="card-body" id="muscleFatigue">
+        <div class="empty"><div class="empty-icon">💪</div><div class="empty-title">Sin datos</div><div class="empty-msg">Registra sesiones en Log para ver la fatiga por grupo</div></div>
+      </div>
+    </div>
+
+    <!-- Fatigue AI -->
+    <button class="btn btn-p btn-full" style="margin-bottom:10px;" onclick="analyzeFatigueAI()">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 12h-4l-3 9L9 3l-3 9H2"/></svg>
+      Análisis de fatiga con IA
+    </button>
+  </div>
+
+  <div class="ai-panel" id="aiFatP" style="display:none;">
+    <div class="ai-panel-hdr">
+      <div class="ai-av">⬡</div>
+      <div style="flex:1;"><div style="font-size:12px;font-weight:500;">ATLAS · Motor de fatiga</div><div class="mono" style="font-size:10px;color:var(--fg3);" id="aiFatT"></div></div>
+    </div>
+    <div class="ai-body"><div class="ai-text" id="aiFatTxt"></div></div>
+  </div>
+</div>
+
+<!-- ══ MEV/MAV ══ -->
+<div class="screen" id="s-mav">
+  <div class="pad">
+    <div class="over">Volumen óptimo</div>
+    <div class="t-xl">MEV · MAV · <em>MRV</em></div>
+    <p class="t-sm" style="margin-top:4px;margin-bottom:16px;">Volumen real calculado de tu historial de Hevy vs tus rangos óptimos. La IA recomienda si subir, mantener o bajar series esta semana.</p>
+
+    <!-- MAV bars -->
+    <div class="card">
+      <div class="card-hdr">
+        <span class="t-md">Volumen esta semana</span>
+        <div style="display:flex;gap:8px;font-size:10px;color:var(--fg3);">
+          <span style="display:flex;align-items:center;gap:3px;"><span style="width:8px;height:2px;background:var(--b);display:inline-block;"></span>MEV</span>
+          <span style="display:flex;align-items:center;gap:3px;"><span style="width:8px;height:2px;background:var(--r);display:inline-block;"></span>MRV</span>
+        </div>
+      </div>
+      <div class="card-body" id="mavBars">
+        <div class="empty"><div class="empty-icon">📊</div><div class="empty-title">Sin datos de Hevy</div><div class="empty-msg">Sube tu CSV de Hevy en "Datos" para ver el volumen real</div></div>
+      </div>
+    </div>
+
+    <!-- Week session tracker -->
+    <div class="card">
+      <div class="card-hdr"><span class="t-md">Sesiones esta semana</span><span class="mono" style="font-size:11px;" id="wkScore">0/6</span></div>
+      <div class="card-body">
+        <div class="wg" id="wkGrid">
+          <div class="wd" onclick="tw(this,'D1')"><div class="wd-n">D1</div><div class="wd-l">Empuje</div></div>
+          <div class="wd" onclick="tw(this,'D2')"><div class="wd-n">D2</div><div class="wd-l">Pierna A</div></div>
+          <div class="wd" onclick="tw(this,'D3')"><div class="wd-n">D3</div><div class="wd-l">Z2</div></div>
+          <div class="wd" onclick="tw(this,'D4')"><div class="wd-n">D4</div><div class="wd-l">Tirón</div></div>
+          <div class="wd" onclick="tw(this,'D5')"><div class="wd-n">D5</div><div class="wd-l">Pierna B</div></div>
+          <div class="wd" onclick="tw(this,'D6')"><div class="wd-n">D6</div><div class="wd-l">Z2+Mov</div></div>
+          <div class="wd rest"><div class="wd-n">D7</div><div class="wd-l">Desc.</div></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- MAV AI -->
+    <div class="fg2" style="margin-bottom:12px;">
+      <div>
+        <label class="fg-label">HRV medio semana</label>
+        <input class="field" type="number" id="wkHRV" placeholder="ej. 55" oninput="updateWkBars()">
+      </div>
+      <div>
+        <label class="fg-label">Sueño medio (h)</label>
+        <input class="field" type="number" id="wkSleep" placeholder="ej. 7.2" step=".1" oninput="updateWkBars()">
+      </div>
+      <div>
+        <label class="fg-label">Peso medio (kg)</label>
+        <input class="field" type="number" id="wkWeight" placeholder="ej. 77.6" step=".1">
+      </div>
+      <div>
+        <label class="fg-label">Proteína media/día</label>
+        <input class="field" type="number" id="wkProt" placeholder="ej. 172g" oninput="updateWkBars()">
+      </div>
+    </div>
+
+    <div class="card" style="margin-bottom:12px;">
+      <div class="card-hdr"><span class="t-md">Compliance nutricional</span></div>
+      <div class="card-body">
+        <div class="pb"><div class="pb-row"><div class="pb-label">Proteína</div><div class="pb-val" id="wkProtL">—</div></div><div class="pb-track"><div class="pb-fill o" id="wkProtB" style="width:0%"></div></div></div>
+        <div class="pb"><div class="pb-row"><div class="pb-label">Sueño</div><div class="pb-val" id="wkSleepL">—</div></div><div class="pb-track"><div class="pb-fill g" id="wkSleepB" style="width:0%"></div></div></div>
+        <div class="pb"><div class="pb-row"><div class="pb-label">Sesiones</div><div class="pb-val" id="wkSessL">0/6</div></div><div class="pb-track"><div class="pb-fill" id="wkSessB" style="width:0%"></div></div></div>
+      </div>
+    </div>
+
+    <div class="fg" style="margin-bottom:12px;">
+      <label class="fg-label">Observaciones clave</label>
+      <textarea class="field" id="wkNotes" placeholder="¿Algún ejercicio estancado? ¿DOMS excesivo? ¿Cómo estuvo la rodilla?..."></textarea>
+    </div>
+
+    <button class="btn btn-p btn-full" onclick="analyzeMAVAI()">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
+      Recomendación MEV/MAV con IA
+    </button>
+  </div>
+
+  <div class="ai-panel" id="aiMavP" style="display:none;">
+    <div class="ai-panel-hdr">
+      <div class="ai-av">⬡</div>
+      <div style="flex:1;"><div style="font-size:12px;font-weight:500;">ATLAS · Volumen óptimo</div><div class="mono" style="font-size:10px;color:var(--fg3);" id="aiMavT"></div></div>
+    </div>
+    <div class="ai-body"><div class="ai-text" id="aiMavTxt"></div></div>
+  </div>
+</div>
+
+<!-- ══ LOG ══ -->
+<div class="screen" id="s-log">
+  <div class="pad">
+    <div class="over">Post-entreno</div>
+    <div class="t-xl">Log de <em>sesión</em></div>
+
+    <div class="card" style="margin-top:14px;">
+      <div class="card-hdr"><span class="t-md">sRPE en tiempo real</span><span class="chip chip-c" id="srpeZone">—</span></div>
+      <div class="card-body">
+        <div class="srpe-wrap">
+          <svg viewBox="0 0 100 100">
+            <circle class="srpe-track" cx="50" cy="50" r="40"/>
+            <circle class="srpe-fill" id="srpeRing" cx="50" cy="50" r="40" stroke="#06b6d4" stroke-dasharray="251.2" stroke-dashoffset="251.2"/>
+          </svg>
+          <div class="srpe-center"><div class="srpe-num" id="srpeNum">—</div><div class="srpe-lbl">sRPE</div></div>
+        </div>
+
+        <div class="fg2">
+          <div><label class="fg-label">Sesión</label>
+            <select class="field" id="logSess" style="padding:9px 28px 9px 10px;font-size:12px;">
+              <option value="">Seleccionar...</option>
+              <option>D1 — Torso Empuje + Core</option>
+              <option>D2 — Pierna A · Cuád/Glúteo</option>
+              <option>D3 — Cardio Z2</option>
+              <option>D4 — Torso Tirón + Core</option>
+              <option>D5 — Pierna B · Isquio/Glúteo</option>
+              <option>D6 — Z2 + Movilidad</option>
+            </select>
+          </div>
+          <div><label class="fg-label">Semana plan</label>
+            <input class="field" type="number" id="logWeek" placeholder="ej. 2" min="1" max="12">
+          </div>
+          <div><label class="fg-label">RPE (1-10)</label>
+            <input class="field" type="number" id="logRPE" placeholder="7" min="1" max="10" oninput="calcSRPE()">
+          </div>
+          <div><label class="fg-label">Duración (min)</label>
+            <input class="field" type="number" id="logDur" placeholder="65" oninput="calcSRPE()">
+          </div>
+          <div><label class="fg-label">RIR percibido</label>
+            <input class="field" type="number" id="logRIR" placeholder="2" min="0" max="5">
+          </div>
+          <div><label class="fg-label">Rodilla (0-10)</label>
+            <input class="field" type="number" id="logKnee" placeholder="0" min="0" max="10">
+          </div>
+        </div>
+
+        <div class="fg" style="margin-bottom:12px;">
+          <label class="fg-label">Notas de sesión</label>
+          <textarea class="field" id="logNotes" placeholder="¿Qué mejoró? ¿Alguna molestia? ¿Subiste peso?..."></textarea>
+        </div>
+
+        <button class="btn btn-p btn-full" onclick="analyzeSessionAI()">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 20h9M16.5 3.5a2.121 2.121 0 013 3L7 19l-4 1 1-4L16.5 3.5z"/></svg>
+          Analizar sesión con IA
+        </button>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-hdr"><span class="t-md">Historial</span><span class="mono" style="font-size:10px;color:var(--fg3);" id="logCount">0 sesiones</span></div>
+      <div class="card-body" id="logList">
+        <div class="empty"><div class="empty-icon">📋</div><div class="empty-title">Sin sesiones</div><div class="empty-msg">Registra tu primera sesión</div></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="ai-panel" id="aiSessP" style="display:none;">
+    <div class="ai-panel-hdr">
+      <div class="ai-av">⬡</div>
+      <div style="flex:1;"><div style="font-size:12px;font-weight:500;">ATLAS · Análisis sesión</div><div class="mono" style="font-size:10px;color:var(--fg3);" id="aiSessT"></div></div>
+    </div>
+    <div class="ai-body"><div class="ai-text" id="aiSessTxt"></div></div>
+  </div>
+</div>
+
+<!-- ══ DATOS ══ -->
+<div class="screen" id="s-datos">
+  <div class="pad">
+    <div class="over">Fuentes de datos</div>
+    <div class="t-xl"><em>Conectar</em> apps</div>
+
+    <!-- Intervals.icu -->
+    <div class="card" style="margin-top:14px;">
+      <div class="card-hdr">
+        <div><div class="t-md">Intervals.icu</div><div style="font-size:11px;color:var(--fg2);margin-top:2px;">HRV · CTL · ATL · TSB · Wellness</div></div>
+        <div class="status-dot" id="intStatus"><span class="sdot-sm sdot-k"></span><span style="color:var(--fg3);">Sin conectar</span></div>
+      </div>
+      <div class="card-body">
+        <div class="info c" style="margin-top:0;margin-bottom:12px;">Intervals.icu → Settings → API → copia tu <b>Athlete ID</b> (en la URL) y genera una <b>API Key</b>.</div>
+        <div class="fg" style="margin-bottom:8px;">
+          <label class="fg-label">Athlete ID</label>
+          <input class="field" type="text" id="intAid" placeholder="i12345678">
+        </div>
+        <div class="fg" style="margin-bottom:12px;">
+          <label class="fg-label">API Key</label>
+          <input class="field" type="password" id="intKey" placeholder="Tu API Key de Intervals.icu">
+        </div>
+        <div style="display:flex;gap:8px;">
+          <button class="btn btn-p" style="flex:1;" onclick="connectIntervals()">
+            <div class="spin" id="intSpin" style="display:none;width:14px;height:14px;"></div>
+            Conectar y sincronizar
+          </button>
+          <button class="btn btn-g btn-sm" onclick="disconnectIntervals()">Borrar</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Apple Health -->
+    <div class="card">
+      <div class="card-hdr">
+        <div><div class="t-md">Apple Health Export</div><div style="font-size:11px;color:var(--fg2);margin-top:2px;">HRV · Sueño · Peso · Macros Cronometer</div></div>
+        <div class="mono" style="font-size:10px;" id="ahStatus" style="color:var(--fg3);">⬤ Sin datos</div>
+      </div>
+      <div class="card-body">
+        <div class="info y" style="margin-top:0;margin-bottom:12px;"><b>Cómo exportar:</b> iPhone → Salud → tu foto → "Exportar todos los datos" → comparte el ZIP → extrae el <b>export.xml</b> → súbelo aquí.</div>
+        <div class="upload" onclick="document.getElementById('ahFile').click()">
+          <input type="file" id="ahFile" accept=".xml,.zip" style="display:none;" onchange="parseAH(this)">
+          <div class="upload-icon">🏥</div>
+          <div class="upload-label">export.xml de Apple Health</div>
+          <div class="upload-hint">XML · Se procesa 100% localmente</div>
+        </div>
+        <div id="ahSummary" style="display:none;margin-top:10px;"></div>
+      </div>
+    </div>
+
+    <!-- Hevy CSV -->
+    <div class="card">
+      <div class="card-hdr">
+        <div><div class="t-md">Hevy — Export CSV</div><div style="font-size:11px;color:var(--fg2);margin-top:2px;">Progresión · Volumen · 1RM estimado · MEV/MAV real</div></div>
+        <div class="mono" style="font-size:10px;" id="hevyStatus">⬤ Sin datos</div>
+      </div>
+      <div class="card-body">
+        <div class="info y" style="margin-top:0;margin-bottom:12px;"><b>Cómo exportar:</b> Hevy → Perfil → ⚙️ → Export Workout Data → CSV.</div>
+        <div class="upload" onclick="document.getElementById('hevyFile').click()">
+          <input type="file" id="hevyFile" accept=".csv" style="display:none;" onchange="parseHevy(this)">
+          <div class="upload-icon">💪</div>
+          <div class="upload-label">workouts.csv de Hevy</div>
+          <div class="upload-hint">CSV · Actualiza cada semana</div>
+        </div>
+        <div id="hevySummary" style="display:none;margin-top:10px;"></div>
+      </div>
+    </div>
+
+    <!-- Manual -->
+    <div class="card">
+      <div class="card-hdr"><span class="t-md">Entrada manual rápida</span></div>
+      <div class="card-body">
+        <div class="fg2">
+          <div><label class="fg-label">HRV hoy (ms)</label><input class="field" type="number" id="manHRV" placeholder="ej. 58" oninput="manualUpdate()"></div>
+          <div><label class="fg-label">Sueño (h)</label><input class="field" type="number" id="manSleep" placeholder="ej. 7.5" step=".5" oninput="manualUpdate()"></div>
+          <div><label class="fg-label">Body Battery</label><input class="field" type="number" id="manBB" placeholder="0-100" oninput="manualUpdate()"></div>
+          <div><label class="fg-label">Peso (kg)</label><input class="field" type="number" id="manWeight" placeholder="ej. 77.8" step=".1"></div>
+        </div>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<!-- ══ PLAN ══ -->
+<div class="screen" id="s-plan">
+  <div class="pad">
+    <div class="over">Mesociclo 1 · Readaptación</div>
+    <div class="t-xl">Plan <em>maestro</em></div>
+    <p class="t-sm" style="margin-top:4px;margin-bottom:14px;">Semanas 1–4. RIR conservador. Técnica sobre carga.</p>
+
+    <div class="card">
+      <div class="card-body" style="padding:0 15px;">
+        <div class="acc-item" onclick="ta(this)">
+          <div class="acc-hdr"><div><div style="font-size:12px;font-weight:600;color:var(--c);">D1 — Torso Empuje + Core</div><div class="mono" style="font-size:10px;color:var(--fg3);">Pectoral esternal · Deltoides · Tríceps</div></div><svg class="acc-icon" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 9l6 6 6-6"/></svg></div>
+          <div class="acc-body">
+            <div class="ex-row"><div class="ex-name">Press banca plano — Barra</div><div class="ex-chips"><span class="ex-chip">4×6-8</span><span class="ex-chip">RIR 3-4</span><span class="ex-chip">2-3 min</span></div></div>
+            <div class="ex-row"><div class="ex-name">Press mancuernas inclinado 30°</div><div class="ex-chips"><span class="ex-chip">3×10-12</span><span class="ex-chip">RIR 3</span><span class="ex-chip">90s</span></div></div>
+            <div class="ex-row"><div class="ex-name">Apertura mancuernas plano — Foco esternal</div><div class="ex-chips"><span class="ex-chip">3×12-15</span><span class="ex-chip">RIR 3</span><span class="ex-chip">90s</span></div></div>
+            <div class="ex-row"><div class="ex-name">Press militar mancuernas</div><div class="ex-chips"><span class="ex-chip">3×10-12</span><span class="ex-chip">RIR 3</span><span class="ex-chip">90s</span></div></div>
+            <div class="ex-row"><div class="ex-name">Elevación lateral</div><div class="ex-chips"><span class="ex-chip">3×15-20</span><span class="ex-chip">RIR 2-3</span><span class="ex-chip">60s</span></div></div>
+            <div class="ex-row"><div class="ex-name">Fondos entre bancos</div><div class="ex-chips"><span class="ex-chip">3×10-15</span><span class="ex-chip">RIR 3</span></div></div>
+            <div class="ex-row"><div class="ex-name">Plancha frontal</div><div class="ex-chips"><span class="ex-chip">3×30-45s</span></div></div>
+            <div class="ex-row"><div class="ex-name">Dead Bug</div><div class="ex-chips"><span class="ex-chip">3×8/lado</span></div></div>
+          </div>
+        </div>
+        <div class="acc-item" onclick="ta(this)">
+          <div class="acc-hdr"><div><div style="font-size:12px;font-weight:600;color:var(--r);">D2 — Pierna A · Cuád/Glúteo + Gemelos</div><div class="mono" style="font-size:10px;color:var(--r);opacity:.7;">⚠️ Pre-activación rodilla obligatoria</div></div><svg class="acc-icon" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 9l6 6 6-6"/></svg></div>
+          <div class="acc-body">
+            <div class="info r" style="margin:0 0 10px;">Pre-activación 10 min: clam shell goma ×15/lado · Puente glúteo goma ×15 · TKE ×15/lado · Bird dog ×8/lado · Mini-squat ×10</div>
+            <div class="ex-row"><div class="ex-name">Sentadilla goblet — Mancuerna</div><div class="ex-chips"><span class="ex-chip">4×8-10</span><span class="ex-chip">RIR 3-4</span><span class="ex-chip">2 min</span></div></div>
+            <div class="ex-row"><div class="ex-name">Split squat búlgaro</div><div class="ex-chips"><span class="ex-chip">3×10/lado</span><span class="ex-chip">RIR 3</span><span class="ex-chip">2 min</span></div></div>
+            <div class="ex-row"><div class="ex-name">Extensión cuádriceps — Banco</div><div class="ex-chips"><span class="ex-chip">3×12-15</span><span class="ex-chip">RIR 3</span><span class="ex-chip">90s</span></div></div>
+            <div class="ex-row"><div class="ex-name">Sentadilla sumo — Aductores</div><div class="ex-chips"><span class="ex-chip">3×12</span><span class="ex-chip">RIR 3</span><span class="ex-chip">90s</span></div></div>
+            <div class="ex-row"><div class="ex-name">Elevación talones pie — Gastro</div><div class="ex-chips"><span class="ex-chip">4×12-15</span><span class="ex-chip">Rango completo</span></div></div>
+            <div class="ex-row"><div class="ex-name">Elevación talones sentado — Sóleo</div><div class="ex-chips"><span class="ex-chip">3×20-25</span></div></div>
+          </div>
+        </div>
+        <div class="acc-item" onclick="ta(this)">
+          <div class="acc-hdr"><div><div style="font-size:12px;font-weight:600;color:var(--b);">D3 — Cardio Z2 · 115-135ppm · 35-45min</div><div class="mono" style="font-size:10px;color:var(--fg3);">Caminata rápida / Trote suave</div></div><svg class="acc-icon" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 9l6 6 6-6"/></svg></div>
+          <div class="acc-body"><div class="t-sm">Prueba de conversación: frases completas = Z2 correcto. Nike Pegasus + plantilla biomecánica. Registra FC media y ritmo en Garmin.</div></div>
+        </div>
+        <div class="acc-item" onclick="ta(this)">
+          <div class="acc-hdr"><div><div style="font-size:12px;font-weight:600;color:var(--c);">D4 — Torso Tirón + Core</div><div class="mono" style="font-size:10px;color:var(--fg3);">Dorsal · Trapecio · Bíceps · Manguito</div></div><svg class="acc-icon" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 9l6 6 6-6"/></svg></div>
+          <div class="acc-body">
+            <div class="ex-row"><div class="ex-name">Remo barra pronado</div><div class="ex-chips"><span class="ex-chip">4×6-8</span><span class="ex-chip">RIR 3-4</span><span class="ex-chip">2-3 min</span></div></div>
+            <div class="ex-row"><div class="ex-name">Remo mancuerna unilateral</div><div class="ex-chips"><span class="ex-chip">3×10/lado</span><span class="ex-chip">RIR 3</span><span class="ex-chip">90s</span></div></div>
+            <div class="ex-row"><div class="ex-name">Pullover mancuerna</div><div class="ex-chips"><span class="ex-chip">3×12</span><span class="ex-chip">RIR 3</span><span class="ex-chip">90s</span></div></div>
+            <div class="ex-row"><div class="ex-name">Face pull — Goma</div><div class="ex-chips"><span class="ex-chip">3×15-20</span><span class="ex-chip">RIR 2-3</span><span class="ex-chip">60s</span></div></div>
+            <div class="ex-row"><div class="ex-name">Curl bíceps alternado</div><div class="ex-chips"><span class="ex-chip">3×12/lado</span><span class="ex-chip">RIR 3</span></div></div>
+            <div class="ex-row"><div class="ex-name">Curl martillo</div><div class="ex-chips"><span class="ex-chip">2×12</span><span class="ex-chip">RIR 3</span></div></div>
+            <div class="ex-row"><div class="ex-name">Pallof press — Goma</div><div class="ex-chips"><span class="ex-chip">3×10/lado</span></div></div>
+          </div>
+        </div>
+        <div class="acc-item" onclick="ta(this)">
+          <div class="acc-hdr"><div><div style="font-size:12px;font-weight:600;color:var(--r);">D5 — Pierna B · Isquio/Glúteo + Gemelos</div><div class="mono" style="font-size:10px;color:var(--r);opacity:.7;">⚠️ Pre-activación obligatoria · 72h desde D2</div></div><svg class="acc-icon" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 9l6 6 6-6"/></svg></div>
+          <div class="acc-body">
+            <div class="info r" style="margin:0 0 10px;">Pre-activación igual que D2. Siempre.</div>
+            <div class="ex-row"><div class="ex-name">Romanian Deadlift — Mancuernas</div><div class="ex-chips"><span class="ex-chip">4×8-10</span><span class="ex-chip">RIR 3-4</span><span class="ex-chip">2-3 min</span></div></div>
+            <div class="ex-row"><div class="ex-name">Hip Thrust — Mancuerna/Barra</div><div class="ex-chips"><span class="ex-chip">4×10-12</span><span class="ex-chip">RIR 3</span><span class="ex-chip">90s</span></div></div>
+            <div class="ex-row"><div class="ex-name">Curl isquios — Banco adaptado</div><div class="ex-chips"><span class="ex-chip">3×10-12</span><span class="ex-chip">RIR 3</span><span class="ex-chip">90s</span></div></div>
+            <div class="ex-row"><div class="ex-name">Abducción cadera — Goma</div><div class="ex-chips"><span class="ex-chip">3×15/lado</span><span class="ex-chip">RIR 2</span></div></div>
+            <div class="ex-row"><div class="ex-name">Puente glúteo unilateral</div><div class="ex-chips"><span class="ex-chip">3×12/lado</span><span class="ex-chip">RIR 3</span></div></div>
+            <div class="ex-row"><div class="ex-name">Elevación talones pie — Gastro</div><div class="ex-chips"><span class="ex-chip">3×15</span></div></div>
+            <div class="ex-row"><div class="ex-name">Elevación talones sentado — Sóleo</div><div class="ex-chips"><span class="ex-chip">3×20-25</span></div></div>
+          </div>
+        </div>
+        <div class="acc-item" onclick="ta(this)">
+          <div class="acc-hdr"><div><div style="font-size:12px;font-weight:600;color:var(--g);">D6 — Z2 + Movilidad · D7 Descanso</div><div class="mono" style="font-size:10px;color:var(--fg3);">30 min Z2 · 20 min movilidad activa</div></div><svg class="acc-icon" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 9l6 6 6-6"/></svg></div>
+          <div class="acc-body"><div class="t-sm">D6: Z2 suave 30min + movilidad cadena posterior, tobillo, cadera. D7: descanso completo. Sueño prioritario. Sin carga estructurada.</div></div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+</main>
+
+<!-- BOTTOM NAV -->
+<nav class="nav">
+  <button class="ni active" onclick="showS('hoy')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></svg><span class="nl">Hoy</span></button>
+  <button class="ni" onclick="showS('fatiga')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M22 12h-4l-3 9L9 3l-3 9H2"/></svg><span class="nl">Fatiga</span></button>
+  <button class="ni" onclick="showS('mav')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg><span class="nl">MEV/MAV</span></button>
+  <button class="ni" onclick="showS('log')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M12 20h9M16.5 3.5a2.121 2.121 0 013 3L7 19l-4 1 1-4L16.5 3.5z"/></svg><span class="nl">Log</span></button>
+  <button class="ni" onclick="showS('datos')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z"/></svg><span class="nl">Datos</span></button>
+  <button class="ni" onclick="showS('plan')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 01-2 2H5a2 2 0 01-2-2V5a2 2 0 012-2h11"/></svg><span class="nl">Plan</span></button>
+</nav>
+
+<div class="toast" id="toast"><div class="toast-icon" id="tIcon">ℹ️</div><div><div class="toast-title" id="tTitle"></div><div class="toast-msg" id="tMsg"></div></div></div>
+
+<script>
+// ════════════════════════════════
+// STATE
+// ════════════════════════════════
+const S = {
+  int: { aid:'', key:'', ok:false },
+  metrics: { hrv:null, sleep:null, bb:null, ctl:null, atl:null, tsb:null, hrv7:[], baseline:null },
+  hevy: null,
+  ah: null,
+  logs: [],
+  weekDays: new Set(),
+  // MEV/MAV/MRV by muscle group
+  mavRanges: {
+    'Cuádriceps':    { mev:8,  mav:14, mrv:20 },
+    'Isquiotibiales':{ mev:6,  mav:12, mrv:18 },
+    'Glúteo':        { mev:8,  mav:14, mrv:20 },
+    'Gemelos/Sóleo': { mev:10, mav:16, mrv:22 },
+    'Pectoral':      { mev:8,  mav:14, mrv:18 },
+    'Dorsal':        { mev:8,  mav:14, mrv:18 },
+    'Deltoides':     { mev:6,  mav:10, mrv:14 },
+    'Bíceps':        { mev:4,  mav:10, mrv:14 },
+    'Tríceps':       { mev:4,  mav:10, mrv:14 },
+    'Core':          { mev:6,  mav:10, mrv:16 },
+    'Aductores':     { mev:4,  mav:8,  mrv:12 },
+  },
+  // Weekly volume tracking (series per muscle this week)
+  weeklyVol: {}
+};
+
+// Load persisted
+try {
+  const p = JSON.parse(localStorage.getItem('atlas3')||'{}');
+  if (p.int) S.int = {...S.int,...p.int};
+  if (p.metrics) S.metrics = {...S.metrics,...p.metrics};
+  if (p.logs) S.logs = p.logs;
+  if (p.weeklyVol) S.weeklyVol = p.weeklyVol;
+} catch(e){}
+
+function save() {
+  try { localStorage.setItem('atlas3', JSON.stringify({int:S.int,metrics:S.metrics,logs:S.logs.slice(0,25),weeklyVol:S.weeklyVol})); } catch(e){}
+}
+
+// ════════════════════════════════
+// UI HELPERS
+// ════════════════════════════════
+function showS(id) {
+  document.querySelectorAll('.screen').forEach(s=>s.classList.remove('active'));
+  document.querySelectorAll('.ni').forEach(b=>b.classList.remove('active'));
+  document.getElementById('s-'+id).classList.add('active');
+  const ids=['hoy','fatiga','mav','log','datos','plan'];
+  document.querySelectorAll('.ni')[ids.indexOf(id)]?.classList.add('active');
+  window.scrollTo({top:0,behavior:'smooth'});
+}
+
+function toast(title,msg,icon='ℹ️',ms=3500) {
+  const el=document.getElementById('toast');
+  document.getElementById('tIcon').textContent=icon;
+  document.getElementById('tTitle').textContent=title;
+  document.getElementById('tMsg').textContent=msg;
+  el.classList.add('show');
+  setTimeout(()=>el.classList.remove('show'),ms);
+}
+
+function ta(el){el.classList.toggle('open');}
+
+// ════════════════════════════════
+// INTERVALS.ICU API
+// ════════════════════════════════
+async function connectIntervals() {
+  const aid=document.getElementById('intAid').value.trim();
+  const key=document.getElementById('intKey').value.trim();
+  if(!aid||!key){toast('Faltan datos','Introduce Athlete ID y API Key','⚠️');return;}
+  S.int.aid=aid; S.int.key=key;
+  setIntStatus('loading');
+  await fetchIntervals();
+}
+
+function disconnectIntervals() {
+  S.int={aid:'',key:'',ok:false};
+  document.getElementById('intAid').value='';
+  document.getElementById('intKey').value='';
+  setIntStatus('off');
+  save();
+  toast('Desconectado','Credenciales eliminadas','🔌');
+}
+
+function setIntStatus(state) {
+  const el=document.getElementById('intStatus');
+  const spin=document.getElementById('intSpin');
+  if(state==='loading'){
+    spin.style.display='block';
+    el.innerHTML='<span class="sdot-sm sdot-y" style="background:var(--y);animation:pd 1.5s infinite;"></span> Conectando...';
+    el.style.color='var(--y)';
+  } else if(state==='ok'){
+    spin.style.display='none';
+    el.innerHTML='<span class="sdot-sm sdot-g"></span> Conectado';
+    el.style.color='var(--g)';
+    document.getElementById('syncDot').style.background='var(--g)';
+  } else {
+    spin.style.display='none';
+    el.innerHTML='<span class="sdot-sm sdot-k"></span> Sin conectar';
+    el.style.color='var(--fg3)';
+  }
+}
+
+async function fetchIntervals() {
+  const {aid,key}=S.int;
+  if(!aid||!key) return;
+  const auth='Basic '+btoa('API_KEY:'+key);
+  const today=new Date().toISOString().split('T')[0];
+  const from14=new Date(Date.now()-14*864e5).toISOString().split('T')[0];
+  const from30=new Date(Date.now()-30*864e5).toISOString().split('T')[0];
+  const from7=new Date(Date.now()-7*864e5).toISOString().split('T')[0];
+
+  try {
+    // ── 1. WELLNESS (HRV, sueño, FC reposo, pasos, peso, fatiga subjetiva, soreness, mood) ──
+    const wResp=await fetch(
+      `https://intervals.icu/api/v1/athlete/${aid}/wellness?oldest=${from14}&newest=${today}`,
+      {headers:{Authorization:auth}}
+    );
+    if(!wResp.ok){const e=await wResp.json().catch(()=>({}));throw new Error(e.message||'Auth error '+wResp.status);}
+    const wellness=await wResp.json();
+
+    // ── 2. CTL/ATL/TSB (fitness history) ──
+    const fResp=await fetch(
+      `https://intervals.icu/api/v1/athlete/${aid}/ctl-history?oldest=${from14}&newest=${today}`,
+      {headers:{Authorization:auth}}
+    );
+    let fitnessHistory=[];
+    if(fResp.ok) fitnessHistory=await fResp.json();
+
+    // ── 3. ACTIVITIES (últimos 14 días: carga, zonas, FC, tipo, decoupling) ──
+    const aResp=await fetch(
+      `https://intervals.icu/api/v1/athlete/${aid}/activities?oldest=${from14}&newest=${today}&fields=id,name,type,start_date_local,distance,moving_time,icu_training_load,icu_zone_times,average_heartrate,max_heartrate,icu_hrss,icu_efficiency_factor,icu_aerobic_decoupling,pace,icu_rpe`,
+      {headers:{Authorization:auth}}
+    );
+    let activities=[];
+    if(aResp.ok) activities=await aResp.json();
+
+    // ── PROCESS WELLNESS ──
+    const wSorted=wellness.sort((a,b)=>a.id.localeCompare(b.id));
+    const latest=wSorted[wSorted.length-1]||{};
+    const prev=wSorted[wSorted.length-2]||{};
+
+    // Core biometrics
+    S.metrics.hrv=latest.hrv||null;
+    S.metrics.sleep=latest.sleepSecs?(latest.sleepSecs/3600).toFixed(1):null;
+    S.metrics.sleepScore=latest.sleepScore||null;
+    S.metrics.restingHR=latest.restingHR||null;
+    S.metrics.bb=latest.bodyBattery||null;
+    S.metrics.weight=latest.weight||null;
+    S.metrics.steps=latest.steps||null;
+
+    // Subjective wellness from Intervals (if filled manually)
+    S.metrics.fatigue=latest.fatigue||null;      // 1-7 scale
+    S.metrics.soreness=latest.soreness||null;    // 1-7 scale
+    S.metrics.mood=latest.mood||null;            // 1-7 scale
+    S.metrics.motivation=latest.motivation||null;
+    S.metrics.rampRate=latest.rampRate||null;
+
+    // Stress score
+    S.metrics.stressScore=latest.stressScore||null;
+
+    // 14-day HRV history for chart + baseline
+    S.metrics.hrv7=wSorted.slice(-14).map(d=>({
+      date:d.id, v:d.hrv||0,
+      sleep:d.sleepSecs?(d.sleepSecs/3600).toFixed(1):0,
+      rhr:d.restingHR||0
+    }));
+    const hrvVals=S.metrics.hrv7.map(d=>d.v).filter(v=>v>0);
+    S.metrics.baseline=hrvVals.length?Math.round(hrvVals.reduce((a,b)=>a+b,0)/hrvVals.length):null;
+
+    // HRV trend (last 3 days vs baseline)
+    const last3HRV=S.metrics.hrv7.slice(-3).map(d=>d.v).filter(v=>v>0);
+    S.metrics.hrvTrend=last3HRV.length&&S.metrics.baseline?
+      Math.round((last3HRV.reduce((a,b)=>a+b,0)/last3HRV.length)-S.metrics.baseline):null;
+
+    // ── PROCESS FITNESS ──
+    if(fitnessHistory.length){
+      const lf=fitnessHistory[fitnessHistory.length-1];
+      S.metrics.ctl=lf.ctl?Math.round(lf.ctl):null;
+      S.metrics.atl=lf.atl?Math.round(lf.atl):null;
+      S.metrics.tsb=lf.form?Math.round(lf.form):null;
+      // Ramp rate (week-over-week CTL change)
+      if(fitnessHistory.length>=7){
+        const prevW=fitnessHistory[fitnessHistory.length-7];
+        S.metrics.rampRate=prevW.ctl?Math.round(lf.ctl-prevW.ctl):null;
+      }
+    }
+
+    // ── PROCESS ACTIVITIES ──
+    S.metrics.activities=activities.slice(0,20);
+
+    // Last 7 days training load by zone
+    const week7=activities.filter(a=>a.start_date_local>=from7);
+    S.metrics.weekLoad=week7.reduce((sum,a)=>sum+(a.icu_training_load||0),0);
+    S.metrics.weekActivities=week7.length;
+
+    // Zone distribution this week (Z1-Z5 seconds)
+    const zones=[0,0,0,0,0];
+    week7.forEach(a=>{
+      if(a.icu_zone_times&&Array.isArray(a.icu_zone_times)){
+        a.icu_zone_times.forEach((t,i)=>{if(i<5)zones[i]+=t||0;});
+      }
+    });
+    S.metrics.zoneDist=zones;
+    const totalZoneSecs=zones.reduce((a,b)=>a+b,0);
+    S.metrics.zoneDistPct=totalZoneSecs>0?zones.map(z=>Math.round(z/totalZoneSecs*100)):[0,0,0,0,0];
+
+    // Aerobic decoupling (running sessions)
+    const runSessions=activities.filter(a=>a.type==='Run'&&a.icu_aerobic_decoupling!=null);
+    S.metrics.lastDecoupling=runSessions.length?runSessions[0].icu_aerobic_decoupling:null;
+
+    // Last activity
+    S.metrics.lastActivity=activities[0]||null;
+
+    S.int.ok=true;
+    save();
+    setIntStatus('ok');
+    updateMetrics();
+    updateExtendedMetrics();
+    computeFatigue();
+    renderHRV();
+    renderZones();
+    renderActivities();
+
+    const toastMsg=`HRV ${S.metrics.hrv||'—'}ms (baseline ${S.metrics.baseline||'—'}) · CTL ${S.metrics.ctl||'—'} · ${activities.length} actividades`;
+    toast('Intervals.icu sincronizado',toastMsg,'✅');
+
+  } catch(err){
+    setIntStatus('off');
+    toast('Error de conexión',err.message,'❌',5000);
+  }
+}
+
+// Extended metrics rendering
+function updateExtendedMetrics() {
+  const m=S.metrics;
+
+  // Update resting HR tile if exists
+  setM('m-rhr',m.restingHR);
+  setM('m-steps',m.steps?Math.round(m.steps/1000)+'k':null);
+  setM('m-weight',m.weight?m.weight.toFixed(1):null);
+  setM('m-ramp',m.rampRate!==null?(m.rampRate>0?'+':'')+m.rampRate:null);
+  setM('m-load',m.weekLoad?Math.round(m.weekLoad):null);
+  setM('m-decoup',m.lastDecoupling!==null?m.lastDecoupling+'%':null);
+
+  // Subjective wellness from Intervals
+  if(m.fatigue!==null)setM('m-fatigue',m.fatigue+'/7');
+  if(m.soreness!==null)setM('m-soreness',m.soreness+'/7');
+
+  // HRV trend
+  if(m.hrvTrend!==null){
+    const tEl=document.getElementById('m-hrv-trend');
+    if(tEl){
+      tEl.textContent=(m.hrvTrend>0?'↑ +':m.hrvTrend<0?'↓ ':'')+m.hrvTrend+'ms tendencia 3d';
+      tEl.style.color=m.hrvTrend>3?'var(--g)':m.hrvTrend<-3?'var(--r)':'var(--fg3)';
+    }
+  }
+
+  // Zone distribution badges
+  const zEl=document.getElementById('zoneDist');
+  if(zEl&&m.zoneDistPct){
+    const colors=['var(--g)','var(--c)','var(--y)','var(--o)','var(--r)'];
+    const labels=['Z1','Z2','Z3','Z4','Z5'];
+    zEl.innerHTML=m.zoneDistPct.map((p,i)=>
+      `<div style="text-align:center;flex:1;">
+        <div style="font-family:'Geist Mono',monospace;font-size:14px;color:${colors[i]};font-weight:600;">${p}%</div>
+        <div style="font-size:9px;color:var(--fg3);letter-spacing:1px;">${labels[i]}</div>
+        <div style="height:3px;background:var(--bg4);border-radius:2px;margin-top:4px;overflow:hidden;">
+          <div style="height:100%;width:${Math.min(p*2,100)}%;background:${colors[i]};border-radius:2px;"></div>
+        </div>
+      </div>`
+    ).join('');
+  }
+}
+
+function renderZones() {
+  const m=S.metrics;
+  const el=document.getElementById('zoneCard');
+  if(!el||!m.zoneDist)return;
+  const total=m.zoneDist.reduce((a,b)=>a+b,0);
+  if(!total)return;
+  el.style.display='block';
+}
+
+function renderActivities() {
+  const acts=S.metrics.activities;
+  const el=document.getElementById('activityList');
+  if(!el||!acts||!acts.length)return;
+
+  const typeIcon={'Run':'🏃','Ride':'🚴','Swim':'🏊','Walk':'🚶','WeightTraining':'💪','Workout':'⚡','Hike':'🥾'};
+  el.innerHTML=acts.slice(0,5).map(a=>{
+    const icon=typeIcon[a.type]||'⚡';
+    const load=a.icu_training_load?Math.round(a.icu_training_load):null;
+    const date=a.start_date_local?a.start_date_local.split('T')[0].slice(5):'';
+    const dist=a.distance?(a.distance/1000).toFixed(1)+'km':'';
+    const hr=a.average_heartrate?Math.round(a.average_heartrate)+'ppm':'';
+    const decoup=a.icu_aerobic_decoupling!==null&&a.icu_aerobic_decoupling!==undefined?a.icu_aerobic_decoupling+'% decoup':'';
+    return `<div class="log-row">
+      <div class="log-left">
+        <div class="log-name">${icon} ${a.name||a.type}</div>
+        <div class="log-meta">${date} · ${dist} ${hr}</div>
+      </div>
+      <div class="log-chips">
+        ${load?`<span class="chip chip-c">Load ${load}</span>`:''}
+        ${decoup?`<span class="chip ${parseFloat(a.icu_aerobic_decoupling)<5?'chip-g':'chip-y'}">${decoup}</span>`:''}
+      </div>
+    </div>`;
+  }).join('');
+}
+
+async function syncAll() {
+  document.getElementById('syncBtn').classList.add('active');
+  document.getElementById('syncLabel').textContent='Syncing...';
+  if(S.int.aid&&S.int.key) await fetchIntervals();
+  else toast('Sin fuentes','Conecta Intervals.icu en "Datos"','💡');
+  document.getElementById('syncBtn').classList.remove('active');
+  document.getElementById('syncLabel').textContent='Sync';
+}
+
+// ════════════════════════════════
+// METRICS UI
+// ════════════════════════════════
+function updateMetrics() {
+  const m=S.metrics;
+  setM('m-hrv',m.hrv);
+  setM('m-sleep',m.sleep);
+  setM('m-bb',m.bb);
+  setM('m-ctl',m.ctl);
+  setM('m-atl',m.atl);
+  setM('m-rhr',m.restingHR);
+  // Sleep score label
+  const ssEl=document.getElementById('m-sleep-score');
+  if(ssEl&&m.sleepScore)ssEl.textContent='Score: '+m.sleepScore;
+  // Week activities count
+  const waEl=document.getElementById('m-week-acts');
+  if(waEl&&m.weekActivities!==undefined)waEl.textContent=m.weekActivities+' actividades';
+  if(m.tsb!==null&&m.tsb!==undefined){
+    const el=document.getElementById('m-tsb');
+    el.textContent=(m.tsb>0?'+':'')+m.tsb;
+    el.className='st-val'+(Math.abs(m.tsb)<5?' dim':'');
+    el.style.color=m.tsb>5?'var(--g)':m.tsb<-10?'var(--r)':'';
+    document.getElementById('m-tsb-d').textContent=m.tsb>5?'Fresco ✓':m.tsb<-10?'Fatigado ⚠️':'Neutro';
+    document.getElementById('m-tsb-d').className='st-delta '+(m.tsb>5?'up':m.tsb<-10?'dn':'nt');
+  }
+  if(m.hrv&&m.baseline){
+    const delta=Math.round(m.hrv-m.baseline);
+    document.getElementById('m-hrv-d').textContent=(delta>=0?'+':'')+delta+'ms vs baseline '+m.baseline;
+    document.getElementById('m-hrv-d').className='st-delta '+(delta>=0?'up':'dn');
+  }
+}
+
+function setM(id,val) {
+  const el=document.getElementById(id);
+  if(!el)return;
+  if(val!==null&&val!==undefined){el.textContent=val;el.className='st-val';}
+  else{el.textContent='—';el.className='st-val dim';}
+}
+
+function manualUpdate() {
+  const h=parseFloat(document.getElementById('manHRV').value);
+  const sl=parseFloat(document.getElementById('manSleep').value);
+  const bb=parseFloat(document.getElementById('manBB').value);
+  if(!isNaN(h)){S.metrics.hrv=h;if(!S.metrics.baseline)S.metrics.baseline=h;}
+  if(!isNaN(sl))S.metrics.sleep=sl;
+  if(!isNaN(bb))S.metrics.bb=bb;
+  updateMetrics();
+  computeFatigue();
+}
+
+// ════════════════════════════════
+// HYBRID FATIGUE ENGINE
+// ════════════════════════════════
+function computeFatigue() {
+  const m=S.metrics;
+  const knee=parseFloat(document.getElementById('kneeToday')?.value)||0;
+
+  // --- Cardiovascular fatigue (0-100) ---
+  // Sources: HRV delta from baseline + TSB
+  let cvFat=50; // neutral
+  if(m.hrv&&m.baseline){
+    const delta=(m.hrv-m.baseline)/m.baseline;
+    cvFat=Math.max(0,Math.min(100, 50 - delta*200));
+  }
+  if(m.tsb!==null&&m.tsb!==undefined){
+    // TSB: positive = fresh, negative = fatigued. Normalize: -30 to +20 → 0-100 fatigue
+    const tsbFat=Math.max(0,Math.min(100, 50 + (-m.tsb)*2));
+    cvFat=(cvFat+tsbFat)/2;
+  }
+  if(m.sleep){
+    const sleepFat=m.sleep>=7.5?0:m.sleep>=6?20:m.sleep>=5?50:80;
+    cvFat=(cvFat+sleepFat)/2;
+  }
+  if(m.bb){
+    const bbFat=m.bb>=70?0:m.bb>=50?20:m.bb>=30?50:80;
+    cvFat=(cvFat*2+bbFat)/3;
+  }
+  cvFat=Math.round(cvFat);
+
+  // --- Neuromuscular fatigue (0-100) ---
+  // Source: accumulated sRPE last 48-72h from session logs
+  const now=Date.now();
+  const recent48=S.logs.filter(l=>{
+    const d=parseDate(l.date);
+    return d&&(now-d)<48*3600000;
+  });
+  const recent72=S.logs.filter(l=>{
+    const d=parseDate(l.date);
+    return d&&(now-d)<72*3600000;
+  });
+  const srpe48=recent48.reduce((sum,l)=>sum+(parseFloat(l.srpe)||0),0);
+  const srpe72=recent72.reduce((sum,l)=>sum+(parseFloat(l.srpe)||0),0);
+  // Threshold: >800 sRPE in 48h = high NM fatigue
+  let nmFat=Math.min(100, Math.round((srpe48/800)*100));
+  // Check if leg sessions in last 72h
+  const legSessions=recent72.filter(l=>l.sess&&(l.sess.includes('Pierna')||l.sess.includes('D2')||l.sess.includes('D5')));
+  if(legSessions.length>=2)nmFat=Math.max(nmFat,70);
+
+  // Knee modifier
+  if(knee>5)nmFat=Math.min(100,nmFat+20);
+
+  // --- Systemic fatigue (0-100) ---
+  const sysFat=Math.round((cvFat*0.5+nmFat*0.5));
+
+  // --- Neural readiness (0-100) = inverse of CV fatigue weighted by HRV delta ---
+  let neural=Math.round(100-cvFat);
+  if(m.hrv&&m.baseline){
+    const d=(m.hrv-m.baseline)/m.baseline;
+    neural=Math.min(100,Math.max(0,Math.round(50+d*150)));
+  }
+
+  // Update UI
+  setFatigueVal('fe-cardio',cvFat,'var(--b)');
+  setFatigueVal('fe-neuro',nmFat,'var(--o)');
+  setFatigueVal('fe-sys',sysFat,'var(--p)');
+
+  setFatigueVal('fat-cv',cvFat,'var(--b)');
+  setFatigueVal('fat-nm',nmFat,'var(--o)');
+  setFatigueVal('fat-sy',sysFat,'var(--p)');
+  setFatigueVal('fat-nn',neural,'var(--c)');
+
+  setBar('fat-cv-b',cvFat,'var(--b)');
+  setBar('fat-nm-b',nmFat,'var(--o)');
+  setBar('fat-sy-b',sysFat,'var(--p)');
+  setBar('fat-nn-b',neural,'var(--c)');
+
+  // Fatigue Hero
+  const hero=document.getElementById('feHero');
+  const orb=document.getElementById('feOrb');
+  const title=document.getElementById('feTitle');
+  const msg=document.getElementById('feMsg');
+  const status=document.getElementById('feStatus');
+
+  if(knee>3){
+    hero.className='fe-hero bad';
+    orb.textContent='⚠️';
+    title.textContent='Alerta — Protocolo Rodilla';
+    status.textContent='DOLOR ACTIVO';
+    msg.textContent=`Rodilla ${knee}/10. Pre-activación obligatoria. Para cualquier ejercicio que supere 3/10 durante la ejecución.`;
+  } else if(sysFat<30){
+    hero.className='fe-hero ok';
+    orb.textContent='✓';
+    title.textContent='Verde — Carga completa';
+    status.textContent='FATIGA SISTÉMICA '+sysFat+'%';
+    msg.textContent=`Cardio: ${cvFat}% · Neuromuscular: ${nmFat}% · Neural readiness: ${neural}%. Todas las señales favorables. Plan completo.`;
+  } else if(sysFat<60){
+    hero.className='fe-hero warn';
+    orb.textContent='!';
+    title.textContent='Amarillo — Ajusta el volumen';
+    status.textContent='FATIGA SISTÉMICA '+sysFat+'%';
+    const dom=cvFat>nmFat?'cardiovascular':'neuromuscular';
+    msg.textContent=`Fatiga ${dom} dominante. Reduce series un 30-40%. ${nmFat>60?'Evita pierna pesada hoy.':''} ${cvFat>60?'HRV bajo baseline, modera intensidad.':''}`;
+  } else {
+    hero.className='fe-hero bad';
+    orb.textContent='✕';
+    title.textContent='Rojo — Descanso activo';
+    status.textContent='FATIGA SISTÉMICA '+sysFat+'%';
+    msg.textContent=`Cardio: ${cvFat}% · Neuromuscular: ${nmFat}%. Sobrecarga detectada. Descanso activo o Z1 suave máximo 30min. Recuperar bien hoy > entrenar en rojo.`;
+  }
+
+  // Muscle fatigue breakdown
+  renderMuscleFatigue(recent72);
+
+  // Store for AI
+  S._fatigue={cv:cvFat,nm:nmFat,sys:sysFat,neural,srpe48,srpe72};
+}
+
+function setFatigueVal(id,val,color) {
+  const el=document.getElementById(id);
+  if(!el)return;
+  el.textContent=val+'%';
+  el.style.color=color;
+}
+
+function setBar(id,pct,color) {
+  const el=document.getElementById(id);
+  if(!el)return;
+  el.style.width=Math.min(pct,100)+'%';
+  el.style.background=color;
+}
+
+function parseDate(dateStr) {
+  if(!dateStr)return null;
+  const parts=dateStr.split('/');
+  if(parts.length===3) return new Date(parts[2],parts[1]-1,parts[0]).getTime();
+  return null;
+}
+
+function renderMuscleFatigue(recentLogs) {
+  const map={
+    'D1':{'Pectoral':3,'Deltoides':3,'Tríceps':2,'Core':2},
+    'D2':{'Cuádriceps':4,'Glúteo':3,'Aductores':2,'Gemelos/Sóleo':3},
+    'D3':{'Cardio':1},
+    'D4':{'Dorsal':4,'Bíceps':3,'Tríceps':1,'Core':2},
+    'D5':{'Isquiotibiales':4,'Glúteo':4,'Gemelos/Sóleo':3,'Aductores':1},
+    'D6':{'Cardio':0.5},
+  };
+
+  const muscleFat={};
+  recentLogs.forEach(l=>{
+    const key=Object.keys(map).find(k=>l.sess&&l.sess.includes(k));
+    if(!key)return;
+    const rpe=parseFloat(l.rpe)||5;
+    const intensity=rpe/10;
+    Object.entries(map[key]).forEach(([muscle,baseSets])=>{
+      muscleFat[muscle]=(muscleFat[muscle]||0)+baseSets*intensity*20;
+    });
+  });
+
+  const container=document.getElementById('muscleFatigue');
+  const muscles=Object.keys(muscleFat).filter(m=>m!=='Cardio');
+
+  if(!muscles.length){
+    container.innerHTML='<div class="empty"><div class="empty-icon">💪</div><div class="empty-title">Sin sesiones recientes (72h)</div><div class="empty-msg">Registra sesiones en Log para ver la fatiga por grupo</div></div>';
+    return;
+  }
+
+  container.innerHTML=muscles.map(muscle=>{
+    const fat=Math.min(100,Math.round(muscleFat[muscle]));
+    const color=fat<30?'var(--g)':fat<60?'var(--y)':'var(--r)';
+    const status=fat<30?'OK':fat<60?'Moderada':'Alta';
+    return `<div class="mf-row">
+      <div class="mf-name">${muscle}</div>
+      <div class="mf-bar-wrap"><div class="mf-bar-track"><div class="mf-bar-fill" style="width:${fat}%;background:${color};"></div></div></div>
+      <div class="mf-status" style="color:${color};">${fat}% ${status}</div>
+    </div>`;
+  }).join('');
+}
+
+// ════════════════════════════════
+// HRV CHART
+// ════════════════════════════════
+function renderHRV() {
+  const h=S.metrics.hrv7;
+  const container=document.getElementById('hrvChart');
+  if(!h||!h.length){return;}
+  const vals=h.map(d=>d.v).filter(v=>v>0);
+  if(!vals.length)return;
+  const max=Math.max(...vals),min=Math.min(...vals);
+  const avg=Math.round(vals.reduce((a,b)=>a+b,0)/vals.length);
+  document.getElementById('hrvAvg').textContent=`baseline ${avg}ms`;
+  if(h[0]?.date)document.getElementById('hrvFrom').textContent=h[0].date.slice(5);
+  container.innerHTML=h.map((d,i)=>{
+    const v=d.v||0;
+    const pct=max>min?((v-min)/(max-min))*75+25:60;
+    const cls=i===h.length-1?'today':v>avg*1.05?'hi':v<avg*0.95?'lo':'mid';
+    return `<div class="hrv-bar ${cls}" style="height:${pct}%" title="${d.date||''}: ${v}ms"></div>`;
+  }).join('');
+}
+
+// ════════════════════════════════
+// APPLE HEALTH PARSER
+// ════════════════════════════════
+function parseAH(input) {
+  const file=input.files[0];
+  if(!file)return;
+  document.getElementById('ahStatus').textContent='⏳ Procesando...';
+  document.getElementById('ahStatus').style.color='var(--y)';
+  if(file.name.endsWith('.zip')){
+    toast('ZIP detectado','Extrae el export.xml del ZIP y súbelo directamente','💡',6000);
+    document.getElementById('ahStatus').textContent='⚠️ Sube el XML';
+    return;
+  }
+  const reader=new FileReader();
+  reader.onload=(e)=>{
+    try {
+      const xml=new DOMParser().parseFromString(e.target.result,'text/xml');
+      const records=xml.querySelectorAll('Record');
+      let hrv=[],weight=[],protein=[],sleep=[];
+      const from30=new Date(Date.now()-30*864e5).toISOString().split('T')[0];
+      const today=new Date().toISOString().split('T')[0];
+      records.forEach(r=>{
+        const type=r.getAttribute('type');
+        const val=parseFloat(r.getAttribute('value'));
+        const date=(r.getAttribute('startDate')||'').split(' ')[0];
+        if(date<from30)return;
+        if(type==='HKQuantityTypeIdentifierHeartRateVariabilitySDNN'&&!isNaN(val))hrv.push({date,v:val});
+        else if(type==='HKQuantityTypeIdentifierBodyMass'&&!isNaN(val))weight.push({date,v:val});
+        else if(type==='HKQuantityTypeIdentifierDietaryProtein'&&!isNaN(val))protein.push({date,v:val});
+        else if(type==='HKCategoryTypeIdentifierSleepAnalysis')sleep.push({date,val:r.getAttribute('value')});
+      });
+      // Supplement metrics if not from Intervals
+      if(!S.metrics.hrv&&hrv.length){
+        const todayHRV=hrv.filter(d=>d.date===today);
+        S.metrics.hrv=Math.round(todayHRV.length?todayHRV[todayHRV.length-1].v:hrv[hrv.length-1].v);
+      }
+      if(!S.metrics.hrv7.length&&hrv.length){
+        const grouped={};
+        hrv.forEach(d=>{if(!grouped[d.date]||d.v>grouped[d.date])grouped[d.date]=d.v;});
+        S.metrics.hrv7=Object.entries(grouped).sort((a,b)=>a[0].localeCompare(b[0])).slice(-14).map(([date,v])=>({date,v:Math.round(v)}));
+        const vals=S.metrics.hrv7.map(d=>d.v);
+        S.metrics.baseline=Math.round(vals.reduce((a,b)=>a+b,0)/vals.length);
+      }
+      if(weight.length){const lw=weight[weight.length-1].v;document.getElementById('manWeight').value=lw.toFixed(1);}
+      const todayProt=protein.filter(d=>d.date===today).reduce((s,d)=>s+d.v,0);
+      S.ah={hrv,weight,protein,sleep,parsed:new Date().toISOString()};
+      save();
+      updateMetrics();
+      computeFatigue();
+      renderHRV();
+      document.getElementById('ahStatus').textContent='⬤ Datos cargados';
+      document.getElementById('ahStatus').style.color='var(--g)';
+      const sum=document.getElementById('ahSummary');
+      sum.style.display='block';
+      sum.innerHTML=`<div style="background:var(--bg3);border-radius:8px;padding:11px;font-size:12px;color:var(--fg2);line-height:1.8;">📊 <b style="color:var(--fg);">${records.length.toLocaleString()}</b> registros · 💓 <b style="color:var(--fg);">${hrv.length}</b> HRVs · ⚖️ <b style="color:var(--fg);">${weight.length?weight[weight.length-1].v.toFixed(1)+'kg':'—'}</b> · 🥩 <b style="color:var(--fg);">${todayProt?Math.round(todayProt)+'g hoy':'—'}</b></div>`;
+      toast('Apple Health cargado',`${records.length.toLocaleString()} registros procesados`,'🏥');
+    } catch(err){
+      document.getElementById('ahStatus').textContent='⬤ Error';
+      document.getElementById('ahStatus').style.color='var(--r)';
+      toast('Error al procesar',err.message,'❌');
+    }
+  };
+  reader.readAsText(file);
+}
+
+// ════════════════════════════════
+// HEVY CSV PARSER + MEV/MAV
+// ════════════════════════════════
+function parseHevy(input) {
+  const file=input.files[0];
+  if(!file)return;
+  document.getElementById('hevyStatus').textContent='⏳ Procesando...';
+  document.getElementById('hevyStatus').style.color='var(--y)';
+  const reader=new FileReader();
+  reader.onload=(e)=>{
+    try {
+      const lines=e.target.result.split('\n').filter(l=>l.trim());
+      if(lines.length<2)throw new Error('CSV vacío');
+      const headers=lines[0].split(',').map(h=>h.trim().replace(/"/g,'').toLowerCase());
+      const rows=lines.slice(1).map(line=>{
+        const vals=[];let cur='',inQ=false;
+        for(const ch of line+','){
+          if(ch==='"'){inQ=!inQ;}
+          else if(ch===','&&!inQ){vals.push(cur.trim());cur='';}
+          else cur+=ch;
+        }
+        const obj={};headers.forEach((h,i)=>obj[h]=(vals[i]||'').replace(/"/g,'').trim());
+        return obj;
+      });
+
+      // Group by workout
+      const workouts={};
+      rows.forEach(r=>{
+        const date=r['workout date']||r['date']||r['start time']||'';
+        const name=r['workout name']||r['title']||'Entrenamiento';
+        const key=date.split(' ')[0]+'_'+name;
+        if(!workouts[key])workouts[key]={date:date.split(' ')[0],name,exercises:{},totalSets:0};
+        const exName=r['exercise name']||r['exercise']||'Ejercicio';
+        if(!workouts[key].exercises[exName])workouts[key].exercises[exName]=[];
+        const kg=parseFloat(r['weight (kg)']||r['weight']||r['kg']||0);
+        const reps=parseInt(r['reps']||r['repetitions']||0);
+        if(reps>0){workouts[key].exercises[exName].push({kg,reps});workouts[key].totalSets++;}
+      });
+
+      const wList=Object.values(workouts).sort((a,b)=>b.date.localeCompare(a.date));
+
+      // Calculate volume per muscle group for current week
+      const weekStart=getWeekStart();
+      S.weeklyVol={};
+      const muscleMap={
+        'bench press':'Pectoral','press banca':'Pectoral','push up':'Pectoral','chest':'Pectoral',
+        'overhead press':'Deltoides','military':'Deltoides','lateral raise':'Deltoides','shoulder':'Deltoides',
+        'squat':'Cuádriceps','leg press':'Cuádriceps','leg extension':'Cuádriceps','lunge':'Cuádriceps','split squat':'Cuádriceps',
+        'deadlift':'Isquiotibiales','rdl':'Isquiotibiales','romanian':'Isquiotibiales','leg curl':'Isquiotibiales','hamstring':'Isquiotibiales',
+        'hip thrust':'Glúteo','glute bridge':'Glúteo','glute':'Glúteo',
+        'calf':'Gemelos/Sóleo','calf raise':'Gemelos/Sóleo','gemelo':'Gemelos/Sóleo','sóleo':'Gemelos/Sóleo',
+        'row':'Dorsal','pull':'Dorsal','lat':'Dorsal','pulldown':'Dorsal','remo':'Dorsal','pullover':'Dorsal',
+        'curl':'Bíceps','bicep':'Bíceps',
+        'tricep':'Tríceps','push down':'Tríceps','skull':'Tríceps','dip':'Tríceps',
+        'plank':'Core','crunch':'Core','ab':'Core','core':'Core','dead bug':'Core','pallof':'Core',
+        'adductor':'Aductores','sumo':'Aductores','inner':'Aductores',
+      };
+
+      wList.filter(w=>w.date>=weekStart).forEach(w=>{
+        Object.entries(w.exercises).forEach(([name,sets])=>{
+          const lower=name.toLowerCase();
+          const muscle=Object.entries(muscleMap).find(([k])=>lower.includes(k))?.[1];
+          if(muscle){S.weeklyVol[muscle]=(S.weeklyVol[muscle]||0)+sets.length;}
+        });
+      });
+
+      // 1RM estimates
+      const keyEx=['press banca','bench press','sentadilla','squat','remo','row','peso muerto','deadlift','hip thrust','rdl','romanian'];
+      const strength={};
+      wList.forEach(w=>{
+        Object.entries(w.exercises).forEach(([name,sets])=>{
+          const lower=name.toLowerCase();
+          if(!keyEx.some(k=>lower.includes(k)))return;
+          const best=sets.reduce((mx,s)=>{const rm=s.kg*(1+s.reps/30);return rm>mx.rm?{...s,rm}:mx;},{rm:0});
+          if(!strength[name]||best.rm>strength[name].rm)strength[name]={...best,date:w.date};
+        });
+      });
+
+      S.hevy={workouts:wList.slice(0,30),strength,totalWorkouts:wList.length,parsed:new Date().toISOString()};
+      save();
+      renderMAV();
+      document.getElementById('hevyStatus').textContent='⬤ Datos cargados';
+      document.getElementById('hevyStatus').style.color='var(--g)';
+      const sum=document.getElementById('hevySummary');
+      sum.style.display='block';
+      const strHTML=Object.entries(strength).slice(0,4).map(([n,d])=>`<div style="display:flex;justify-content:space-between;padding:3px 0;border-bottom:1px solid var(--line);font-size:11px;"><span style="color:var(--fg2);">${n}</span><span style="color:var(--c);">${d.kg}kg×${d.reps} → ~${Math.round(d.rm)}kg</span></div>`).join('');
+      sum.innerHTML=`<div style="background:var(--bg3);border-radius:8px;padding:11px;font-size:12px;color:var(--fg2);">💪 <b style="color:var(--fg);">${wList.length}</b> sesiones · <b style="color:var(--fg);">${rows.length}</b> series totales<div style="margin-top:8px;font-size:10px;letter-spacing:1.5px;text-transform:uppercase;color:var(--fg3);margin-bottom:5px;">1RM estimado</div>${strHTML}</div>`;
+      toast('Hevy cargado',`${wList.length} sesiones · Volumen semanal calculado`,'💪');
+    } catch(err){
+      document.getElementById('hevyStatus').textContent='⬤ Error';
+      document.getElementById('hevyStatus').style.color='var(--r)';
+      toast('Error Hevy',err.message,'❌');
+    }
+  };
+  reader.readAsText(file);
+}
+
+function getWeekStart() {
+  const d=new Date();
+  const day=d.getDay();
+  const diff=d.getDate()-(day===0?6:day-1);
+  return new Date(d.setDate(diff)).toISOString().split('T')[0];
+}
+
+// ════════════════════════════════
+// MEV / MAV / MRV RENDER
+// ════════════════════════════════
+function renderMAV() {
+  const container=document.getElementById('mavBars');
+  const ranges=S.mavRanges;
+  const vol=S.weeklyVol||{};
+
+  container.innerHTML=Object.entries(ranges).map(([muscle,{mev,mav,mrv}])=>{
+    const current=vol[muscle]||0;
+    const maxDisplay=mrv+4;
+    const mevPct=(mev/maxDisplay)*100;
+    const mrvPct=(mrv/maxDisplay)*100;
+    const fillPct=Math.min((current/maxDisplay)*100,100);
+
+    let color,zone,zoneClass;
+    if(current<mev){color='var(--r)';zone='Bajo MEV — añade series';zoneClass='dn';}
+    else if(current<=mav){color='var(--g)';zone='Rango óptimo ✓';zoneClass='up';}
+    else if(current<=mrv){color='var(--y)';zone='Zona MAV-MRV — mantén';zoneClass='nt';}
+    else{color='var(--r)';zone='Sobre MRV — reduce';zoneClass='dn';}
+
+    return `<div class="mav-row">
+      <div class="mav-header">
+        <div class="mav-muscle">${muscle}</div>
+        <div class="mav-nums">${current} series · MEV${mev} MAV${mav} MRV${mrv}</div>
+      </div>
+      <div class="mav-track">
+        <div class="mav-mev" style="width:${mevPct}%"></div>
+        <div class="mav-fill" style="width:${fillPct}%;background:${color};"></div>
+        <div class="mav-mrv" style="left:${mrvPct}%"></div>
+      </div>
+      <div class="mav-zone" style="color:${color};">${zone}</div>
+    </div>`;
+  }).join('');
+}
+
+// ════════════════════════════════
+// WEEK TRACKER
+// ════════════════════════════════
+function tw(el,day) {
+  const done=el.classList.contains('done');
+  if(done){el.classList.remove('done');S.weekDays.delete(day);}
+  else{el.classList.add('done');S.weekDays.add(day);}
+  const n=S.weekDays.size;
+  document.getElementById('wkScore').textContent=n+'/6';
+  document.getElementById('wkSessL').textContent=n+' / 6';
+  document.getElementById('wkSessB').style.width=(n/6*100)+'%';
+}
+
+function updateWkBars() {
+  const p=parseFloat(document.getElementById('wkProt').value)||0;
+  const sl=parseFloat(document.getElementById('wkSleep').value)||0;
+  document.getElementById('wkProtL').textContent=p+'g / 180g';
+  document.getElementById('wkSleepL').textContent=sl+'h / 7.5h';
+  document.getElementById('wkProtB').style.width=Math.min(100,p/180*100)+'%';
+  document.getElementById('wkSleepB').style.width=Math.min(100,sl/7.5*100)+'%';
+  document.getElementById('wkProtB').className='pb-fill '+(p>=170?'g':p>=130?'o':'r');
+  document.getElementById('wkSleepB').className='pb-fill '+(sl>=7?'g':sl>=6?'y':'r');
+}
+
+// ════════════════════════════════
+// sRPE
+// ════════════════════════════════
+function calcSRPE() {
+  const rpe=parseFloat(document.getElementById('logRPE').value)||0;
+  const dur=parseFloat(document.getElementById('logDur').value)||0;
+  if(!rpe||!dur){
+    document.getElementById('srpeNum').textContent='—';
+    document.getElementById('srpeRing').style.strokeDashoffset='251.2';
+    document.getElementById('srpeZone').textContent='—';
+    document.getElementById('srpeZone').className='chip chip-c';
+    return;
+  }
+  const s=Math.round(rpe*dur);
+  document.getElementById('srpeNum').textContent=s;
+  const pct=Math.min(s/700,1);
+  document.getElementById('srpeRing').style.strokeDashoffset=251.2*(1-pct);
+  let color,zone,cls;
+  if(s<200){color='#22c55e';zone='Ligera';cls='chip-g';}
+  else if(s<400){color='#06b6d4';zone='Moderada (MEV)';cls='chip-c';}
+  else if(s<600){color='#f97316';zone='Alta (MAV)';cls='';}
+  else{color='#ef4444';zone='⚠️ Sobre MRV';cls='chip-r';}
+  document.getElementById('srpeRing').style.stroke=color;
+  const zEl=document.getElementById('srpeZone');
+  zEl.textContent=zone;zEl.className='chip '+(cls||'');
+  if(!cls){zEl.style.background='rgba(249,115,22,.1)';zEl.style.color='#f97316';}
+  else{zEl.style.background='';zEl.style.color='';}
+}
+
+// ════════════════════════════════
+// SESSION LOG
+// ════════════════════════════════
+function renderLog() {
+  const el=document.getElementById('logList');
+  document.getElementById('logCount').textContent=S.logs.length+' sesiones';
+  if(!S.logs.length){el.innerHTML='<div class="empty"><div class="empty-icon">📋</div><div class="empty-title">Sin sesiones</div><div class="empty-msg">Registra tu primera sesión</div></div>';return;}
+  el.innerHTML=S.logs.slice(0,8).map(l=>`
+    <div class="log-row">
+      <div class="log-left"><div class="log-name">${l.sess||'Sesión'}</div><div class="log-meta">${l.date} · Sem ${l.week||'—'} · ${l.dur||'—'}min</div></div>
+      <div class="log-chips">
+        <span class="chip ${parseFloat(l.rpe)>=8?'chip-r':parseFloat(l.rpe)>=6?'chip-y':'chip-g'}">RPE ${l.rpe||'—'}</span>
+        <span class="chip chip-c">sRPE ${l.srpe||'—'}</span>
+        ${parseFloat(l.knee)>0?`<span class="chip chip-r">Rodilla ${l.knee}</span>`:''}
+      </div>
+    </div>`).join('');
+}
+
+// ════════════════════════════════
+// AI SYSTEM CONTEXT
+// ════════════════════════════════
+const SYS=`Eres ATLAS, analista de rendimiento de Carlos. Responde SIEMPRE en español. Directo, sin complacencia, basado en evidencia científica actualizada. Máximo 420 palabras. Estructurado y accionable. Explica QUÉ, CÓMO, QUÉ SENTIR y POR QUÉ.
+
+PERFIL: Carlos, 78.2kg, 15.6% grasa, 62.7kg masa muscular. Objetivo: recomposición corporal + hipertrofia + recuperar running. Meta ~10% grasa corporal, muy fuerte y musculado. Ex maratoniano y ultramaratoniano. Parón desde 2021. Alto potencial de readaptación. Mesociclo 1 semanas 1-4 (Readaptación/Recomposición).
+
+ANTECEDENTES CRÍTICOS:
+- Condromalacia rotuliana bilateral histórica (sin dolor actual)
+- ITB histórico
+- Piernas en varo (arqueadas)
+- Descompensación VMO (vasto interno < externo)
+- Gemelos subdesarrollados: frecuencia mínima 2x/semana, prioridad alta
+- Pectoral medial/esternal poco desarrollado: priorizar aperturas y ángulos de estiramiento esternal
+- Sin dolor articular actualmente
+
+REGLA RODILLA INAMOVIBLE: dolor >3/10 durante ejercicio = parar ese ejercicio ese día (no la sesión). >3/10 persistente >24h = fisio antes de volver.
+
+PLAN 6 DÍAS (interferencia fuerza-cardio resuelta):
+D1 Empuje+Core: Press banca barra 4x6-8 RIR3-4 · Press inc mc 30° 3x10-12 · Apertura plano esternal 3x12-15 · Press militar mc 3x10-12 · Elev lateral 3x15-20 · Fondos 3x10-15 · Plancha 3x30-45s · Dead bug 3x8.
+D2 Pierna A+Gemelos (PRE-ACTIVACIÓN OBLIGATORIA: clam shell goma x15/lado, puente glúteo goma x15, TKE x15/lado, bird dog x8/lado, mini-squat x10): Goblet 4x8-10 · Split squat búlgaro 3x10 · Ext cuáds banco 3x12-15 · Sent sumo mc 3x12 · Elev talones pie 4x12-15 · Elev talones sentado 3x20-25.
+D3: Z2 115-135ppm 35-45min.
+D4 Tirón+Core: Remo barra pronado 4x6-8 · Remo mc unilateral 3x10 · Pullover 3x12 · Face pull goma 3x15-20 · Curl bíceps alterno 3x12 · Curl martillo 2x12 · Pallof press 3x10.
+D5 Pierna B+Gemelos (PRE-ACTIVACIÓN IGUAL): RDL mc 4x8-10 · Hip thrust 4x10-12 · Curl isquios banco 3x10-12 · Abducción goma 3x15/lado · Puente glúteo unilateral 3x12/lado · Elev talones pie 3x15 · Elev talones sentado 3x20-25.
+D6: Z2 30min + Movilidad 20min. D7: Descanso.
+
+NUTRICIÓN: Día entreno ~2300kcal, proteína 180g, carbs 230g, grasa 65g. Descanso ~2000kcal. 2 comidas grandes sin desayuno. Suplementación: creatina 5g/día, whey, magnesio bisglicinato nocturno, caseína/queso fresco antes dormir, omega-3, D3+K2.
+
+MEV/MAV/MRV RANGES (series/semana): Cuádriceps MEV8 MAV14 MRV20 · Isquiotibiales MEV6 MAV12 MRV18 · Glúteo MEV8 MAV14 MRV20 · Gemelos/Sóleo MEV10 MAV16 MRV22 · Pectoral MEV8 MAV14 MRV18 · Dorsal MEV8 MAV14 MRV18 · Deltoides MEV6 MAV10 MRV14 · Bíceps MEV4 MAV10 MRV14 · Tríceps MEV4 MAV10 MRV14 · Core MEV6 MAV10 MRV16 · Aductores MEV4 MAV8 MRV12.
+
+SEMÁFORO: Verde=fatiga sistémica<30%=plan completo. Amarillo=30-60%=reducir 30-40%. Rojo=>60%=descanso activo.
+sRPE: <200 ligera · 200-400 moderada/MEV · 400-600 alta/MAV · >600 sobre MRV.
+Interferencia: Z2 no interfiere con fuerza. Nunca Z3+ el día anterior a pierna.
+Progresión M1: RIR 3-4. Técnica > carga. Sube solo si: RIR real ≥2 + sin DOMS>72h + técnica intacta. 1 variable a la vez.
+
+ECOSISTEMA: Garmin Fénix 8 (sensor fisiológico) · Intervals.icu (número maestro CTL/ATL/TSB) · Hevy (fuerza/sRPE) · Cronometer (macros/micros) · Runalyze (laboratorio running fase 2) · Strava (social).`;
+
+// ════════════════════════════════
+// AI CALLS
+// ════════════════════════════════
+async function callAI(prompt,panelId,txtId,timeId) {
+  const panel=document.getElementById(panelId);
+  const txtEl=document.getElementById(txtId);
+  const tEl=document.getElementById(timeId);
+  panel.style.display='block';
+  if(tEl)tEl.textContent=new Date().toLocaleTimeString('es-ES',{hour:'2-digit',minute:'2-digit'});
+  txtEl.className='ai-text loading';
+  txtEl.innerHTML='<div style="display:flex;align-items:center;gap:10px;"><div class="spin"></div><span>ATLAS analizando...</span></div>';
+  setTimeout(()=>panel.scrollIntoView({behavior:'smooth',block:'start'}),150);
+  try {
+    const r=await fetch('https://api.anthropic.com/v1/messages',{
+      method:'POST',
+      headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({model:'claude-sonnet-4-20250514',max_tokens:1000,system:SYS,messages:[{role:'user',content:prompt}]})
+    });
+    if(!r.ok){const e=await r.json().catch(()=>({}));throw new Error(e.error?.message||'Error '+r.status);}
+    const data=await r.json();
+    const text=data.content.map(b=>b.text||'').join('');
+    txtEl.className='ai-text';
+    txtEl.textContent='';
+    const cur=document.createElement('span');cur.className='tc';txtEl.appendChild(cur);
+    let i=0;const type=()=>{if(i<text.length){txtEl.insertBefore(document.createTextNode(text[i]),cur);i++;setTimeout(type,10);}else cur.remove();};type();
+  } catch(err){
+    txtEl.className='ai-text';
+    txtEl.textContent='Error: '+err.message+'\n\nVerifica tu conexión e inténtalo de nuevo.';
+  }
+}
+
+async function analyzeTodayAI() {
+  const m=S.metrics;const f=S._fatigue||{};
+  const sess=document.getElementById('todaySess').value;
+  const knee=document.getElementById('kneeToday').value;
+  const notes=document.getElementById('notesToday').value;
+  const vol=Object.entries(S.weeklyVol||{}).map(([k,v])=>`${k}:${v}`).join(', ')||'sin datos Hevy';
+  const p=`ANÁLISIS DEL DÍA — ${new Date().toLocaleDateString('es-ES',{weekday:'long',day:'numeric',month:'long'})}
+
+MOTOR DE FATIGA HÍBRIDO:
+- Fatiga cardiovascular: ${f.cv||'—'}% (HRV ${m.hrv||'—'}ms vs baseline ${m.baseline||'—'}ms · TSB ${m.tsb||'—'})
+- Fatiga neuromuscular: ${f.nm||'—'}% (sRPE 48h: ${f.srpe48||0})
+- Fatiga sistémica: ${f.sys||'—'}%
+- Neural readiness: ${f.neural||'—'}%
+- Sueño: ${m.sleep||'—'}h · Body Battery: ${m.bb||'—'}
+- CTL: ${m.ctl||'—'} · ATL: ${m.atl||'—'}
+
+VOLUMEN SEMANAL REAL (de Hevy): ${vol}
+SESIÓN PLANIFICADA: ${sess||'no especificada'}
+RODILLA: ${knee||'0'}/10
+NOTAS: "${notes||'ninguna'}"
+
+Proporciona: 1) Semáforo del día basado en el motor de fatiga híbrido (no solo HRV). 2) ¿La sesión planificada es adecuada dado el estado de fatiga por grupo muscular? 3) Ajuste específico de volumen/intensidad si aplica. 4) Una alerta prioritaria concreta.`;
+  await callAI(p,'aiDayP','aiDayTxt','aiDayT');
+}
+
+async function analyzeFatigueAI() {
+  const m=S.metrics;const f=S._fatigue||{};
+  const logs72=S.logs.filter(l=>{const d=parseDate(l.date);return d&&(Date.now()-d)<72*3600000;});
+  const p=`ANÁLISIS DE FATIGA HÍBRIDA — ${new Date().toLocaleDateString('es-ES')}
+
+ÍNDICES DE FATIGA:
+- Cardiovascular: ${f.cv||'—'}% — HRV ${m.hrv||'—'}ms vs baseline ${m.baseline||'—'}ms (${m.hrv&&m.baseline?Math.round((m.hrv-m.baseline)/m.baseline*100):0}% delta) · TSB ${m.tsb||'—'} · Sueño ${m.sleep||'—'}h · BB ${m.bb||'—'}
+- Neuromuscular: ${f.nm||'—'}% — sRPE acumulado 48h: ${f.srpe48||0} · sRPE 72h: ${f.srpe72||0}
+- Sistémica: ${f.sys||'—'}% (cruce CV+NM)
+- Neural readiness: ${f.neural||'—'}%
+- CTL: ${m.ctl||'—'} · ATL: ${m.atl||'—'} · TSB: ${m.tsb||'—'}
+
+SESIONES ÚLTIMAS 72H: ${logs72.map(l=>`${l.sess} RPE${l.rpe} sRPE${l.srpe}`).join(' | ')||'ninguna'}
+
+VOLUMEN SEMANAL (Hevy): ${Object.entries(S.weeklyVol||{}).map(([k,v])=>`${k}:${v}s`).join(', ')||'sin datos'}
+
+Analiza: 1) Cuál de los 3 tipos de fatiga domina y por qué. 2) Grupos musculares que necesitan más recuperación. 3) ¿Hay interferencia entre la fatiga cardio y neuro que afecte al plan? 4) Recomendación concreta para las próximas 48h.`;
+  await callAI(p,'aiFatP','aiFatTxt','aiFatT');
+}
+
+async function analyzeMAVAI() {
+  const vol=S.weeklyVol||{};
+  const ranges=S.mavRanges;
+  const wk=document.getElementById('wkNum')?.value||'X';
+  const hrv=document.getElementById('wkHRV').value;
+  const sleep=document.getElementById('wkSleep').value;
+  const prot=document.getElementById('wkProt').value;
+  const notes=document.getElementById('wkNotes').value;
+
+  const volReport=Object.entries(ranges).map(([m,{mev,mav,mrv}])=>{
+    const curr=vol[m]||0;
+    const state=curr<mev?'BAJO MEV':curr<=mav?'en rango MAV':curr<=mrv?'entre MAV-MRV':'SOBRE MRV';
+    return `${m}: ${curr} series (${state}) [MEV${mev} MAV${mav} MRV${mrv}]`;
+  }).join('\n');
+
+  const hevyStrength=S.hevy?Object.entries(S.hevy.strength||{}).slice(0,6).map(([n,d])=>`${n}: ~${Math.round(d.rm)}kg 1RM (${d.kg}kg×${d.reps})`).join('\n'):'Sin datos Hevy';
+
+  const p=`ANÁLISIS MEV/MAV/MRV + RECOMENDACIÓN DE VOLUMEN — Semana ${wk}
+
+VOLUMEN REAL ESTA SEMANA (de Hevy CSV):
+${volReport}
+
+MÉTRICAS DE RECUPERACIÓN:
+- HRV medio: ${hrv||'—'}ms · Sueño medio: ${sleep||'—'}h
+- Proteína media: ${prot||'—'}g/día (objetivo 180g)
+- Sesiones completadas: ${S.weekDays.size}/6
+- Fatiga sistémica actual: ${S._fatigue?.sys||'—'}%
+
+PROGRESIÓN DE FUERZA (1RM estimado Hevy):
+${hevyStrength}
+
+OBSERVACIONES: "${notes||'ninguna'}"
+
+Proporciona: 1) Para CADA grupo muscular: ¿subir series, mantener o bajar? Con número exacto de series recomendado para la semana siguiente. 2) ¿Hay algún grupo que esté claramente en infracarga (bajo MEV) o en sobrecarga (sobre MRV)? 3) ¿Cómo ajustar el plan la semana que viene dado el estado de fatiga? 4) ¿La progresión de fuerza en Hevy está siendo consistente con el mesociclo 1?`;
+  await callAI(p,'aiMavP','aiMavTxt','aiMavT');
+}
+
+async function analyzeSessionAI() {
+  const sess=document.getElementById('logSess').value;
+  const dur=document.getElementById('logDur').value;
+  const rpe=document.getElementById('logRPE').value;
+  const rir=document.getElementById('logRIR').value;
+  const knee=document.getElementById('logKnee').value;
+  const notes=document.getElementById('logNotes').value;
+  const week=document.getElementById('logWeek').value;
+  const srpe=rpe&&dur?Math.round(parseFloat(rpe)*parseFloat(dur)):0;
+
+  // Save log
+  const entry={date:new Date().toLocaleDateString('es-ES'),sess,dur,rpe,rir,srpe,knee,week};
+  S.logs.unshift(entry);if(S.logs.length>25)S.logs.pop();
+  save();renderLog();
+  computeFatigue();
+
+  // Update weekly volume if leg/upper session
+  const sessMap={'D1':{'Pectoral':8,'Deltoides':6,'Tríceps':5,'Core':3},'D2':{'Cuádriceps':7,'Glúteo':5,'Aductores':3,'Gemelos/Sóleo':4},'D4':{'Dorsal':7,'Bíceps':5,'Tríceps':2,'Core':3},'D5':{'Isquiotibiales':7,'Glúteo':7,'Gemelos/Sóleo':3,'Aductores':2}};
+  const key=Object.keys(sessMap).find(k=>sess&&sess.includes(k));
+  if(key){Object.entries(sessMap[key]).forEach(([m,s])=>{S.weeklyVol[m]=(S.weeklyVol[m]||0)+s;});save();renderMAV();}
+
+  const hevySimilar=S.hevy?.workouts.filter(w=>w.name&&sess&&w.name.toLowerCase().includes(sess.split('—')[0].toLowerCase().trim())).slice(0,2).map(w=>`${w.date}: ${Object.keys(w.exercises).slice(0,3).join(', ')}`).join(' | ')||'sin historial similar';
+  const f=S._fatigue||{};
+  const p=`POST-SESIÓN: ${sess||'no especificada'} — ${new Date().toLocaleDateString('es-ES')}
+
+DATOS DE LA SESIÓN:
+- Semana ${week||'—'} · Duración: ${dur||'—'}min · RPE: ${rpe||'—'}/10 · RIR percibido: ${rir||'—'}
+- sRPE calculado: ${srpe} (${srpe<200?'Ligera':srpe<400?'Moderada/MEV':srpe<600?'Alta/MAV':'⚠️ Sobre MRV'})
+- Rodilla durante/después: ${knee||'0'}/10
+- Notas: "${notes||'ninguna'}"
+
+CONTEXTO DE FATIGA POST-SESIÓN:
+- Fatiga neuromuscular acumulada 48h: ${f.nm||'—'}%
+- Fatiga cardiovascular: ${f.cv||'—'}%
+- Historial Hevy sesiones similares: ${hevySimilar}
+
+VOLUMEN SEMANAL ACTUALIZADO: ${Object.entries(S.weeklyVol||{}).map(([k,v])=>`${k}:${v}`).join(', ')||'—'}
+
+Analiza: 1) ¿El sRPE (${srpe}) es adecuado para esta sesión en semana ${week||'X'} del M1? 2) ¿El RIR percibido (${rir||'—'}) indica infra o sobrecarga? 3) ¿Algún ajuste para la próxima vez que hagas esta sesión? 4) ¿La rodilla requiere protocolo especial?`;
+  await callAI(p,'aiSessP','aiSessTxt','aiSessT');
+}
+
+// ════════════════════════════════
+// INIT
+// ════════════════════════════════
+function init() {
+  if(S.int.aid)document.getElementById('intAid').value=S.int.aid;
+  if(S.int.key)document.getElementById('intKey').value=S.int.key;
+  if(S.int.ok)setIntStatus('ok');
+  updateMetrics();
+  computeFatigue();
+  renderHRV();
+  renderLog();
+  renderMAV();
+  if(S.int.aid&&S.int.key&&S.int.ok)fetchIntervals();
+}
+
+init();
+</script>
+</body>
+</html>
