@@ -806,19 +806,31 @@ transform:translateY(-8px);opacity:0;transition:all .3s cubic-bezier(.34,1.56,.6
       </div>
     </div>
 
-    <!-- Hevy CSV -->
+    <!-- Hevy API -->
     <div class="card">
       <div class="card-hdr">
-        <div><div class="t-md">Hevy — Export CSV</div><div style="font-size:11px;color:var(--fg2);margin-top:2px;">Progresión · Volumen · 1RM estimado · MEV/MAV real</div></div>
-        <div class="mono" style="font-size:10px;" id="hevyStatus">⬤ Sin datos</div>
+        <div><div class="t-md">Hevy — Live API</div><div style="font-size:11px;color:var(--fg2);margin-top:2px;">Sync automático · Volumen · 1RM · MEV/MAV en tiempo real</div></div>
+        <div class="mono" style="font-size:10px;" id="hevyStatus">⬤ Sin conectar</div>
       </div>
       <div class="card-body">
-        <div class="info y" style="margin-top:0;margin-bottom:12px;"><b>Cómo exportar:</b> Hevy → Perfil → ⚙️ → Export Workout Data → CSV.</div>
-        <div class="upload" onclick="document.getElementById('hevyFile').click()">
+        <div class="info g" style="margin-top:0;margin-bottom:12px;"><b>API key en:</b> hevy.com/settings?developer → Generate API Key. Requiere Hevy Pro.</div>
+        <div class="fg" style="margin-bottom:8px;">
+          <label class="fg-label">Hevy API Key</label>
+          <input class="field" type="password" id="hevyKeyInput" placeholder="sk_live_...">
+        </div>
+        <div style="display:flex;gap:8px;margin-bottom:12px;">
+          <button class="btn btn-p" style="flex:1;" onclick="saveHevyKey()">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 12h14M12 5l7 7-7 7"/></svg>
+            Conectar y sincronizar
+          </button>
+          <button class="btn btn-r btn-sm" onclick="clearHevyKey()">Borrar</button>
+        </div>
+        <div class="divider" style="margin:0 0 12px;"></div>
+        <div style="font-size:11px;color:var(--fg3);margin-bottom:8px;">O importa CSV manualmente (sin Pro):</div>
+        <div class="upload" onclick="document.getElementById('hevyFile').click()" style="padding:12px;">
           <input type="file" id="hevyFile" accept=".csv" style="display:none;" onchange="parseHevy(this)">
-          <div class="upload-icon">💪</div>
-          <div class="upload-label">workouts.csv de Hevy</div>
-          <div class="upload-hint">CSV · Actualiza cada semana</div>
+          <div class="upload-icon" style="font-size:20px;margin-bottom:4px;">📁</div>
+          <div class="upload-label" style="font-size:12px;">workouts.csv de Hevy</div>
         </div>
         <div id="hevySummary" style="display:none;margin-top:10px;"></div>
       </div>
@@ -1061,125 +1073,179 @@ async function fetchIntervals() {
   const from30=new Date(Date.now()-30*864e5).toISOString().split('T')[0];
 
   try {
-    // ── WELLNESS: HRV, sleep, resting HR, BB, steps, weight, nutrition ──
+    // ── WELLNESS: todo lo que Companion envía desde Apple Health ──
     const wR=await fetch(
-      `https://intervals.icu/api/v1/athlete/${aid}/wellness?oldest=${from14}&newest=${today}`,
+      `https://intervals.icu/api/v1/athlete/${aid}/wellness?oldest=${from30}&newest=${today}`,
       {headers:H,mode:'cors'}
     );
     if(!wR.ok){
       if(wR.status===401||wR.status===403)
-        throw new Error('API Key incorrecta. Ve a Intervals.icu → Settings → Developer Settings → genera una nueva key.');
-      throw new Error('Error '+wR.status+' — verifica tu Athlete ID (está en la URL de tu perfil)');
+        throw new Error('API Key incorrecta → Intervals.icu → Settings → Developer Settings');
+      throw new Error('Error '+wR.status+' — verifica tu Athlete ID (URL de tu perfil Intervals)');
     }
     const wellness=await wR.json();
 
-    // ── ACTIVITIES: training load, zones, decoupling, EF ──
+    // ── CTL/ATL/TSB — endpoint correcto ──
+    const fR=await fetch(
+      `https://intervals.icu/api/v1/athlete/${aid}/ctl-history?oldest=${from14}&newest=${today}`,
+      {headers:H,mode:'cors'}
+    );
+    let fitnessHistory=[];
+    if(fR.ok) fitnessHistory=await fR.json();
+
+    // ── ACTIVITIES — con zonas y carga ──
     const aR=await fetch(
       `https://intervals.icu/api/v1/athlete/${aid}/activities?oldest=${from14}&newest=${today}`+
       `&fields=id,name,type,sport_type,start_date_local,distance,moving_time,`+
       `icu_training_load,icu_zone_times,average_heartrate,max_heartrate,`+
-      `icu_hrss,icu_efficiency_factor,icu_aerobic_decoupling,icu_rpe,pace,`+
-      `icu_atl_load,icu_ctl_load`,
+      `icu_efficiency_factor,icu_aerobic_decoupling,icu_rpe,pace`,
       {headers:H,mode:'cors'}
     );
     let activities=[];
     if(aR.ok) activities=await aR.json();
 
-    // ── CTL/ATL/TSB via athlete endpoint ──
-    const atR=await fetch(
-      `https://intervals.icu/api/v1/athlete/${aid}`,
-      {headers:H,mode:'cors'}
-    );
-    let athleteData=null;
-    if(atR.ok) athleteData=await atR.json();
-
     // ── PROCESS WELLNESS ──
     const wSorted=[...wellness].sort((a,b)=>a.id.localeCompare(b.id));
-    // Get latest day with any data
-    const latest=wSorted.slice().reverse().find(w=>
-      w.hrv||w.restingHR||w.sleepSecs||w.weight||w.kcalConsumed
-    )||wSorted[wSorted.length-1]||{};
 
-    // Core biometrics
-    S.metrics.hrv         = latest.hrv        ? Math.round(latest.hrv) : null;
-    S.metrics.restingHR   = latest.restingHR  || null;
-    S.metrics.sleep       = latest.sleepSecs  ? (latest.sleepSecs/3600).toFixed(1) : null;
-    S.metrics.sleepScore  = latest.sleepScore || null;
-    S.metrics.bb          = latest.bodyBattery? Math.round(latest.bodyBattery) : null;
-    S.metrics.steps       = latest.steps      ? Math.round(latest.steps) : null;
-    S.metrics.weight      = latest.weight     ? parseFloat(latest.weight.toFixed(1)) : null;
+    // Latest day with meaningful biometric data
+    const latestBio = wSorted.slice().reverse().find(w=>
+      w.hrv||w.restingHR||w.sleepSecs||w.weight||w.bodyBattery
+    ) || wSorted[wSorted.length-1] || {};
 
-    // Nutrition from Intervals (synced via Companion from Apple Health/Cronometer)
-    S.metrics.kcal        = latest.kcalConsumed || null;
-    S.metrics.protein     = latest.proteinG   || null;
-    S.metrics.carbs       = latest.carbsG     || null;
-    S.metrics.fat         = latest.fatG       || null;
+    // Latest day with nutrition (may be different day)
+    const latestNut = wSorted.slice().reverse().find(w=>
+      w.kcalConsumed||w.calories||
+      (w.fieldValues && Object.keys(w.fieldValues||{}).some(k=>
+        k.includes('alorie')||k.includes('rotein')||k.includes('arb')
+      ))
+    ) || latestBio;
 
-    // Subjective wellness
-    S.metrics.fatigue     = latest.fatigue    || null;  // 1-7
-    S.metrics.soreness    = latest.soreness   || null;  // 1-7
-    S.metrics.mood        = latest.mood       || null;  // 1-7
-    S.metrics.motivation  = latest.motivation || null;
+    console.log('ATLAS wellness latest bio:', latestBio.id, JSON.stringify(latestBio));
+    console.log('ATLAS wellness latest nut:', latestNut.id, JSON.stringify(latestNut));
 
-    // HRV 14-day history + baseline
-    S.metrics.hrv7=wSorted.slice(-14).map(d=>({
-      date:d.id,
-      v:d.hrv?Math.round(d.hrv):0,
-      sleep:d.sleepSecs?(d.sleepSecs/3600).toFixed(1):0,
-      rhr:d.restingHR||0,
+    // ── BIOMETRICS ──
+    S.metrics.hrv        = latestBio.hrv         ? Math.round(latestBio.hrv)          : null;
+    S.metrics.restingHR  = latestBio.restingHR   || latestBio.restHR                  || null;
+    S.metrics.sleep      = latestBio.sleepSecs    ? (latestBio.sleepSecs/3600).toFixed(1) : null;
+    S.metrics.sleepScore = latestBio.sleepScore   || null;
+    S.metrics.bb         = latestBio.bodyBattery  != null ? Math.round(latestBio.bodyBattery) : null;
+    S.metrics.steps      = latestBio.steps        != null ? Math.round(latestBio.steps)       : null;
+    S.metrics.weight     = latestBio.weight       ? parseFloat(latestBio.weight.toFixed(1))   : null;
+    S.metrics.vo2max     = latestBio.vo2max       || null;
+
+    // Body composition — synced via Companion from Prozis báscula → Apple Health
+    // Companion uses fieldValues for custom fields
+    const fv = latestBio.fieldValues || {};
+    console.log('ATLAS fieldValues:', JSON.stringify(fv));
+
+    // Try standard fields first, then fieldValues (custom)
+    S.metrics.fatPct   = latestBio.fatPercent
+      || fv['BodyFatPercent'] || fv['bodyFatPercent'] || fv['fatPercent']
+      || fv['PercentageOfBodyFat'] || null;
+    S.metrics.musclePct= fv['MuscleMass'] || fv['muscleMass'] || fv['MusclePercent'] || null;
+    S.metrics.boneMass = fv['BoneMass']   || fv['boneMass']   || null;
+    S.metrics.waterPct = fv['BodyWater']  || fv['bodyWater']  || fv['WaterPercent']  || null;
+
+    // Sleep stages from Companion
+    S.metrics.sleepDeep = fv['SleepDeep']  || fv['deepSleep']  || null;  // seconds
+    S.metrics.sleepREM  = fv['SleepREM']   || fv['remSleep']   || null;
+    S.metrics.sleepLight= fv['SleepLight'] || fv['lightSleep'] || null;
+    S.metrics.spO2      = fv['OxygenSaturation'] || fv['SpO2'] || null;
+
+    // ── NUTRITION — from Companion/Apple Health via fieldValues ──
+    const nutFv = latestNut.fieldValues || {};
+    S.metrics.kcal    = latestNut.kcalConsumed || latestNut.calories
+      || nutFv['DietaryEnergyConsumed'] || nutFv['CaloriesConsumed']
+      || nutFv['Calories'] || nutFv['kcal'] || null;
+    S.metrics.protein = latestNut.proteinG
+      || nutFv['DietaryProtein'] || nutFv['Protein'] || nutFv['protein'] || null;
+    S.metrics.carbs   = latestNut.carbsG
+      || nutFv['DietaryCarbohydrates'] || nutFv['Carbohydrates'] || nutFv['carbs'] || null;
+    S.metrics.fat     = latestNut.fatG
+      || nutFv['DietaryFatTotal'] || nutFv['Fat'] || nutFv['fat'] || null;
+    S.metrics.activeKcal = fv['ActiveEnergy'] || fv['activeEnergy'] || null;
+    S.metrics.restKcal   = fv['RestingEnergy']|| fv['restingEnergy']|| null;
+
+    // ── HRV 14-day history ──
+    S.metrics.hrv7 = wSorted.slice(-14).map(d=>({
+      date:   d.id,
+      v:      d.hrv ? Math.round(d.hrv) : 0,
+      sleep:  d.sleepSecs ? (d.sleepSecs/3600).toFixed(1) : 0,
+      rhr:    d.restingHR || 0,
+      weight: d.weight || null,
+      fat:    d.fatPercent || (d.fieldValues||{})['BodyFatPercent'] || null,
     }));
-    const hrvVals=S.metrics.hrv7.map(d=>d.v).filter(v=>v>0);
-    S.metrics.baseline=hrvVals.length
-      ? Math.round(hrvVals.reduce((a,b)=>a+b,0)/hrvVals.length)
-      : null;
+    const hrvVals = S.metrics.hrv7.map(d=>d.v).filter(v=>v>0);
+    S.metrics.baseline = hrvVals.length
+      ? Math.round(hrvVals.reduce((a,b)=>a+b,0)/hrvVals.length) : null;
 
-    // HRV 3-day trend vs baseline
-    const last3=S.metrics.hrv7.slice(-3).map(d=>d.v).filter(v=>v>0);
-    S.metrics.hrvTrend=last3.length&&S.metrics.baseline
-      ? Math.round(last3.reduce((a,b)=>a+b,0)/last3.length - S.metrics.baseline)
-      : null;
+    // 3-day trend
+    const last3 = S.metrics.hrv7.slice(-3).map(d=>d.v).filter(v=>v>0);
+    S.metrics.hrvTrend = (last3.length && S.metrics.baseline)
+      ? Math.round(last3.reduce((a,b)=>a+b,0)/last3.length - S.metrics.baseline) : null;
 
-    // ── PROCESS FITNESS from athlete endpoint ──
-    if(athleteData){
-      S.metrics.ctl = athleteData.ctl  ? Math.round(athleteData.ctl)  : null;
-      S.metrics.atl = athleteData.atl  ? Math.round(athleteData.atl)  : null;
-      S.metrics.tsb = athleteData.form ? Math.round(athleteData.form) : null;
+    // Weight + fat % history (30 days)
+    S.metrics.weightHistory = wSorted
+      .filter(d => d.weight || (d.fieldValues||{})['BodyFatPercent'])
+      .map(d => ({
+        date:   d.id,
+        w:      d.weight ? parseFloat(d.weight.toFixed(1)) : null,
+        fat:    d.fatPercent || (d.fieldValues||{})['BodyFatPercent'] || null,
+        muscle: (d.fieldValues||{})['MuscleMass'] || null,
+      }));
+
+    // ── CTL/ATL/TSB ──
+    if(fitnessHistory.length){
+      const lf = fitnessHistory[fitnessHistory.length-1];
+      S.metrics.ctl = lf.ctl  != null ? Math.round(lf.ctl)  : null;
+      S.metrics.atl = lf.atl  != null ? Math.round(lf.atl)  : null;
+      S.metrics.tsb = lf.form != null ? Math.round(lf.form) : null;
+      // Ramp: 7-day CTL change
+      if(fitnessHistory.length>=8){
+        const prev = fitnessHistory[fitnessHistory.length-8];
+        S.metrics.rampRate = (lf.ctl!=null&&prev.ctl!=null)
+          ? Math.round((lf.ctl-prev.ctl)*10)/10 : null;
+      }
+      console.log('ATLAS CTL/ATL/TSB:', S.metrics.ctl, S.metrics.atl, S.metrics.tsb);
+    } else {
+      console.warn('ATLAS: No fitness history returned — CTL/ATL/TSB unavailable');
     }
 
-    // ── PROCESS ACTIVITIES ──
-    S.metrics.activities=activities;
+    // ── ACTIVITIES ──
+    S.metrics.activities = activities;
+    const week7acts = activities.filter(a=>(a.start_date_local||'')>=from7);
+    S.metrics.weekLoad = Math.round(week7acts.reduce((s,a)=>s+(a.icu_training_load||0),0));
+    S.metrics.weekActivities = week7acts.length;
 
-    // Ramp rate: CTL change last 7 days from activity loads
-    const week7acts=activities.filter(a=>a.start_date_local>=from7);
-    S.metrics.weekLoad=Math.round(
-      week7acts.reduce((s,a)=>s+(a.icu_training_load||a.icu_atl_load||0),0)
-    );
-    S.metrics.weekActivities=week7acts.length;
+    // Body composition tiles
+  const cw=document.getElementById('currentWeight');
+  const cf=document.getElementById('currentFat');
+  const cm=document.getElementById('currentMuscle');
+  const cwt=document.getElementById('currentWater');
+  if(cw) cw.textContent=S.metrics.weight?S.metrics.weight+'kg':'—';
+  if(cf) cf.textContent=S.metrics.fatPct?parseFloat(S.metrics.fatPct).toFixed(1)+'%':'—';
+  if(cm) cm.textContent=S.metrics.musclePct?parseFloat(S.metrics.musclePct).toFixed(1)+'%':'—';
+  if(cwt) cwt.textContent=S.metrics.waterPct?parseFloat(S.metrics.waterPct).toFixed(1)+'%':'—';
+  renderWeightChart();
 
-    // Zone distribution 7 days (Z1-Z5 in seconds)
+  // Zone distribution
     const zones=[0,0,0,0,0];
     week7acts.forEach(a=>{
       if(Array.isArray(a.icu_zone_times))
-        a.icu_zone_times.slice(0,5).forEach((t,i)=>zones[i]+=t||0);
+        a.icu_zone_times.slice(0,5).forEach((t,i)=>zones[i]+=(t||0));
     });
-    S.metrics.zoneDist=zones;
-    const totalZ=zones.reduce((a,b)=>a+b,0);
-    S.metrics.zoneDistPct=totalZ>0
-      ? zones.map(z=>Math.round(z/totalZ*100))
-      : [0,0,0,0,0];
-    S.metrics.zoneTotalMin=Math.round(totalZ/60);
+    S.metrics.zoneDist = zones;
+    const totalZ = zones.reduce((a,b)=>a+b,0);
+    S.metrics.zoneDistPct = totalZ>0 ? zones.map(z=>Math.round(z/totalZ*100)) : null;
+    S.metrics.zoneTotalMin = Math.round(totalZ/60);
 
-    // Aerobic decoupling — last run
-    const runs=activities.filter(a=>
-      (a.type==='Run'||a.sport_type==='Run')&&
-      a.icu_aerobic_decoupling!=null
+    // Decoupling
+    const runs = activities.filter(a=>
+      (a.type==='Run'||a.sport_type==='Run')&&a.icu_aerobic_decoupling!=null
     );
-    S.metrics.lastDecoupling=runs.length
-      ? parseFloat(runs[0].icu_aerobic_decoupling).toFixed(1)
-      : null;
-    S.metrics.lastEF=runs.length&&runs[0].icu_efficiency_factor
-      ? parseFloat(runs[0].icu_efficiency_factor).toFixed(2)
-      : null;
+    S.metrics.lastDecoupling = runs.length ? parseFloat(runs[0].icu_aerobic_decoupling).toFixed(1) : null;
+    S.metrics.lastEF = runs.length&&runs[0].icu_efficiency_factor
+      ? parseFloat(runs[0].icu_efficiency_factor).toFixed(2) : null;
 
     S.int.ok=true;
     save();
@@ -1188,23 +1254,142 @@ async function fetchIntervals() {
     updateExtendedMetrics();
     computeFatigue();
     renderHRV();
-    renderZones();
     renderActivities();
+    renderWeightChart();
 
     const parts=[
-      S.metrics.hrv     ? `HRV ${S.metrics.hrv}ms`    : null,
-      S.metrics.baseline? `base ${S.metrics.baseline}` : null,
-      S.metrics.ctl     ? `CTL ${S.metrics.ctl}`       : null,
-      S.metrics.weight  ? `${S.metrics.weight}kg`      : null,
-      S.metrics.protein ? `Prot ${Math.round(S.metrics.protein)}g` : null,
+      S.metrics.hrv    ?`HRV ${S.metrics.hrv}ms`:null,
+      S.metrics.baseline?`base ${S.metrics.baseline}`:null,
+      S.metrics.ctl    ?`CTL ${S.metrics.ctl}`:null,
+      S.metrics.weight ?`${S.metrics.weight}kg`:null,
+      S.metrics.fatPct ?`Grasa ${parseFloat(S.metrics.fatPct).toFixed(1)}%`:null,
+      S.metrics.protein?`Prot ${Math.round(S.metrics.protein)}g`:null,
     ].filter(Boolean);
-    toast('Intervals sincronizado ✓', parts.join(' · ') || 'Datos cargados','✅');
+    toast('Intervals sincronizado',parts.join(' · ')||'Datos actualizados','✅');
 
   } catch(err){
     setIntStatus('off');
-    console.error('Intervals error:', err);
-    toast('Error Intervals', err.message,'❌',6000);
+    console.error('ATLAS Intervals error:',err);
+    toast('Error Intervals',err.message,'❌',7000);
   }
+}
+
+// ── HEVY API (live, no CSV needed) ──
+async function fetchHevy() {
+  const key=localStorage.getItem('atlas_hevy_key');
+  if(!key) return;
+  const H={'api-key':key,'Accept':'application/json'};
+
+  try {
+    // Get recent workouts (paginated, 10 per page max)
+    const r=await fetch('https://api.hevyapp.com/v1/workouts?page=1&pageSize=10',
+      {headers:H,mode:'cors'}
+    );
+    if(!r.ok) throw new Error('Hevy API error '+r.status);
+    const data=await r.json();
+    const workouts=data.workouts||data||[];
+    console.log('ATLAS Hevy workouts:', workouts.length, workouts[0]);
+
+    // Spanish/English muscle map
+    const MMAP={
+      'press de banca':'Pectoral','bench press':'Pectoral','press banca':'Pectoral',
+      'press de banca inclinado':'Pectoral','press inclinado':'Pectoral','aperturas':'Pectoral',
+      'fondos':'Pectoral','chest fly':'Pectoral','chest press':'Pectoral',
+      'press de hombros':'Deltoides','overhead press':'Deltoides','press militar':'Deltoides',
+      'elevación lateral':'Deltoides','elevacion lateral':'Deltoides','lateral raise':'Deltoides',
+      'remo':'Dorsal','row':'Dorsal','jalón':'Dorsal','jalon':'Dorsal','pullover':'Dorsal',
+      'dominadas':'Dorsal','pull-up':'Dorsal','lat pulldown':'Dorsal',
+      'curl de bíceps':'Bíceps','curl biceps':'Bíceps','bicep curl':'Bíceps','curl':'Bíceps',
+      'press francés':'Tríceps','skull crusher':'Tríceps','tricep':'Tríceps','fondos tríceps':'Tríceps',
+      'sentadilla búlgara':'Cuádriceps','sentadilla bulgar':'Cuádriceps',
+      'sentadilla goblet':'Cuádriceps','sentadilla delantera':'Cuádriceps',
+      'sentadilla':'Cuádriceps','squat':'Cuádriceps','leg press':'Cuádriceps',
+      'extensión de pierna':'Cuádriceps','leg extension':'Cuádriceps','zancada':'Cuádriceps',
+      'peso muerto rumano':'Isquiotibiales','romanian deadlift':'Isquiotibiales','rdl':'Isquiotibiales',
+      'curl de piernas':'Isquiotibiales','leg curl':'Isquiotibiales','peso muerto':'Isquiotibiales',
+      'empuje de caderas':'Glúteo','hip thrust':'Glúteo','puente de glúteo':'Glúteo','glute bridge':'Glúteo',
+      'sentadilla sumo':'Aductores','sumo squat':'Aductores','zancada lateral':'Aductores',
+      'elevación de gemelos':'Gemelos/Sóleo','calf raise':'Gemelos/Sóleo','gemelos':'Gemelos/Sóleo',
+      'pallof':'Core','plancha':'Core','plank':'Core','dead bug':'Core','crunch':'Core','ab':'Core',
+    };
+
+    function getMuscle(name){
+      const l=name.toLowerCase();
+      for(const [k,m] of Object.entries(MMAP)) if(l.includes(k)) return m;
+      return null;
+    }
+
+    // Process workouts
+    const now=new Date();
+    const weekStart=new Date(now);
+    weekStart.setHours(0,0,0,0);
+    weekStart.setDate(now.getDate()-(now.getDay()===0?6:now.getDay()-1));
+
+    S.weeklyVol={};
+    const strength={};
+
+    workouts.forEach(w=>{
+      const wDate=new Date(w.start_time||w.created_at||0);
+      const isThisWeek=wDate>=weekStart;
+
+      (w.exercises||[]).forEach(ex=>{
+        const exName=ex.title||ex.exercise_template_title||ex.name||'';
+        const muscle=getMuscle(exName);
+
+        (ex.sets||[]).forEach(s=>{
+          const kg=parseFloat(s.weight_kg||s.weight||0);
+          const reps=parseInt(s.reps||0);
+          if(!reps) return;
+
+          // Weekly volume
+          if(isThisWeek&&muscle)
+            S.weeklyVol[muscle]=(S.weeklyVol[muscle]||0)+1;
+
+          // 1RM
+          if(kg>0){
+            const orm=kg*(1+reps/30);
+            if(!strength[exName]||orm>strength[exName].orm)
+              strength[exName]={kg,reps,orm:Math.round(orm*10)/10,date:w.start_time};
+          }
+        });
+      });
+    });
+
+    S.hevy={workouts,strength,totalWorkouts:data.workout_count||workouts.length,parsed:new Date().toISOString(),source:'api'};
+    save();
+    renderMAV();
+    renderHevySummary();
+    toast('Hevy sincronizado',`${workouts.length} sesiones · ${Object.keys(S.weeklyVol).length} grupos musculares`,'💪');
+
+  } catch(err){
+    console.error('ATLAS Hevy error:',err);
+    toast('Error Hevy',err.message,'❌',5000);
+  }
+}
+
+function renderHevySummary() {
+  const el=document.getElementById('hevySummary');
+  const badge=document.getElementById('hevyStatus');
+  if(!S.hevy||!el) return;
+  if(badge){badge.textContent='⬤ Live API';badge.style.color='var(--g)';}
+
+  const topStr=Object.entries(S.hevy.strength||{})
+    .sort((a,b)=>b[1].orm-a[1].orm).slice(0,5)
+    .map(([n,d])=>`<div style="display:flex;justify-content:space-between;padding:4px 0;border-bottom:1px solid var(--line);font-size:11px;">
+      <span style="color:var(--fg2);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;flex:1;">${n}</span>
+      <span style="color:var(--c);font-family:'Geist Mono',monospace;flex-shrink:0;margin-left:8px;">${d.kg}kg×${d.reps}→~${d.orm}kg</span>
+    </div>`).join('');
+
+  const weekVolStr=Object.entries(S.weeklyVol).map(([m,s])=>`${m}:${s}`).join(' · ')||'Sin sesiones esta semana';
+
+  el.style.display='block';
+  el.innerHTML=`<div style="background:var(--bg3);border-radius:8px;padding:12px;">
+    <div style="font-size:12px;color:var(--fg2);margin-bottom:8px;">💪 <b style="color:var(--fg);">${S.hevy.totalWorkouts}</b> sesiones · Live API</div>
+    <div style="font-size:10px;letter-spacing:1.5px;text-transform:uppercase;color:var(--fg3);margin-bottom:4px;">Volumen semana actual</div>
+    <div style="font-size:11px;color:var(--c);margin-bottom:10px;font-family:'Geist Mono',monospace;line-height:1.6;">${weekVolStr}</div>
+    <div style="font-size:10px;letter-spacing:1.5px;text-transform:uppercase;color:var(--fg3);margin-bottom:5px;">1RM estimado top 5</div>
+    ${topStr}
+  </div>`;
 }
 
 
@@ -1355,8 +1540,12 @@ function renderActivities() {
 async function syncAll() {
   document.getElementById('syncBtn').classList.add('active');
   document.getElementById('syncLabel').textContent='Syncing...';
-  if(S.int.aid&&S.int.key) await fetchIntervals();
-  else toast('Sin fuentes','Conecta Intervals.icu en "Datos"','💡');
+  const p=[];
+  if(S.int.aid&&S.int.key) p.push(fetchIntervals());
+  const hevyKey=localStorage.getItem('atlas_hevy_key');
+  if(hevyKey) p.push(fetchHevy());
+  if(!p.length) toast('Sin fuentes','Conecta Intervals.icu y/o Hevy en "Datos"','💡');
+  await Promise.all(p);
   document.getElementById('syncBtn').classList.remove('active');
   document.getElementById('syncLabel').textContent='Sync';
 }
@@ -1998,6 +2187,25 @@ function calcSRPE() {
 // ════════════════════════════════
 // SESSION LOG
 // ════════════════════════════════
+function renderWeightChart() {
+  const el=document.getElementById('weightChartEl');
+  if(!el) return;
+  const history=(S.metrics.weightHistory||[]).filter(d=>d.w||d.fat).slice(-14);
+  if(!history.length){el.innerHTML='<div style="text-align:center;color:var(--fg4);font-size:11px;padding:8px;">Sin historial de peso · Báscula Prozis → Apple Health → Companion → Intervals</div>';return;}
+  const weights=history.map(d=>d.w).filter(Boolean);
+  const fats=history.map(d=>d.fat).filter(Boolean);
+  const maxW=Math.max(...weights,0), minW=Math.min(...weights,100);
+  el.innerHTML=history.map((d,i)=>{
+    const wPct=d.w&&maxW>minW?((d.w-minW)/(maxW-minW||1))*70+30:0;
+    const date=d.date?d.date.slice(5):'';
+    return `<div style="display:flex;flex-direction:column;align-items:center;flex:1;gap:3px;">
+      <div style="font-size:9px;color:var(--c);font-family:'Geist Mono',monospace;">${d.fat?parseFloat(d.fat).toFixed(1)+'%':''}</div>
+      <div style="height:${d.w?wPct:0}%;min-height:4px;width:100%;background:var(--c-a);border-top:2px solid var(--c);border-radius:2px 2px 0 0;transition:height .8s;"></div>
+      <div style="font-size:8px;color:var(--fg4);">${date}</div>
+    </div>`;
+  }).join('');
+}
+
 function renderLog() {
   const el=document.getElementById('logList');
   document.getElementById('logCount').textContent=S.logs.length+' sesiones';
@@ -2229,6 +2437,26 @@ Analiza: 1) ¿El sRPE (${srpe}) es adecuado para esta sesión en semana ${week||
 // ════════════════════════════════
 // INIT
 // ════════════════════════════════
+function saveHevyKey() {
+  const key=document.getElementById('hevyKeyInput')?.value?.trim();
+  if(!key){toast('Key vacía','Introduce tu Hevy API Key','⚠️');return;}
+  localStorage.setItem('atlas_hevy_key',key);
+  const badge=document.getElementById('hevyStatus');
+  if(badge){badge.textContent='⬤ Conectando...';badge.style.color='var(--y)';}
+  fetchHevy();
+}
+
+function clearHevyKey() {
+  localStorage.removeItem('atlas_hevy_key');
+  S.hevy=null; S.weeklyVol={};
+  const badge=document.getElementById('hevyStatus');
+  if(badge){badge.textContent='⬤ Sin conectar';badge.style.color='var(--fg3)';}
+  const el=document.getElementById('hevySummary');
+  if(el) el.style.display='none';
+  renderMAV();
+  toast('Hevy desconectado','Key eliminada','🔌');
+}
+
 function saveAPIKeyFromSettings() {
   const key = document.getElementById('anthropicKeyInput')?.value?.trim();
   if(!key||!key.startsWith('sk-ant')){toast('Key inválida','Debe empezar por sk-ant-...','⚠️');return;}
@@ -2265,15 +2493,25 @@ function init() {
   renderHRV();
   renderLog();
   renderMAV();
-  if(S.int.aid&&S.int.key&&S.int.ok)fetchIntervals();
+  if(S.int.aid&&S.int.key&&S.int.ok){
+    fetchIntervals();
+    const hk=localStorage.getItem('atlas_hevy_key');
+    if(hk) fetchHevy();
+  }
   // Show AI key status
   const hasKey=localStorage.getItem('atlas_anthropic_key');
   const aiEl=document.getElementById('aiKeyStatus');
   if(aiEl){aiEl.style.display=hasKey?'block':'none';aiEl.style.color=hasKey?'var(--g)':'var(--fg4)';}
-  const badge=document.getElementById('aiKeyBadge');
-  if(badge&&hasKey){badge.textContent='⬤ Activa';badge.style.color='var(--g)';}
+  const aiBadge=document.getElementById('aiKeyBadge');
+  if(aiBadge&&hasKey){aiBadge.textContent='⬤ Activa';aiBadge.style.color='var(--g)';}
   const keyInput=document.getElementById('anthropicKeyInput');
   if(keyInput&&hasKey)keyInput.value='••••••••••••••••';
+  // Hevy key status
+  const hevyKey=localStorage.getItem('atlas_hevy_key');
+  const hevyBadge=document.getElementById('hevyStatus');
+  const hevyInput=document.getElementById('hevyKeyInput');
+  if(hevyKey&&hevyBadge){hevyBadge.textContent='⬤ Conectado';hevyBadge.style.color='var(--g)';}
+  if(hevyKey&&hevyInput)hevyInput.value='••••••••••••••••';
 }
 
 init();
