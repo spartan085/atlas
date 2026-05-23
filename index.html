@@ -463,6 +463,9 @@ transform:translateY(-8px);opacity:0;transition:all .3s cubic-bezier(.34,1.56,.6
       </div>
     </div>
 
+    <!-- Nutrition from Intervals -->
+    <div class="card" id="nutritionCard" style="margin-bottom:10px;display:none;"></div>
+
     <!-- Recent activities -->
     <div class="card" style="margin-bottom:10px;">
       <div class="card-hdr">
@@ -1050,125 +1053,133 @@ function setIntStatus(state) {
 async function fetchIntervals() {
   const {aid,key}=S.int;
   if(!aid||!key) return;
-  const auth='Basic '+btoa('API_KEY:'+key); // Intervals: Basic base64(API_KEY:your_key)
+  const auth='Basic '+btoa('API_KEY:'+key);
+  const H={'Authorization':auth,'Accept':'application/json'};
   const today=new Date().toISOString().split('T')[0];
   const from14=new Date(Date.now()-14*864e5).toISOString().split('T')[0];
+  const from7 =new Date(Date.now()- 7*864e5).toISOString().split('T')[0];
   const from30=new Date(Date.now()-30*864e5).toISOString().split('T')[0];
-  const from7=new Date(Date.now()-7*864e5).toISOString().split('T')[0];
 
   try {
-    // ── 1. WELLNESS (HRV, sueño, FC reposo, pasos, peso, fatiga subjetiva, soreness, mood) ──
-    const wResp=await fetch(
+    // ── WELLNESS: HRV, sleep, resting HR, BB, steps, weight, nutrition ──
+    const wR=await fetch(
       `https://intervals.icu/api/v1/athlete/${aid}/wellness?oldest=${from14}&newest=${today}`,
-      {
-        headers:{
-          'Authorization': auth,
-          'Accept': 'application/json',
-          'Content-Type': 'application/json'
-        },
-        mode: 'cors'
-      }
+      {headers:H,mode:'cors'}
     );
-    if(!wResp.ok){
-      if(wResp.status===401)throw new Error('Credenciales incorrectas. Verifica Athlete ID y API Key en Intervals.icu → Settings → Developer');
-      if(wResp.status===403)throw new Error('Sin permisos. Regenera la API Key en Intervals.icu → Settings → Developer');
-      const e=await wResp.json().catch(()=>({}));
-      throw new Error(e.message||'Error '+wResp.status+' — verifica tu Athlete ID');
+    if(!wR.ok){
+      if(wR.status===401||wR.status===403)
+        throw new Error('API Key incorrecta. Ve a Intervals.icu → Settings → Developer Settings → genera una nueva key.');
+      throw new Error('Error '+wR.status+' — verifica tu Athlete ID (está en la URL de tu perfil)');
     }
-    const wellness=await wResp.json();
+    const wellness=await wR.json();
 
-    // ── 2. CTL/ATL/TSB (fitness history) ──
-    const fResp=await fetch(
-      `https://intervals.icu/api/v1/athlete/${aid}/ctl-history?oldest=${from14}&newest=${today}`,
-      {headers:{'Authorization':auth,'Accept':'application/json'},mode:'cors'}
-    );
-    let fitnessHistory=[];
-    if(fResp.ok) fitnessHistory=await fResp.json();
-
-    // ── 3. ACTIVITIES (últimos 14 días: carga, zonas, FC, tipo, decoupling) ──
-    const aResp=await fetch(
-      `https://intervals.icu/api/v1/athlete/${aid}/activities?oldest=${from14}&newest=${today}&fields=id,name,type,start_date_local,distance,moving_time,icu_training_load,icu_zone_times,average_heartrate,max_heartrate,icu_hrss,icu_efficiency_factor,icu_aerobic_decoupling,pace,icu_rpe`,
-      {headers:{'Authorization':auth,'Accept':'application/json'},mode:'cors'}
+    // ── ACTIVITIES: training load, zones, decoupling, EF ──
+    const aR=await fetch(
+      `https://intervals.icu/api/v1/athlete/${aid}/activities?oldest=${from14}&newest=${today}`+
+      `&fields=id,name,type,sport_type,start_date_local,distance,moving_time,`+
+      `icu_training_load,icu_zone_times,average_heartrate,max_heartrate,`+
+      `icu_hrss,icu_efficiency_factor,icu_aerobic_decoupling,icu_rpe,pace,`+
+      `icu_atl_load,icu_ctl_load`,
+      {headers:H,mode:'cors'}
     );
     let activities=[];
-    if(aResp.ok) activities=await aResp.json();
+    if(aR.ok) activities=await aR.json();
+
+    // ── CTL/ATL/TSB via athlete endpoint ──
+    const atR=await fetch(
+      `https://intervals.icu/api/v1/athlete/${aid}`,
+      {headers:H,mode:'cors'}
+    );
+    let athleteData=null;
+    if(atR.ok) athleteData=await atR.json();
 
     // ── PROCESS WELLNESS ──
-    const wSorted=wellness.sort((a,b)=>a.id.localeCompare(b.id));
-    const latest=wSorted[wSorted.length-1]||{};
-    const prev=wSorted[wSorted.length-2]||{};
+    const wSorted=[...wellness].sort((a,b)=>a.id.localeCompare(b.id));
+    // Get latest day with any data
+    const latest=wSorted.slice().reverse().find(w=>
+      w.hrv||w.restingHR||w.sleepSecs||w.weight||w.kcalConsumed
+    )||wSorted[wSorted.length-1]||{};
 
     // Core biometrics
-    S.metrics.hrv=latest.hrv||null;
-    S.metrics.sleep=latest.sleepSecs?(latest.sleepSecs/3600).toFixed(1):null;
-    S.metrics.sleepScore=latest.sleepScore||null;
-    S.metrics.restingHR=latest.restingHR||null;
-    S.metrics.bb=latest.bodyBattery||null;
-    S.metrics.weight=latest.weight||null;
-    S.metrics.steps=latest.steps||null;
+    S.metrics.hrv         = latest.hrv        ? Math.round(latest.hrv) : null;
+    S.metrics.restingHR   = latest.restingHR  || null;
+    S.metrics.sleep       = latest.sleepSecs  ? (latest.sleepSecs/3600).toFixed(1) : null;
+    S.metrics.sleepScore  = latest.sleepScore || null;
+    S.metrics.bb          = latest.bodyBattery? Math.round(latest.bodyBattery) : null;
+    S.metrics.steps       = latest.steps      ? Math.round(latest.steps) : null;
+    S.metrics.weight      = latest.weight     ? parseFloat(latest.weight.toFixed(1)) : null;
 
-    // Subjective wellness from Intervals (if filled manually)
-    S.metrics.fatigue=latest.fatigue||null;      // 1-7 scale
-    S.metrics.soreness=latest.soreness||null;    // 1-7 scale
-    S.metrics.mood=latest.mood||null;            // 1-7 scale
-    S.metrics.motivation=latest.motivation||null;
-    S.metrics.rampRate=latest.rampRate||null;
+    // Nutrition from Intervals (synced via Companion from Apple Health/Cronometer)
+    S.metrics.kcal        = latest.kcalConsumed || null;
+    S.metrics.protein     = latest.proteinG   || null;
+    S.metrics.carbs       = latest.carbsG     || null;
+    S.metrics.fat         = latest.fatG       || null;
 
-    // Stress score
-    S.metrics.stressScore=latest.stressScore||null;
+    // Subjective wellness
+    S.metrics.fatigue     = latest.fatigue    || null;  // 1-7
+    S.metrics.soreness    = latest.soreness   || null;  // 1-7
+    S.metrics.mood        = latest.mood       || null;  // 1-7
+    S.metrics.motivation  = latest.motivation || null;
 
-    // 14-day HRV history for chart + baseline
+    // HRV 14-day history + baseline
     S.metrics.hrv7=wSorted.slice(-14).map(d=>({
-      date:d.id, v:d.hrv||0,
+      date:d.id,
+      v:d.hrv?Math.round(d.hrv):0,
       sleep:d.sleepSecs?(d.sleepSecs/3600).toFixed(1):0,
-      rhr:d.restingHR||0
+      rhr:d.restingHR||0,
     }));
     const hrvVals=S.metrics.hrv7.map(d=>d.v).filter(v=>v>0);
-    S.metrics.baseline=hrvVals.length?Math.round(hrvVals.reduce((a,b)=>a+b,0)/hrvVals.length):null;
+    S.metrics.baseline=hrvVals.length
+      ? Math.round(hrvVals.reduce((a,b)=>a+b,0)/hrvVals.length)
+      : null;
 
-    // HRV trend (last 3 days vs baseline)
-    const last3HRV=S.metrics.hrv7.slice(-3).map(d=>d.v).filter(v=>v>0);
-    S.metrics.hrvTrend=last3HRV.length&&S.metrics.baseline?
-      Math.round((last3HRV.reduce((a,b)=>a+b,0)/last3HRV.length)-S.metrics.baseline):null;
+    // HRV 3-day trend vs baseline
+    const last3=S.metrics.hrv7.slice(-3).map(d=>d.v).filter(v=>v>0);
+    S.metrics.hrvTrend=last3.length&&S.metrics.baseline
+      ? Math.round(last3.reduce((a,b)=>a+b,0)/last3.length - S.metrics.baseline)
+      : null;
 
-    // ── PROCESS FITNESS ──
-    if(fitnessHistory.length){
-      const lf=fitnessHistory[fitnessHistory.length-1];
-      S.metrics.ctl=lf.ctl?Math.round(lf.ctl):null;
-      S.metrics.atl=lf.atl?Math.round(lf.atl):null;
-      S.metrics.tsb=lf.form?Math.round(lf.form):null;
-      // Ramp rate (week-over-week CTL change)
-      if(fitnessHistory.length>=7){
-        const prevW=fitnessHistory[fitnessHistory.length-7];
-        S.metrics.rampRate=prevW.ctl?Math.round(lf.ctl-prevW.ctl):null;
-      }
+    // ── PROCESS FITNESS from athlete endpoint ──
+    if(athleteData){
+      S.metrics.ctl = athleteData.ctl  ? Math.round(athleteData.ctl)  : null;
+      S.metrics.atl = athleteData.atl  ? Math.round(athleteData.atl)  : null;
+      S.metrics.tsb = athleteData.form ? Math.round(athleteData.form) : null;
     }
 
     // ── PROCESS ACTIVITIES ──
-    S.metrics.activities=activities.slice(0,20);
+    S.metrics.activities=activities;
 
-    // Last 7 days training load by zone
-    const week7=activities.filter(a=>a.start_date_local>=from7);
-    S.metrics.weekLoad=week7.reduce((sum,a)=>sum+(a.icu_training_load||0),0);
-    S.metrics.weekActivities=week7.length;
+    // Ramp rate: CTL change last 7 days from activity loads
+    const week7acts=activities.filter(a=>a.start_date_local>=from7);
+    S.metrics.weekLoad=Math.round(
+      week7acts.reduce((s,a)=>s+(a.icu_training_load||a.icu_atl_load||0),0)
+    );
+    S.metrics.weekActivities=week7acts.length;
 
-    // Zone distribution this week (Z1-Z5 seconds)
+    // Zone distribution 7 days (Z1-Z5 in seconds)
     const zones=[0,0,0,0,0];
-    week7.forEach(a=>{
-      if(a.icu_zone_times&&Array.isArray(a.icu_zone_times)){
-        a.icu_zone_times.forEach((t,i)=>{if(i<5)zones[i]+=t||0;});
-      }
+    week7acts.forEach(a=>{
+      if(Array.isArray(a.icu_zone_times))
+        a.icu_zone_times.slice(0,5).forEach((t,i)=>zones[i]+=t||0);
     });
     S.metrics.zoneDist=zones;
-    const totalZoneSecs=zones.reduce((a,b)=>a+b,0);
-    S.metrics.zoneDistPct=totalZoneSecs>0?zones.map(z=>Math.round(z/totalZoneSecs*100)):[0,0,0,0,0];
+    const totalZ=zones.reduce((a,b)=>a+b,0);
+    S.metrics.zoneDistPct=totalZ>0
+      ? zones.map(z=>Math.round(z/totalZ*100))
+      : [0,0,0,0,0];
+    S.metrics.zoneTotalMin=Math.round(totalZ/60);
 
-    // Aerobic decoupling (running sessions)
-    const runSessions=activities.filter(a=>a.type==='Run'&&a.icu_aerobic_decoupling!=null);
-    S.metrics.lastDecoupling=runSessions.length?runSessions[0].icu_aerobic_decoupling:null;
-
-    // Last activity
-    S.metrics.lastActivity=activities[0]||null;
+    // Aerobic decoupling — last run
+    const runs=activities.filter(a=>
+      (a.type==='Run'||a.sport_type==='Run')&&
+      a.icu_aerobic_decoupling!=null
+    );
+    S.metrics.lastDecoupling=runs.length
+      ? parseFloat(runs[0].icu_aerobic_decoupling).toFixed(1)
+      : null;
+    S.metrics.lastEF=runs.length&&runs[0].icu_efficiency_factor
+      ? parseFloat(runs[0].icu_efficiency_factor).toFixed(2)
+      : null;
 
     S.int.ok=true;
     save();
@@ -1180,70 +1191,145 @@ async function fetchIntervals() {
     renderZones();
     renderActivities();
 
-    const toastMsg=`HRV ${S.metrics.hrv||'—'}ms (baseline ${S.metrics.baseline||'—'}) · CTL ${S.metrics.ctl||'—'} · ${activities.length} actividades`;
-    toast('Intervals.icu sincronizado',toastMsg,'✅');
+    const parts=[
+      S.metrics.hrv     ? `HRV ${S.metrics.hrv}ms`    : null,
+      S.metrics.baseline? `base ${S.metrics.baseline}` : null,
+      S.metrics.ctl     ? `CTL ${S.metrics.ctl}`       : null,
+      S.metrics.weight  ? `${S.metrics.weight}kg`      : null,
+      S.metrics.protein ? `Prot ${Math.round(S.metrics.protein)}g` : null,
+    ].filter(Boolean);
+    toast('Intervals sincronizado ✓', parts.join(' · ') || 'Datos cargados','✅');
 
   } catch(err){
     setIntStatus('off');
-    toast('Error de conexión',err.message,'❌',5000);
+    console.error('Intervals error:', err);
+    toast('Error Intervals', err.message,'❌',6000);
   }
 }
+
+
 
 // Extended metrics rendering
 function updateExtendedMetrics() {
   const m=S.metrics;
 
-  // Update resting HR tile if exists
-  setM('m-rhr',m.restingHR);
-  setM('m-steps',m.steps?Math.round(m.steps/1000)+'k':null);
-  setM('m-weight',m.weight?m.weight.toFixed(1):null);
-  setM('m-ramp',m.rampRate!==null?(m.rampRate>0?'+':'')+m.rampRate:null);
-  setM('m-load',m.weekLoad?Math.round(m.weekLoad):null);
-  setM('m-decoup',m.lastDecoupling!==null?m.lastDecoupling+'%':null);
+  // Training load metrics
+  setM('m-rhr',  m.restingHR ? m.restingHR+'ppm' : null);
+  setM('m-steps',m.steps     ? (m.steps>=1000?Math.round(m.steps/1000)+'k':m.steps) : null);
+  setM('m-weight',m.weight   ? m.weight+'kg' : null);
+  setM('m-load', m.weekLoad  ? Math.round(m.weekLoad) : null);
+  setM('m-decoup',m.lastDecoupling!=null ? m.lastDecoupling+'%' : null);
 
-  // Subjective wellness from Intervals
-  if(m.fatigue!==null)setM('m-fatigue',m.fatigue+'/7');
-  if(m.soreness!==null)setM('m-soreness',m.soreness+'/7');
+  // Ramp rate: CTL - ATL if both present (proper display)
+  if(m.ctl!==null && m.atl!==null){
+    const ramp=m.ctl-m.atl;
+    const rEl=document.getElementById('m-ramp');
+    if(rEl){
+      rEl.textContent=(ramp>0?'+':'')+Math.round(ramp*10)/10;
+      rEl.className='st-val '+(Math.abs(ramp)<3?'dim':'');
+      rEl.style.color=ramp>3?'var(--r)':ramp<-3?'var(--g)':'';
+    }
+  }
+
+  // Sleep score
+  const ssEl=document.getElementById('m-sleep-score');
+  if(ssEl) ssEl.textContent=m.sleepScore?'Score: '+m.sleepScore:'';
+
+  // Week activities count
+  const waEl=document.getElementById('m-week-acts');
+  if(waEl&&m.weekActivities!=null)
+    waEl.textContent=m.weekActivities+(m.zoneTotalMin?' · '+m.zoneTotalMin+'min zona':' actividades');
 
   // HRV trend
   if(m.hrvTrend!==null){
     const tEl=document.getElementById('m-hrv-trend');
     if(tEl){
-      tEl.textContent=(m.hrvTrend>0?'↑ +':m.hrvTrend<0?'↓ ':'')+m.hrvTrend+'ms tendencia 3d';
+      const sign=m.hrvTrend>0?'↑ +':m.hrvTrend<0?'↓ ':'→ ';
+      tEl.textContent=sign+m.hrvTrend+'ms tendencia 3d';
       tEl.style.color=m.hrvTrend>3?'var(--g)':m.hrvTrend<-3?'var(--r)':'var(--fg3)';
     }
   }
 
-  // Zone distribution badges
+  // Nutrition from Intervals (via Companion + Apple Health)
+  updateNutritionTiles();
+
+  // Zone distribution
   const zEl=document.getElementById('zoneDist');
-  if(zEl&&m.zoneDistPct){
+  if(zEl&&m.zoneDistPct&&m.zoneDistPct.some(p=>p>0)){
     const colors=['var(--g)','var(--c)','var(--y)','var(--o)','var(--r)'];
     const labels=['Z1','Z2','Z3','Z4','Z5'];
-    zEl.innerHTML=m.zoneDistPct.map((p,i)=>
-      `<div style="text-align:center;flex:1;">
-        <div style="font-family:'Geist Mono',monospace;font-size:14px;color:${colors[i]};font-weight:600;">${p}%</div>
-        <div style="font-size:9px;color:var(--fg3);letter-spacing:1px;">${labels[i]}</div>
-        <div style="height:3px;background:var(--bg4);border-radius:2px;margin-top:4px;overflow:hidden;">
-          <div style="height:100%;width:${Math.min(p*2,100)}%;background:${colors[i]};border-radius:2px;"></div>
+    const zSecs=m.zoneDist||[0,0,0,0,0];
+    zEl.innerHTML=m.zoneDistPct.map((p,i)=>{
+      const mins=Math.round(zSecs[i]/60);
+      return `<div style="text-align:center;flex:1;">
+        <div style="font-family:'Geist Mono',monospace;font-size:16px;color:${colors[i]};font-weight:600;line-height:1;">${p}%</div>
+        <div style="font-size:9px;color:var(--fg3);letter-spacing:1px;margin-top:2px;">${labels[i]}</div>
+        <div style="font-size:9px;color:var(--fg4);margin-top:1px;">${mins}min</div>
+        <div style="height:4px;background:var(--bg4);border-radius:2px;margin-top:5px;overflow:hidden;">
+          <div style="height:100%;width:${Math.min(p*2,100)}%;background:${colors[i]};border-radius:2px;transition:width 1s ease;"></div>
         </div>
-      </div>`
-    ).join('');
+      </div>`;
+    }).join('');
   }
 }
 
-function renderZones() {
+function updateNutritionTiles() {
   const m=S.metrics;
-  const el=document.getElementById('zoneCard');
-  if(!el||!m.zoneDist)return;
-  const total=m.zoneDist.reduce((a,b)=>a+b,0);
-  if(!total)return;
-  el.style.display='block';
+  const nutEl=document.getElementById('nutritionCard');
+  if(!nutEl)return;
+
+  const hasNut=m.kcal||m.protein||m.carbs||m.fat;
+  if(!hasNut){
+    nutEl.style.display='none';
+    return;
+  }
+  nutEl.style.display='block';
+
+  const protPct = m.protein ? Math.min(Math.round(m.protein/180*100),100) : 0;
+  const kcalPct = m.kcal   ? Math.min(Math.round(m.kcal/2300*100),100)  : 0;
+  const carbPct = m.carbs  ? Math.min(Math.round(m.carbs/230*100),100)  : 0;
+  const fatPct  = m.fat    ? Math.min(Math.round(m.fat/65*100),100)     : 0;
+
+  const protColor = protPct>=90?'var(--g)':protPct>=60?'var(--y)':'var(--r)';
+  const kcalColor = kcalPct>=85&&kcalPct<=110?'var(--g)':kcalPct>110?'var(--r)':'var(--y)';
+
+  nutEl.innerHTML=`
+    <div class="card-hdr">
+      <span class="t-md">Nutrición hoy</span>
+      <span class="mono" style="font-size:10px;color:var(--fg3);">Intervals · Companion</span>
+    </div>
+    <div class="card-body">
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:12px;">
+        <div style="text-align:center;padding:10px;background:var(--bg3);border-radius:8px;">
+          <div style="font-family:'Instrument Serif',serif;font-size:28px;color:${kcalColor};line-height:1;">${m.kcal?Math.round(m.kcal):'—'}</div>
+          <div style="font-size:10px;color:var(--fg3);margin-top:2px;">kcal · obj 2300</div>
+        </div>
+        <div style="text-align:center;padding:10px;background:var(--bg3);border-radius:8px;">
+          <div style="font-family:'Instrument Serif',serif;font-size:28px;color:${protColor};line-height:1;">${m.protein?Math.round(m.protein)+'g':'—'}</div>
+          <div style="font-size:10px;color:var(--fg3);margin-top:2px;">proteína · obj 180g</div>
+        </div>
+      </div>
+      <div class="pb"><div class="pb-row"><div class="pb-label">Proteína</div><div class="pb-val">${m.protein?Math.round(m.protein)+'g / 180g':'—'}</div></div><div class="pb-track"><div class="pb-fill" style="width:${protPct}%;background:${protColor};"></div></div></div>
+      <div class="pb"><div class="pb-row"><div class="pb-label">Calorías</div><div class="pb-val">${m.kcal?Math.round(m.kcal)+' / 2300':'—'}</div></div><div class="pb-track"><div class="pb-fill" style="width:${kcalPct}%;background:${kcalColor};"></div></div></div>
+      ${m.carbs?`<div class="pb"><div class="pb-row"><div class="pb-label">Carbohidratos</div><div class="pb-val">${Math.round(m.carbs)}g / 230g</div></div><div class="pb-track"><div class="pb-fill" style="width:${carbPct}%;"></div></div></div>`:''}
+      ${m.fat?`<div class="pb"><div class="pb-row"><div class="pb-label">Grasa</div><div class="pb-val">${Math.round(m.fat)}g / 65g</div></div><div class="pb-track"><div class="pb-fill" style="width:${fatPct}%;background:var(--y);"></div></div></div>`:''}
+    </div>`;
+}
+
+
+function renderZones() {
+  // Zones are rendered inside updateExtendedMetrics
+  updateExtendedMetrics();
 }
 
 function renderActivities() {
   const acts=S.metrics.activities;
   const el=document.getElementById('activityList');
-  if(!el||!acts||!acts.length)return;
+  if(!el)return;
+  if(!acts||!acts.length){
+    el.innerHTML='<div style="text-align:center;color:var(--fg4);font-size:12px;padding:12px;">Sin actividades en los últimos 14 días</div>';
+    return;
+  }
 
   const typeIcon={'Run':'🏃','Ride':'🚴','Swim':'🏊','Walk':'🚶','WeightTraining':'💪','Workout':'⚡','Hike':'🥾'};
   el.innerHTML=acts.slice(0,5).map(a=>{
@@ -1999,7 +2085,7 @@ async function callAI(prompt,panelId,txtId,timeId) {
         'anthropic-version': '2023-06-01',
         'anthropic-dangerous-direct-browser-access': 'true'
       },
-      body:JSON.stringify({model:'claude-sonnet-4-20250514',max_tokens:1000,system:SYS,messages:[{role:'user',content:prompt}]})
+      body:JSON.stringify({model:'claude-sonnet-4-5',max_tokens:1000,system:SYS,messages:[{role:'user',content:prompt}]})
     });
     if(!r.ok){const e=await r.json().catch(()=>({}));throw new Error(e.error?.message||'Error '+r.status);}
     const data=await r.json();
@@ -2034,6 +2120,8 @@ VOLUMEN SEMANAL REAL (de Hevy): ${vol}
 SESIÓN PLANIFICADA: ${sess||'no especificada'}
 RODILLA: ${knee||'0'}/10
 NOTAS: "${notes||'ninguna'}"
+
+${nutCtx}
 
 Proporciona: 1) Semáforo del día basado en el motor de fatiga híbrido (no solo HRV). 2) ¿La sesión planificada es adecuada dado el estado de fatiga por grupo muscular? 3) Ajuste específico de volumen/intensidad si aplica. 4) Una alerta prioritaria concreta.`;
   await callAI(p,'aiDayP','aiDayTxt','aiDayT');
