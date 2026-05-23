@@ -1603,82 +1603,205 @@ function parseHevy(input) {
     try {
       const lines=e.target.result.split('\n').filter(l=>l.trim());
       if(lines.length<2)throw new Error('CSV vacío');
+
+      // Parse headers
       const headers=lines[0].split(',').map(h=>h.trim().replace(/"/g,'').toLowerCase());
+      console.log('Hevy headers:', headers);
+
+      // Parse rows handling quoted fields
       const rows=lines.slice(1).map(line=>{
         const vals=[];let cur='',inQ=false;
         for(const ch of line+','){
           if(ch==='"'){inQ=!inQ;}
-          else if(ch===','&&!inQ){vals.push(cur.trim());cur='';}
+          else if(ch===','&&!inQ){vals.push(cur.trim().replace(/"/g,''));cur='';}
           else cur+=ch;
         }
-        const obj={};headers.forEach((h,i)=>obj[h]=(vals[i]||'').replace(/"/g,'').trim());
+        const obj={};
+        headers.forEach((h,i)=>obj[h]=(vals[i]||'').trim());
         return obj;
+      }).filter(r=>r['exercise_title']||r['exercise name']||r['exercise']);
+
+      // Normalize field names (Spanish Hevy export vs English)
+      const norm = r => ({
+        title:       r['title']         || r['workout name'] || r['name'] || 'Entrenamiento',
+        date:        r['start_time']    || r['workout date'] || r['date'] || '',
+        exercise:    r['exercise_title']|| r['exercise name']|| r['exercise'] || '',
+        kg:          parseFloat(r['weight_kg']||r['weight (kg)']||r['weight']||0),
+        reps:        parseInt(r['reps']||r['repetitions']||0),
+        rpe:         parseFloat(r['rpe']||0),
+        setIndex:    parseInt(r['set_index']||0),
+        setType:     r['set_type']||'normal',
       });
 
-      // Group by workout
-      const workouts={};
-      rows.forEach(r=>{
-        const date=r['workout date']||r['date']||r['start time']||'';
-        const name=r['workout name']||r['title']||'Entrenamiento';
-        const key=date.split(' ')[0]+'_'+name;
-        if(!workouts[key])workouts[key]={date:date.split(' ')[0],name,exercises:{},totalSets:0};
-        const exName=r['exercise name']||r['exercise']||'Ejercicio';
-        if(!workouts[key].exercises[exName])workouts[key].exercises[exName]=[];
-        const kg=parseFloat(r['weight (kg)']||r['weight']||r['kg']||0);
-        const reps=parseInt(r['reps']||r['repetitions']||0);
-        if(reps>0){workouts[key].exercises[exName].push({kg,reps});workouts[key].totalSets++;}
-      });
+      // Spanish month parser
+      const MONTHS={ene:1,feb:2,mar:3,abr:4,may:5,jun:6,jul:7,ago:8,sep:9,oct:10,nov:11,dic:12};
+      function parseSpDate(s) {
+        if(!s)return null;
+        const clean=s.split(',')[0].trim();
+        const parts=clean.split(' ');
+        if(parts.length>=3){
+          const mon=MONTHS[parts[1]?.toLowerCase()];
+          if(mon){
+            const d=new Date(parseInt(parts[2]),mon-1,parseInt(parts[0]));
+            if(!isNaN(d.getTime()))return d;
+          }
+        }
+        // Try ISO fallback
+        const iso=new Date(clean);
+        return isNaN(iso.getTime())?null:iso;
+      }
 
-      const wList=Object.values(workouts).sort((a,b)=>b.date.localeCompare(a.date));
-
-      // Calculate volume per muscle group for current week
-      const weekStart=getWeekStart();
-      S.weeklyVol={};
-      const muscleMap={
-        'bench press':'Pectoral','press banca':'Pectoral','push up':'Pectoral','chest':'Pectoral',
-        'overhead press':'Deltoides','military':'Deltoides','lateral raise':'Deltoides','shoulder':'Deltoides',
-        'squat':'Cuádriceps','leg press':'Cuádriceps','leg extension':'Cuádriceps','lunge':'Cuádriceps','split squat':'Cuádriceps',
-        'deadlift':'Isquiotibiales','rdl':'Isquiotibiales','romanian':'Isquiotibiales','leg curl':'Isquiotibiales','hamstring':'Isquiotibiales',
-        'hip thrust':'Glúteo','glute bridge':'Glúteo','glute':'Glúteo',
-        'calf':'Gemelos/Sóleo','calf raise':'Gemelos/Sóleo','gemelo':'Gemelos/Sóleo','sóleo':'Gemelos/Sóleo',
-        'row':'Dorsal','pull':'Dorsal','lat':'Dorsal','pulldown':'Dorsal','remo':'Dorsal','pullover':'Dorsal',
+      // Spanish → muscle group map
+      const MMAP={
+        'press de banca':'Pectoral','press banca':'Pectoral',
+        'press de banca inclinado':'Pectoral','press inclinado':'Pectoral',
+        'aperturas':'Pectoral','fondos':'Pectoral',
+        'press de hombros':'Deltoides','press hombros':'Deltoides',
+        'press militar':'Deltoides','elevacion laterales':'Deltoides',
+        'elevación lateral':'Deltoides','elevación frontal':'Deltoides',
+        'remo':'Dorsal','jalón':'Dorsal','jalon':'Dorsal',
+        'pullover':'Dorsal','dominadas':'Dorsal',
+        'curl de bíceps':'Bíceps','curl biceps':'Bíceps','curl de biceps':'Bíceps',
+        'press francés':'Tríceps','press frances':'Tríceps','triceps':'Tríceps',
+        'extensión de tríceps':'Tríceps',
+        'sentadilla búlgara':'Cuádriceps','sentadilla bulgar':'Cuádriceps',
+        'sentadilla goblet':'Cuádriceps','sentadilla split':'Cuádriceps',
+        'sentadilla delantera':'Cuádriceps',
+        'sentadilla':'Cuádriceps','extensión de pierna':'Cuádriceps',
+        'extension de pierna':'Cuádriceps','zancada':'Cuádriceps','prensa':'Cuádriceps',
+        'peso muerto rumano':'Isquiotibiales','rdl':'Isquiotibiales',
+        'curl de piernas':'Isquiotibiales','peso muerto':'Isquiotibiales',
+        'empuje de caderas':'Glúteo','hip thrust':'Glúteo','puente':'Glúteo',
+        'sentadilla sumo':'Aductores','sumo':'Aductores','zancada lateral':'Aductores',
+        'elevación de gemelos':'Gemelos/Sóleo','elevacion de gemelos':'Gemelos/Sóleo',
+        'gemelos':'Gemelos/Sóleo','calf':'Gemelos/Sóleo',
+        'pallof':'Core','rueda abdominal':'Core','plancha':'Core',
+        'dead bug':'Core','abdominal':'Core','crunch':'Core',
+        // English fallback
+        'bench press':'Pectoral','chest':'Pectoral',
+        'squat':'Cuádriceps','leg press':'Cuádriceps','leg extension':'Cuádriceps',
+        'deadlift':'Isquiotibiales','hamstring':'Isquiotibiales','leg curl':'Isquiotibiales',
+        'glute':'Glúteo','hip':'Glúteo',
+        'overhead':'Deltoides','shoulder':'Deltoides','lateral raise':'Deltoides',
+        'row':'Dorsal','lat ':'Dorsal','pull':'Dorsal',
         'curl':'Bíceps','bicep':'Bíceps',
-        'tricep':'Tríceps','push down':'Tríceps','skull':'Tríceps','dip':'Tríceps',
-        'plank':'Core','crunch':'Core','ab':'Core','core':'Core','dead bug':'Core','pallof':'Core',
-        'adductor':'Aductores','sumo':'Aductores','inner':'Aductores',
+        'tricep':'Tríceps','skull':'Tríceps','dip':'Tríceps',
       };
 
-      wList.filter(w=>w.date>=weekStart).forEach(w=>{
+      function getMuscle(exName) {
+        const lower=exName.toLowerCase();
+        // Exact match first, then partial
+        for(const [key,muscle] of Object.entries(MMAP)){
+          if(lower.includes(key))return muscle;
+        }
+        return null;
+      }
+
+      // Group rows by workout
+      const workouts={};
+      const normalizedRows=rows.map(norm);
+
+      normalizedRows.forEach(r=>{
+        if(!r.exercise||r.reps===0)return;
+        const dateStr=r.date.split(',')[0].trim();
+        const key=dateStr+'_'+r.title;
+        if(!workouts[key]){
+          workouts[key]={
+            date:dateStr,
+            dateObj:parseSpDate(r.date),
+            name:r.title,
+            exercises:{},
+            totalSets:0,
+          };
+        }
+        const ex=r.exercise;
+        if(!workouts[key].exercises[ex])workouts[key].exercises[ex]=[];
+        workouts[key].exercises[ex].push({kg:r.kg,reps:r.reps,rpe:r.rpe});
+        workouts[key].totalSets++;
+      });
+
+      const wList=Object.values(workouts)
+        .filter(w=>w.dateObj)
+        .sort((a,b)=>b.dateObj-a.dateObj);
+
+      // Weekly volume — current week (Mon-Sun)
+      const now=new Date();
+      const weekStart=new Date(now);
+      weekStart.setHours(0,0,0,0);
+      weekStart.setDate(now.getDate()-(now.getDay()===0?6:now.getDay()-1));
+
+      S.weeklyVol={};
+      wList.filter(w=>w.dateObj>=weekStart).forEach(w=>{
         Object.entries(w.exercises).forEach(([name,sets])=>{
-          const lower=name.toLowerCase();
-          const muscle=Object.entries(muscleMap).find(([k])=>lower.includes(k))?.[1];
-          if(muscle){S.weeklyVol[muscle]=(S.weeklyVol[muscle]||0)+sets.length;}
+          const muscle=getMuscle(name);
+          if(muscle)S.weeklyVol[muscle]=(S.weeklyVol[muscle]||0)+sets.length;
         });
       });
 
       // 1RM estimates
-      const keyEx=['press banca','bench press','sentadilla','squat','remo','row','peso muerto','deadlift','hip thrust','rdl','romanian'];
       const strength={};
       wList.forEach(w=>{
         Object.entries(w.exercises).forEach(([name,sets])=>{
-          const lower=name.toLowerCase();
-          if(!keyEx.some(k=>lower.includes(k)))return;
-          const best=sets.reduce((mx,s)=>{const rm=s.kg*(1+s.reps/30);return rm>mx.rm?{...s,rm}:mx;},{rm:0});
-          if(!strength[name]||best.rm>strength[name].rm)strength[name]={...best,date:w.date};
+          sets.forEach(s=>{
+            if(s.kg<=0||s.reps<=0)return;
+            const orm=s.kg*(1+s.reps/30);
+            if(!strength[name]||orm>strength[name].orm){
+              strength[name]={kg:s.kg,reps:s.reps,orm:Math.round(orm*10)/10,date:w.date};
+            }
+          });
         });
       });
 
-      S.hevy={workouts:wList.slice(0,30),strength,totalWorkouts:wList.length,parsed:new Date().toISOString()};
+      // RPE analysis — avg RPE by session
+      const rpeBySession={};
+      normalizedRows.forEach(r=>{
+        if(r.rpe>0){
+          const key=r.date.split(',')[0]+'_'+r.title;
+          if(!rpeBySession[key])rpeBySession[key]={sum:0,count:0,name:r.title};
+          rpeBySession[key].sum+=r.rpe;
+          rpeBySession[key].count++;
+        }
+      });
+
+      S.hevy={
+        workouts:wList.slice(0,30),
+        strength,
+        rpeBySession,
+        totalWorkouts:wList.length,
+        totalSets:normalizedRows.filter(r=>r.reps>0).length,
+        parsed:new Date().toISOString(),
+      };
       save();
       renderMAV();
+
       document.getElementById('hevyStatus').textContent='⬤ Datos cargados';
       document.getElementById('hevyStatus').style.color='var(--g)';
+
+      // Summary
+      const topStrength=Object.entries(strength)
+        .sort((a,b)=>b[1].orm-a[1].orm).slice(0,5)
+        .map(([n,d])=>`<div style="display:flex;justify-content:space-between;padding:4px 0;border-bottom:1px solid var(--line);font-size:11px;">
+          <span style="color:var(--fg2);flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${n}</span>
+          <span style="color:var(--c);font-family:'Geist Mono',monospace;flex-shrink:0;margin-left:8px;">${d.kg}kg×${d.reps} → ~${d.orm}kg</span>
+        </div>`).join('');
+
+      const weekVolHTML=Object.entries(S.weeklyVol).map(([m,s])=>`${m}:${s}`).join(' · ')||'Sin sesiones esta semana';
+
       const sum=document.getElementById('hevySummary');
       sum.style.display='block';
-      const strHTML=Object.entries(strength).slice(0,4).map(([n,d])=>`<div style="display:flex;justify-content:space-between;padding:3px 0;border-bottom:1px solid var(--line);font-size:11px;"><span style="color:var(--fg2);">${n}</span><span style="color:var(--c);">${d.kg}kg×${d.reps} → ~${Math.round(d.rm)}kg</span></div>`).join('');
-      sum.innerHTML=`<div style="background:var(--bg3);border-radius:8px;padding:11px;font-size:12px;color:var(--fg2);">💪 <b style="color:var(--fg);">${wList.length}</b> sesiones · <b style="color:var(--fg);">${rows.length}</b> series totales<div style="margin-top:8px;font-size:10px;letter-spacing:1.5px;text-transform:uppercase;color:var(--fg3);margin-bottom:5px;">1RM estimado</div>${strHTML}</div>`;
-      toast('Hevy cargado',`${wList.length} sesiones · Volumen semanal calculado`,'💪');
+      sum.innerHTML=`<div style="background:var(--bg3);border-radius:8px;padding:12px;">
+        <div style="font-size:12px;color:var(--fg2);margin-bottom:8px;">
+          💪 <b style="color:var(--fg);">${wList.length}</b> sesiones · <b style="color:var(--fg);">${normalizedRows.filter(r=>r.reps>0).length}</b> series totales
+        </div>
+        <div style="font-size:10px;letter-spacing:1.5px;text-transform:uppercase;color:var(--fg3);margin-bottom:6px;">Volumen semana actual</div>
+        <div style="font-size:11px;color:var(--c);margin-bottom:10px;font-family:'Geist Mono',monospace;">${weekVolHTML}</div>
+        <div style="font-size:10px;letter-spacing:1.5px;text-transform:uppercase;color:var(--fg3);margin-bottom:5px;">1RM estimado top 5</div>
+        ${topStrength}
+      </div>`;
+
+      toast('Hevy cargado',`${wList.length} sesiones · ${Object.keys(S.weeklyVol).length} grupos musculares esta semana`,'💪');
     } catch(err){
+      console.error('Hevy parse error:', err);
       document.getElementById('hevyStatus').textContent='⬤ Error';
       document.getElementById('hevyStatus').style.color='var(--r)';
       toast('Error Hevy',err.message,'❌');
@@ -1687,45 +1810,48 @@ function parseHevy(input) {
   reader.readAsText(file);
 }
 
-function getWeekStart() {
-  const d=new Date();
-  const day=d.getDay();
-  const diff=d.getDate()-(day===0?6:day-1);
-  return new Date(d.setDate(diff)).toISOString().split('T')[0];
-}
-
 // ════════════════════════════════
 // MEV / MAV / MRV RENDER
 // ════════════════════════════════
 function renderMAV() {
   const container=document.getElementById('mavBars');
+  if(!container)return;
   const ranges=S.mavRanges;
   const vol=S.weeklyVol||{};
+  const hasData=Object.keys(vol).length>0;
+
+  if(!hasData){
+    container.innerHTML='<div class="empty"><div class="empty-icon">📊</div><div class="empty-title">Sin datos de Hevy</div><div class="empty-msg">Sube tu CSV de Hevy en "Datos" para ver el volumen real</div></div>';
+    return;
+  }
 
   container.innerHTML=Object.entries(ranges).map(([muscle,{mev,mav,mrv}])=>{
     const current=vol[muscle]||0;
-    const maxDisplay=mrv+4;
-    const mevPct=(mev/maxDisplay)*100;
-    const mrvPct=(mrv/maxDisplay)*100;
+    const maxDisplay=mrv+6;
+    const mevPct=Math.min((mev/maxDisplay)*100,100);
+    const mrvPct=Math.min((mrv/maxDisplay)*100,100);
     const fillPct=Math.min((current/maxDisplay)*100,100);
 
-    let color,zone,zoneClass;
-    if(current<mev){color='var(--r)';zone='Bajo MEV — añade series';zoneClass='dn';}
-    else if(current<=mav){color='var(--g)';zone='Rango óptimo ✓';zoneClass='up';}
-    else if(current<=mrv){color='var(--y)';zone='Zona MAV-MRV — mantén';zoneClass='nt';}
-    else{color='var(--r)';zone='Sobre MRV — reduce';zoneClass='dn';}
+    let color,zone;
+    if(current===0){color='var(--fg4)';zone='Sin series esta semana';}
+    else if(current<mev){color='var(--r)';zone=`Bajo MEV — faltan ${mev-current} series`;}
+    else if(current<=mav){color='var(--g)';zone='Rango óptimo ✓';}
+    else if(current<=mrv){color='var(--y)';zone=`MAV-MRV — considera bajar`;}
+    else{color='var(--r)';zone=`Sobre MRV — reduce ${current-mrv} series`;}
 
     return `<div class="mav-row">
       <div class="mav-header">
         <div class="mav-muscle">${muscle}</div>
-        <div class="mav-nums">${current} series · MEV${mev} MAV${mav} MRV${mrv}</div>
+        <div class="mav-nums" style="font-family:'Geist Mono',monospace;font-size:10px;color:var(--fg3);">
+          <span style="color:${color};font-weight:600;">${current}</span> series · MEV<b>${mev}</b> MAV<b>${mav}</b> MRV<b>${mrv}</b>
+        </div>
       </div>
       <div class="mav-track">
         <div class="mav-mev" style="width:${mevPct}%"></div>
-        <div class="mav-fill" style="width:${fillPct}%;background:${color};"></div>
+        <div class="mav-fill" style="width:${fillPct}%;background:${color};transition:width 1s ease;"></div>
         <div class="mav-mrv" style="left:${mrvPct}%"></div>
       </div>
-      <div class="mav-zone" style="color:${color};">${zone}</div>
+      <div class="mav-zone" style="color:${color};font-size:11px;margin-top:3px;">${zone}</div>
     </div>`;
   }).join('');
 }
