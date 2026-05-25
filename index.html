@@ -497,18 +497,93 @@ transform:translateY(-8px);opacity:0;transition:all .3s cubic-bezier(.34,1.56,.6
     <!-- Zone distribution -->
     <div class="card" style="margin-bottom:10px;">
       <div class="card-hdr">
-        <span class="t-md">Distribución de zonas — 7 días</span>
+        <span class="t-md">Zonas FC — 7 días</span>
         <span class="mono" style="font-size:10px;color:var(--fg3);" id="m-week-acts">—</span>
       </div>
       <div class="card-body">
         <div style="display:flex;gap:8px;align-items:flex-end;" id="zoneDist">
           <div style="width:100%;text-align:center;color:var(--fg4);font-size:11px;padding:8px;">Conecta Intervals.icu para ver distribución de zonas</div>
         </div>
+        <div id="zoneAnalysis" style="display:none;margin-top:8px;font-size:11px;padding:6px 0;border-top:1px solid var(--line);"></div>
       </div>
     </div>
 
-    <!-- Nutrition from Intervals -->
-    <div class="card" id="nutritionCard" style="margin-bottom:10px;display:none;"></div>
+    <!-- Nutrición + Composición corporal (v5.1) -->
+    <div class="card" id="nutCompCard" style="margin-bottom:10px;">
+      <div class="card-hdr">
+        <span class="t-md">Nutrición · Composición</span>
+        <span class="mono" style="font-size:10px;color:var(--fg3);" id="nutDate">Intervals · Cronometer</span>
+      </div>
+      <div class="card-body">
+        <!-- Macros row -->
+        <div style="display:grid;grid-template-columns:1fr 1fr 1fr 1fr;gap:8px;margin-bottom:14px;" id="macroTiles">
+          <div style="text-align:center;padding:10px 6px;background:var(--bg3);border-radius:8px;">
+            <div style="font-family:'Instrument Serif',serif;font-size:22px;line-height:1;color:var(--y);" id="nut-kcal">—</div>
+            <div style="font-size:9px;color:var(--fg3);margin-top:3px;">kcal</div>
+            <div style="font-size:8px;color:var(--fg4);">obj 2300</div>
+          </div>
+          <div style="text-align:center;padding:10px 6px;background:var(--bg3);border-radius:8px;">
+            <div style="font-family:'Instrument Serif',serif;font-size:22px;line-height:1;color:var(--o);" id="nut-prot">—</div>
+            <div style="font-size:9px;color:var(--fg3);margin-top:3px;">g prot</div>
+            <div style="font-size:8px;color:var(--fg4);">obj 180g</div>
+          </div>
+          <div style="text-align:center;padding:10px 6px;background:var(--bg3);border-radius:8px;">
+            <div style="font-family:'Instrument Serif',serif;font-size:22px;line-height:1;color:var(--b);" id="nut-carbs">—</div>
+            <div style="font-size:9px;color:var(--fg3);margin-top:3px;">g carbs</div>
+            <div style="font-size:8px;color:var(--fg4);">obj 230g</div>
+          </div>
+          <div style="text-align:center;padding:10px 6px;background:var(--bg3);border-radius:8px;">
+            <div style="font-family:'Instrument Serif',serif;font-size:22px;line-height:1;color:var(--p);" id="nut-fat">—</div>
+            <div style="font-size:9px;color:var(--fg3);margin-top:3px;">g grasa</div>
+            <div style="font-size:8px;color:var(--fg4);">obj 65g</div>
+          </div>
+        </div>
+        <!-- Progress bars -->
+        <div id="nutBars">
+          <div class="pb"><div class="pb-row"><div class="pb-label">Proteína</div><div class="pb-val" id="nut-prot-lbl">— / 180g</div></div><div class="pb-track"><div class="pb-fill o" id="nut-prot-bar" style="width:0%"></div></div></div>
+          <div class="pb"><div class="pb-row"><div class="pb-label">Calorías</div><div class="pb-val" id="nut-kcal-lbl">— / 2300</div></div><div class="pb-track"><div class="pb-fill y" id="nut-kcal-bar" style="width:0%"></div></div></div>
+          <div class="pb"><div class="pb-row"><div class="pb-label">Carbohidratos</div><div class="pb-val" id="nut-carbs-lbl">— / 230g</div></div><div class="pb-track"><div class="pb-fill" id="nut-carbs-bar" style="width:0%;background:var(--b);"></div></div></div>
+        </div>
+        <!-- Composition row -->
+        <div style="border-top:1px solid var(--line);margin-top:12px;padding-top:12px;">
+          <div style="font-family:'Geist Mono',monospace;font-size:9px;letter-spacing:2px;text-transform:uppercase;color:var(--fg3);margin-bottom:8px;">Composición corporal</div>
+          <div style="display:grid;grid-template-columns:1fr 1fr 1fr 1fr;gap:8px;">
+            <div style="text-align:center;">
+              <div style="font-family:'Instrument Serif',serif;font-size:20px;color:var(--fg);" id="comp-weight">—</div>
+              <div style="font-size:9px;color:var(--fg3);">kg peso</div>
+            </div>
+            <div style="text-align:center;">
+              <div style="font-family:'Instrument Serif',serif;font-size:20px;color:var(--o);" id="comp-fat">—</div>
+              <div style="font-size:9px;color:var(--fg3);">% grasa</div>
+            </div>
+            <div style="text-align:center;">
+              <div style="font-family:'Instrument Serif',serif;font-size:20px;color:var(--g);" id="comp-muscle">—</div>
+              <div style="font-size:9px;color:var(--fg3);">% músculo</div>
+            </div>
+            <div style="text-align:center;">
+              <div style="font-family:'Instrument Serif',serif;font-size:20px;color:var(--b);" id="comp-water">—</div>
+              <div style="font-size:9px;color:var(--fg3);">% agua</div>
+            </div>
+          </div>
+          <!-- Masa grasa estimada en kg -->
+          <div id="compKgRow" style="display:none;margin-top:8px;padding:8px;background:var(--bg3);border-radius:7px;">
+            <div style="display:flex;justify-content:space-between;font-size:11px;">
+              <span style="color:var(--fg2);">Masa grasa estimada</span><span style="color:var(--o);font-family:'Geist Mono',monospace;" id="comp-fatkg">—</span>
+            </div>
+            <div style="display:flex;justify-content:space-between;font-size:11px;margin-top:3px;">
+              <span style="color:var(--fg2);">Masa magra estimada</span><span style="color:var(--g);font-family:'Geist Mono',monospace;" id="comp-leankg">—</span>
+            </div>
+            <div style="display:flex;justify-content:space-between;font-size:11px;margin-top:3px;">
+              <span style="color:var(--fg2);">Para llegar a 10% grasa</span><span style="color:var(--c);font-family:'Geist Mono',monospace;" id="comp-target">—</span>
+            </div>
+          </div>
+          <!-- Nota si peso no disponible -->
+          <div id="weightNote" style="display:none;margin-top:8px;font-size:10px;color:var(--fg3);font-style:italic;">
+            ⚠ Peso no sincronizado. Verifica báscula → Apple Health → Companion → Intervals.
+          </div>
+        </div>
+      </div>
+    </div>
 
     <!-- Recent activities -->
     <div class="card" style="margin-bottom:10px;">
@@ -1263,43 +1338,42 @@ async function fetchIntervals() {
     S.metrics.sleepLight= fv['SleepLight'] || fv['lightSleep'] || null;
     S.metrics.spO2      = fv['OxygenSaturation'] || fv['SpO2'] || null;
 
-    // ── NUTRITION — Companion writes to fieldValues with exact codes from the screenshots ──
-    // Codes shown in Companion app: ActiveEnergy, RestingEnergy, Protein, Carbohydrates (no 'Dietary' prefix)
+    // ── NUTRITION — Real field names confirmed from debug (25/05/2026) ──
+    // Intervals API uses: kcalConsumed, protein, carbohydrates, fatTotal (top-level, no fieldValues)
     const nutFv = latestNut.fieldValues || {};
     const allFv = {...(latestBio.fieldValues||{}), ...nutFv};
 
-    // Calories: Companion uses 'CaloriesConsumed' or top-level kcalConsumed
     S.metrics.kcal = latestNut.kcalConsumed || latestNut.calories
-      || allFv['CaloriesConsumed'] || allFv['DietaryEnergyConsumed']
-      || allFv['Calories'] || allFv['kcal'] || null;
+      || allFv['CaloriesConsumed'] || allFv['Calories'] || null;
 
-    // Protein: Companion code is 'Protein' (from screenshot)
-    S.metrics.protein = latestNut.proteinG || latestNut.protein
-      || allFv['Protein'] || allFv['DietaryProtein'] || allFv['protein'] || null;
+    // CONFIRMED: field is 'protein' (not proteinG)
+    S.metrics.protein = latestNut.protein || latestNut.proteinG
+      || allFv['Protein'] || allFv['DietaryProtein'] || null;
 
-    // Carbs: Companion code is 'Carbohydrates'
-    S.metrics.carbs = latestNut.carbsG || latestNut.carbs
-      || allFv['Carbohydrates'] || allFv['DietaryCarbohydrates'] || allFv['carbs'] || null;
+    // CONFIRMED: field is 'carbohydrates' (not carbsG)
+    S.metrics.carbs = latestNut.carbohydrates || latestNut.carbsG
+      || allFv['Carbohydrates'] || allFv['DietaryCarbohydrates'] || null;
 
-    // Fat: Companion code is 'Fat' or 'DietaryFatTotal'
-    S.metrics.fat = latestNut.fatG || latestNut.fat
-      || allFv['Fat'] || allFv['DietaryFatTotal'] || allFv['fat'] || null;
+    // CONFIRMED: field is 'fatTotal' (not fatG or fat)
+    S.metrics.fat = latestNut.fatTotal || latestNut.fatG || latestNut.fat
+      || allFv['Fat'] || allFv['DietaryFatTotal'] || null;
 
-    // Energy from Companion
-    S.metrics.activeKcal = allFv['ActiveEnergy'] || allFv['activeEnergy'] || null;
-    S.metrics.restKcal   = allFv['RestingEnergy'] || allFv['restingEnergy'] || null;
+    // Body fat — comes via bodyFat field (not fatPercent or fieldValues)
+    S.metrics.fatPct = latestBio.bodyFat || latestBio.fatPercent
+      || allFv['BodyFatPercent'] || allFv['PercentageOfBodyFat'] || null;
 
-    // Body fat: Companion code from screenshot is 'BodyFatPercent' or 'PercentageOfBodyFat'
-    S.metrics.fatPct = latestBio.fatPercent
-      || allFv['BodyFatPercent'] || allFv['PercentageOfBodyFat']
-      || allFv['bodyFatPercent'] || allFv['fatPercent']
-      || allFv['BodyFat'] || null;
+    // Weight: wellness 'weight' field OR athlete endpoint 'icu_weight' as fallback
+    // icu_weight stored during athlete fetch — see below
+    S.metrics.musclePct = allFv['MuscleMass'] || allFv['muscleMass'] || null;
+    S.metrics.waterPct  = allFv['BodyWater']  || allFv['bodyWater']  || null;
 
-    console.log('ATLAS nutrition fields:', {
+    console.log('ATLAS nutrition (v5.1):', {
       kcal:S.metrics.kcal, protein:S.metrics.protein,
       carbs:S.metrics.carbs, fat:S.metrics.fat,
-      fatPct:S.metrics.fatPct, allFvKeys:Object.keys(allFv)
+      fatPct:S.metrics.fatPct, latestNutId:latestNut.id
     });
+    // Store nutrition date for UI label
+    S.metrics._nutDate = latestNut.id || null;
 
     // ── HRV 14-day history ──
     S.metrics.hrv7 = wSorted.slice(-14).map(d=>({
@@ -1330,40 +1404,39 @@ async function fetchIntervals() {
       }));
 
     // ── CTL/ATL/TSB ──
+    // Debug showed: latest_bio has ctl:5.678, atl:21.059 directly in wellness entry
+    // Also try fitnessHistory, then athlete endpoint
     if(fitnessHistory.length){
       const lf = fitnessHistory[fitnessHistory.length-1];
       S.metrics.ctl = lf.ctl  != null ? Math.round(lf.ctl)  : null;
       S.metrics.atl = lf.atl  != null ? Math.round(lf.atl)  : null;
       S.metrics.tsb = lf.form != null ? Math.round(lf.form) : null;
-      // Ramp: 7-day CTL change
       if(fitnessHistory.length>=8){
-        const prev = fitnessHistory[fitnessHistory.length-8];
-        S.metrics.rampRate = (lf.ctl!=null&&prev.ctl!=null)
-          ? Math.round((lf.ctl-prev.ctl)*10)/10 : null;
+        const prev=fitnessHistory[fitnessHistory.length-8];
+        S.metrics.rampRate=(lf.ctl!=null&&prev.ctl!=null)?Math.round((lf.ctl-prev.ctl)*10)/10:null;
       }
-      S._rawCTL = fitnessHistory[fitnessHistory.length-1];
-      console.log('ATLAS CTL/ATL/TSB:', S.metrics.ctl, S.metrics.atl, S.metrics.tsb);
-      console.log('ATLAS raw CTL entry:', JSON.stringify(S._rawCTL));
-    } else {
-      console.warn('ATLAS: ctl-history empty — trying athlete endpoint');
-      // Fallback: try athlete endpoint
-      try {
-        const atR=await fetch(
-          `https://intervals.icu/api/v1/athlete/${aid}`,
-          {headers:H,mode:'cors'}
-        );
-        if(atR.ok){
-          const at=await atR.json();
-          console.log('ATLAS athlete endpoint:', JSON.stringify(at));
-          S._rawCTL={source:'athlete_endpoint',...at};
-          // athlete endpoint fields: ctl, atl, form, ramp
-          if(at.ctl!=null) S.metrics.ctl=Math.round(at.ctl);
-          if(at.atl!=null) S.metrics.atl=Math.round(at.atl);
-          if(at.form!=null) S.metrics.tsb=Math.round(at.form);
-          if(at.ramp!=null) S.metrics.rampRate=Math.round(at.ramp*10)/10;
-        }
-      } catch(e){ console.warn('Athlete endpoint also failed:', e); }
     }
+    // Fallback: wellness latest_bio has ctl/atl directly (confirmed in debug data)
+    if(S.metrics.ctl==null && latestBio.ctl!=null) S.metrics.ctl=Math.round(latestBio.ctl);
+    if(S.metrics.atl==null && latestBio.atl!=null) S.metrics.atl=Math.round(latestBio.atl);
+    if(S.metrics.tsb==null && latestBio.ctl!=null && latestBio.atl!=null)
+      S.metrics.tsb=Math.round(latestBio.ctl - latestBio.atl);
+    if(S.metrics.rampRate==null && latestBio.rampRate!=null)
+      S.metrics.rampRate=Math.round(latestBio.rampRate*10)/10;
+
+    // Always fetch athlete endpoint for icu_weight (wellness.weight is null for Carlos)
+    try {
+      const atR=await fetch(`https://intervals.icu/api/v1/athlete/${aid}`,{headers:H,mode:'cors'});
+      if(atR.ok){
+        const at=await atR.json();
+        if(!S.metrics.weight && at.icu_weight) S.metrics.weight=parseFloat(at.icu_weight.toFixed(1));
+        if(!S.metrics.restingHR && at.icu_resting_hr) S.metrics.restingHR=at.icu_resting_hr;
+        // Overwrite CTL/ATL only if still missing
+        if(S.metrics.ctl==null && at.ctl!=null) S.metrics.ctl=Math.round(at.ctl);
+        if(S.metrics.atl==null && at.atl!=null) S.metrics.atl=Math.round(at.atl);
+        if(S.metrics.tsb==null && at.form!=null) S.metrics.tsb=Math.round(at.form);
+      }
+    } catch(e){ console.warn('Athlete endpoint failed:', e); }
 
     // ── ACTIVITIES ──
     S.metrics.activities = activities;
@@ -1404,8 +1477,7 @@ async function fetchIntervals() {
     S.int.ok=true;
     save();
     setIntStatus('ok');
-    updateMetrics();
-    updateExtendedMetrics();
+    updateMetrics();       // handles nutrition, zones, TSB display
     computeFatigue();
     renderHRV();
     renderActivities();
@@ -1414,9 +1486,9 @@ async function fetchIntervals() {
     const parts=[
       S.metrics.hrv    ?`HRV ${S.metrics.hrv}ms`:null,
       S.metrics.baseline?`base ${S.metrics.baseline}`:null,
-      S.metrics.ctl    ?`CTL ${S.metrics.ctl}`:null,
+      S.metrics.ctl    ?`CTL ${Math.round(S.metrics.ctl)}`:null,
+      S.metrics.atl    ?`ATL ${Math.round(S.metrics.atl)}`:null,
       S.metrics.weight ?`${S.metrics.weight}kg`:null,
-      S.metrics.fatPct ?`Grasa ${parseFloat(S.metrics.fatPct).toFixed(1)}%`:null,
       S.metrics.protein?`Prot ${Math.round(S.metrics.protein)}g`:null,
     ].filter(Boolean);
     toast('Intervals sincronizado',parts.join(' · ')||'Datos actualizados','✅');
@@ -1592,74 +1664,118 @@ function updateExtendedMetrics() {
   // Nutrition from Intervals (via Companion + Apple Health)
   updateNutritionTiles();
 
-  // Zone distribution
-  const zEl=document.getElementById('zoneDist');
-  if(zEl&&m.zoneDistPct&&m.zoneDistPct.some(p=>p>0)){
-    const colors=['var(--g)','var(--c)','var(--y)','var(--o)','var(--r)'];
-    const labels=['Z1','Z2','Z3','Z4','Z5'];
-    const zSecs=m.zoneDist||[0,0,0,0,0];
-    zEl.innerHTML=m.zoneDistPct.map((p,i)=>{
-      const mins=Math.round(zSecs[i]/60);
-      return `<div style="text-align:center;flex:1;">
-        <div style="font-family:'Geist Mono',monospace;font-size:16px;color:${colors[i]};font-weight:600;line-height:1;">${p}%</div>
-        <div style="font-size:9px;color:var(--fg3);letter-spacing:1px;margin-top:2px;">${labels[i]}</div>
-        <div style="font-size:9px;color:var(--fg4);margin-top:1px;">${mins}min</div>
-        <div style="height:4px;background:var(--bg4);border-radius:2px;margin-top:5px;overflow:hidden;">
-          <div style="height:100%;width:${Math.min(p*2,100)}%;background:${colors[i]};border-radius:2px;transition:width 1s ease;"></div>
-        </div>
-      </div>`;
-    }).join('');
-  }
+  // Zone distribution and nutrition handled by updateMetrics → dedicated functions
 }
 
 function updateNutritionTiles() {
   const m=S.metrics;
-  const nutEl=document.getElementById('nutritionCard');
-  if(!nutEl)return;
 
-  const hasNut=m.kcal||m.protein||m.carbs||m.fat;
-  if(!hasNut){
-    nutEl.style.display='none';
-    return;
-  }
-  nutEl.style.display='block';
+  // Update new nutCompCard elements
+  const setNut=(id,val,color)=>{
+    const el=document.getElementById(id);
+    if(!el)return;
+    el.textContent=val!=null?val:'—';
+    if(color)el.style.color=color;
+  };
 
   const protPct = m.protein ? Math.min(Math.round(m.protein/180*100),100) : 0;
   const kcalPct = m.kcal   ? Math.min(Math.round(m.kcal/2300*100),100)  : 0;
   const carbPct = m.carbs  ? Math.min(Math.round(m.carbs/230*100),100)  : 0;
-  const fatPct  = m.fat    ? Math.min(Math.round(m.fat/65*100),100)     : 0;
 
-  const protColor = protPct>=90?'var(--g)':protPct>=60?'var(--y)':'var(--r)';
-  const kcalColor = kcalPct>=85&&kcalPct<=110?'var(--g)':kcalPct>110?'var(--r)':'var(--y)';
+  const protColor = protPct>=90?'var(--g)':protPct>=70?'var(--y)':'var(--r)';
+  const kcalColor = kcalPct>=85&&kcalPct<=115?'var(--g)':kcalPct>115?'var(--r)':'var(--y)';
 
-  nutEl.innerHTML=`
-    <div class="card-hdr">
-      <span class="t-md">Nutrición hoy</span>
-      <span class="mono" style="font-size:10px;color:var(--fg3);">Intervals · Companion</span>
-    </div>
-    <div class="card-body">
-      <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:12px;">
-        <div style="text-align:center;padding:10px;background:var(--bg3);border-radius:8px;">
-          <div style="font-family:'Instrument Serif',serif;font-size:28px;color:${kcalColor};line-height:1;">${m.kcal?Math.round(m.kcal):'—'}</div>
-          <div style="font-size:10px;color:var(--fg3);margin-top:2px;">kcal · obj 2300</div>
-        </div>
-        <div style="text-align:center;padding:10px;background:var(--bg3);border-radius:8px;">
-          <div style="font-family:'Instrument Serif',serif;font-size:28px;color:${protColor};line-height:1;">${m.protein?Math.round(m.protein)+'g':'—'}</div>
-          <div style="font-size:10px;color:var(--fg3);margin-top:2px;">proteína · obj 180g</div>
-        </div>
+  setNut('nut-kcal', m.kcal?Math.round(m.kcal):null, kcalColor);
+  setNut('nut-prot', m.protein?Math.round(m.protein):null, protColor);
+  setNut('nut-carbs', m.carbs?Math.round(m.carbs):null);
+  setNut('nut-fat',  m.fat?Math.round(m.fat):null);
+
+  const setBar=(id,pct,color)=>{const el=document.getElementById(id);if(el){el.style.width=pct+'%';if(color)el.style.background=color;}};
+  const setLbl=(id,txt)=>{const el=document.getElementById(id);if(el)el.textContent=txt;};
+
+  setBar('nut-prot-bar',protPct,protColor);
+  setLbl('nut-prot-lbl',(m.protein?Math.round(m.protein):'—')+' / 180g');
+  setBar('nut-kcal-bar',kcalPct,kcalColor);
+  setLbl('nut-kcal-lbl',(m.kcal?Math.round(m.kcal):'—')+' / 2300');
+  setBar('nut-carbs-bar',carbPct);
+  setLbl('nut-carbs-lbl',(m.carbs?Math.round(m.carbs):'—')+' / 230g');
+
+  // Nutrition date label
+  const nutDateEl=document.getElementById('nutDate');
+  if(nutDateEl && m._nutDate) nutDateEl.textContent='Intervals · '+m._nutDate;
+
+  // Body composition
+  setNut('comp-weight', m.weight?m.weight+'kg':null);
+  setNut('comp-fat',    m.fatPct?parseFloat(m.fatPct).toFixed(1)+'%':null, 'var(--o)');
+  setNut('comp-muscle', m.musclePct?parseFloat(m.musclePct).toFixed(1)+'%':null, 'var(--g)');
+  setNut('comp-water',  m.waterPct?parseFloat(m.waterPct).toFixed(1)+'%':null, 'var(--b)');
+
+  // kg breakdown if weight available
+  const kgRow=document.getElementById('compKgRow');
+  const wNote=document.getElementById('weightNote');
+  if(m.weight && m.fatPct){
+    const fatKg=(m.weight*parseFloat(m.fatPct)/100).toFixed(1);
+    const leanKg=(m.weight - parseFloat(fatKg)).toFixed(1);
+    // To reach 10% fat: lean/(0.9) = target weight
+    const targetW=(parseFloat(leanKg)/0.9).toFixed(1);
+    const tolose=(m.weight-parseFloat(targetW)).toFixed(1);
+    setNut('comp-fatkg',fatKg+'kg');
+    setNut('comp-leankg',leanKg+'kg');
+    setNut('comp-target',tolose>0?'-'+tolose+'kg grasa':'En objetivo ✓');
+    if(kgRow)kgRow.style.display='block';
+    if(wNote)wNote.style.display='none';
+  } else if(!m.weight){
+    if(kgRow)kgRow.style.display='none';
+    if(wNote)wNote.style.display='block';
+  }
+
+  // Also keep legacy nutritionCard hidden
+  const oldCard=document.getElementById('nutritionCard');
+  if(oldCard)oldCard.style.display='none';
+}
+}
+
+
+function updateZoneDistribution(){
+  const m=S.metrics;
+  if(!m.zoneDist)return;
+  const zEl=document.getElementById('zoneDist');
+  const zAnalysis=document.getElementById('zoneAnalysis');
+  if(!zEl)return;
+  const colors=['var(--g)','var(--c)','var(--y)','var(--o)','var(--r)'];
+  const labels=['Z1','Z2','Z3','Z4','Z5'];
+  const zSecs=m.zoneDist||[0,0,0,0,0];
+  const hasData=zSecs.some(z=>z>0);
+  if(!hasData){
+    zEl.innerHTML='<div style="width:100%;text-align:center;color:var(--fg4);font-size:11px;padding:10px;">Sin actividades con zonas esta semana</div>';
+    return;
+  }
+  const totalZ=zSecs.reduce((a,b)=>a+b,0);
+  const pcts=totalZ>0?zSecs.map(z=>Math.round(z/totalZ*100)):[0,0,0,0,0];
+  zEl.style.display='flex';
+  zEl.innerHTML=pcts.map((p,i)=>{
+    const mins=Math.round(zSecs[i]/60);
+    return `<div style="text-align:center;flex:1;">
+      <div style="font-family:'Geist Mono',monospace;font-size:15px;color:${colors[i]};font-weight:600;line-height:1;">${p}%</div>
+      <div style="font-size:9px;color:var(--fg3);letter-spacing:1px;margin-top:2px;">${labels[i]}</div>
+      <div style="font-size:9px;color:var(--fg4);margin-top:1px;">${mins>0?mins+'min':'—'}</div>
+      <div style="height:4px;background:var(--bg4);border-radius:2px;margin-top:5px;overflow:hidden;">
+        <div style="height:100%;width:${Math.min(p*2,100)}%;background:${colors[i]};border-radius:2px;"></div>
       </div>
-      <div class="pb"><div class="pb-row"><div class="pb-label">Proteína</div><div class="pb-val">${m.protein?Math.round(m.protein)+'g / 180g':'—'}</div></div><div class="pb-track"><div class="pb-fill" style="width:${protPct}%;background:${protColor};"></div></div></div>
-      <div class="pb"><div class="pb-row"><div class="pb-label">Calorías</div><div class="pb-val">${m.kcal?Math.round(m.kcal)+' / 2300':'—'}</div></div><div class="pb-track"><div class="pb-fill" style="width:${kcalPct}%;background:${kcalColor};"></div></div></div>
-      ${m.carbs?`<div class="pb"><div class="pb-row"><div class="pb-label">Carbohidratos</div><div class="pb-val">${Math.round(m.carbs)}g / 230g</div></div><div class="pb-track"><div class="pb-fill" style="width:${carbPct}%;"></div></div></div>`:''}
-      ${m.fat?`<div class="pb"><div class="pb-row"><div class="pb-label">Grasa</div><div class="pb-val">${Math.round(m.fat)}g / 65g</div></div><div class="pb-track"><div class="pb-fill" style="width:${fatPct}%;background:var(--y);"></div></div></div>`:''}
     </div>`;
+  }).join('');
+  if(zAnalysis){
+    const z1z2=pcts[0]+pcts[1],z3=pcts[2],z4z5=pcts[3]+pcts[4];
+    let polar='';
+    if(z3>25)polar=`<span style="color:var(--y);">⚠ Exceso Z3 (${z3}%) — zona gris. Polariza: más Z2 o más Z4+.</span>`;
+    else if(z1z2>=80)polar=`<span style="color:var(--g);">✓ Distribución polarizada (Z1+Z2 ${z1z2}%). Buena base aeróbica.</span>`;
+    else if(z4z5>40)polar=`<span style="color:var(--o);">⚠ Alta intensidad dominante (Z4+Z5 ${z4z5}%). Riesgo fatiga acumulada.</span>`;
+    else polar=`<span style="color:var(--fg2);">Z1+Z2: ${z1z2}% · Z3: ${z3}% · Z4+Z5: ${z4z5}%</span>`;
+    zAnalysis.innerHTML=polar;zAnalysis.style.display='block';
+  }
 }
 
-
-function renderZones() {
-  // Zones are rendered inside updateExtendedMetrics
-  updateExtendedMetrics();
-}
+function renderZones(){updateZoneDistribution();}
 
 function renderActivities() {
   const acts=S.metrics.activities;
@@ -1712,28 +1828,68 @@ function updateMetrics() {
   setM('m-hrv',m.hrv);
   setM('m-sleep',m.sleep);
   setM('m-bb',m.bb);
-  setM('m-ctl',m.ctl);
-  setM('m-atl',m.atl);
-  setM('m-rhr',m.restingHR);
-  // Sleep score label
+  setM('m-ctl',m.ctl!=null?Math.round(m.ctl):null);
+  setM('m-atl',m.atl!=null?Math.round(m.atl):null);
+  setM('m-rhr',m.restingHR?m.restingHR+'ppm':null);
+  setM('m-steps',m.steps?(m.steps>=1000?Math.round(m.steps/1000)+'k':m.steps):null);
+  setM('m-weight',m.weight?m.weight+'kg':null);
+  setM('m-load',m.weekLoad?Math.round(m.weekLoad):null);
+  setM('m-decoup',m.lastDecoupling!=null?m.lastDecoupling+'%':null);
+
+  // Sleep score
   const ssEl=document.getElementById('m-sleep-score');
-  if(ssEl&&m.sleepScore)ssEl.textContent='Score: '+m.sleepScore;
+  if(ssEl)ssEl.textContent=m.sleepScore?'Score: '+m.sleepScore:'';
+
   // Week activities count
   const waEl=document.getElementById('m-week-acts');
-  if(waEl&&m.weekActivities!==undefined)waEl.textContent=m.weekActivities+' actividades';
-  if(m.tsb!==null&&m.tsb!==undefined){
+  if(waEl&&m.weekActivities!=null)
+    waEl.textContent=m.weekActivities+(m.zoneTotalMin?' · '+m.zoneTotalMin+'min zona':' actividades');
+
+  // TSB display with color
+  if(m.tsb!=null){
     const el=document.getElementById('m-tsb');
-    el.textContent=(m.tsb>0?'+':'')+m.tsb;
-    el.className='st-val'+(Math.abs(m.tsb)<5?' dim':'');
-    el.style.color=m.tsb>5?'var(--g)':m.tsb<-10?'var(--r)':'';
-    document.getElementById('m-tsb-d').textContent=m.tsb>5?'Fresco ✓':m.tsb<-10?'Fatigado ⚠️':'Neutro';
-    document.getElementById('m-tsb-d').className='st-delta '+(m.tsb>5?'up':m.tsb<-10?'dn':'nt');
+    if(el){
+      el.textContent=(m.tsb>0?'+':'')+m.tsb;
+      el.className='st-val'+(Math.abs(m.tsb)<3?' dim':'');
+      el.style.color=m.tsb>5?'var(--g)':m.tsb<-10?'var(--r)':'';
+    }
+    const dEl=document.getElementById('m-tsb-d');
+    if(dEl){
+      dEl.textContent=m.tsb>5?'Fresco ✓':m.tsb<-10?'Fatigado ⚠️':'Neutro';
+      dEl.className='st-delta '+(m.tsb>5?'up':m.tsb<-10?'dn':'nt');
+    }
   }
+
+  // HRV delta vs baseline
   if(m.hrv&&m.baseline){
     const delta=Math.round(m.hrv-m.baseline);
-    document.getElementById('m-hrv-d').textContent=(delta>=0?'+':'')+delta+'ms vs baseline '+m.baseline;
-    document.getElementById('m-hrv-d').className='st-delta '+(delta>=0?'up':'dn');
+    const dEl=document.getElementById('m-hrv-d');
+    if(dEl){dEl.textContent=(delta>=0?'+':'')+delta+'ms vs baseline '+m.baseline;dEl.className='st-delta '+(delta>=0?'up':'dn');}
   }
+
+  // HRV trend
+  if(m.hrvTrend!=null){
+    const tEl=document.getElementById('m-hrv-trend');
+    if(tEl){
+      const sign=m.hrvTrend>0?'↑ +':m.hrvTrend<0?'↓ ':'→ ';
+      tEl.textContent=sign+m.hrvTrend+'ms tendencia 3d';
+      tEl.style.color=m.hrvTrend>3?'var(--g)':m.hrvTrend<-3?'var(--r)':'var(--fg3)';
+    }
+  }
+
+  // Ramp rate
+  if(m.ctl!=null && m.atl!=null){
+    const ramp=m.ctl-m.atl;
+    const rEl=document.getElementById('m-ramp');
+    if(rEl){
+      rEl.textContent=(ramp>0?'+':'')+Math.round(ramp*10)/10;
+      rEl.className='st-val '+(Math.abs(ramp)<2?'dim':'');
+      rEl.style.color=ramp>3?'var(--r)':ramp<-3?'var(--g)':'';
+    }
+  }
+
+  updateNutritionTiles();
+  updateZoneDistribution();
 }
 
 function setM(id,val) {
