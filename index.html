@@ -1275,7 +1275,7 @@ async function fetchIntervals() {
     const aR=await fetch(
       `https://intervals.icu/api/v1/athlete/${aid}/activities?oldest=${from14}&newest=${today}`+
       `&fields=id,name,type,sport_type,start_date_local,distance,moving_time,`+
-      `icu_training_load,icu_zone_times,average_heartrate,max_heartrate,`+
+      `icu_training_load,icu_zone_times,icu_hr_zone_times,average_heartrate,max_heartrate,`+
       `icu_efficiency_factor,icu_aerobic_decoupling,icu_rpe,pace`,
       {headers:H,mode:'cors'}
     );
@@ -1455,11 +1455,12 @@ async function fetchIntervals() {
   if(cwt) cwt.textContent=S.metrics.waterPct?parseFloat(S.metrics.waterPct).toFixed(1)+'%':'—';
   renderWeightChart();
 
-  // Zone distribution
+  // Zone distribution — try icu_zone_times first, then icu_hr_zone_times
     const zones=[0,0,0,0,0];
     week7acts.forEach(a=>{
-      if(Array.isArray(a.icu_zone_times))
-        a.icu_zone_times.slice(0,5).forEach((t,i)=>zones[i]+=(t||0));
+      const zt = a.icu_zone_times || a.icu_hr_zone_times || [];
+      if(Array.isArray(zt) && zt.some(t=>t>0))
+        zt.slice(0,5).forEach((t,i)=>zones[i]+=(t||0));
     });
     S.metrics.zoneDist = zones;
     const totalZ = zones.reduce((a,b)=>a+b,0);
@@ -2697,7 +2698,7 @@ async function callAI(prompt,panelId,txtId,timeId) {
         'anthropic-version': '2023-06-01',
         'anthropic-dangerous-direct-browser-access': 'true'
       },
-      body:JSON.stringify({model:'claude-sonnet-4-20250514',max_tokens:1000,system:SYS,messages:[{role:'user',content:prompt}]})
+      body:JSON.stringify({model:'claude-sonnet-4-5',max_tokens:1000,system:SYS,messages:[{role:'user',content:prompt}]})
     });
     if(!r.ok){const e=await r.json().catch(()=>({}));throw new Error(e.error?.message||'Error '+r.status);}
     const data=await r.json();
