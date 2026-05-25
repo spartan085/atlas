@@ -1554,10 +1554,18 @@ async function fetchHevy() {
 
     S.weeklyVol={};
     const strength={};
+    // Recent sessions for fatigue — last 72h
+    const h72=72*3600000, h48=48*3600000;
+    const recentHevySess=[];   // {date, type: 'upper'|'lower'|'cardio', muscles, sRPE}
 
     workouts.forEach(w=>{
       const wDate=new Date(w.start_time||w.created_at||0);
       const isThisWeek=wDate>=weekStart;
+      const age=now-wDate;
+      const isRecent=age<h72;
+
+      // Muscle groups hit in this workout
+      const musclesHit=new Set();
 
       (w.exercises||[]).forEach(ex=>{
         const exName=ex.title||ex.exercise_template_title||ex.name||'';
@@ -1567,12 +1575,8 @@ async function fetchHevy() {
           const kg=parseFloat(s.weight_kg||s.weight||0);
           const reps=parseInt(s.reps||0);
           if(!reps) return;
-
-          // Weekly volume
-          if(isThisWeek&&muscle)
-            S.weeklyVol[muscle]=(S.weeklyVol[muscle]||0)+1;
-
-          // 1RM
+          if(isThisWeek&&muscle){ S.weeklyVol[muscle]=(S.weeklyVol[muscle]||0)+1; }
+          if(muscle) musclesHit.add(muscle);
           if(kg>0){
             const orm=kg*(1+reps/30);
             if(!strength[exName]||orm>strength[exName].orm)
@@ -1580,13 +1584,41 @@ async function fetchHevy() {
           }
         });
       });
+
+      // Classify workout type for fatigue engine
+      if(isRecent && musclesHit.size>0){
+        const upperMuscles=['Pectoral','Deltoides','Tríceps','Dorsal','Bíceps'];
+        const lowerMuscles=['Cuádriceps','Isquiotibiales','Glúteo','Gemelos/Sóleo','Aductores'];
+        const hasUpper=[...musclesHit].some(m=>upperMuscles.includes(m));
+        const hasLower=[...musclesHit].some(m=>lowerMuscles.includes(m));
+        // Estimate sRPE from workout duration if available
+        const durSecs=(w.end_time&&w.start_time)?
+          (new Date(w.end_time)-new Date(w.start_time))/1000 : 3600;
+        const durMins=Math.round(durSecs/60);
+        const estRPE=7; // conservative default
+        const sRPE=Math.round(estRPE*durMins);
+        recentHevySess.push({
+          date:wDate, age, type:hasLower?'lower':'upper',
+          hasUpper, hasLower, muscles:[...musclesHit], sRPE,
+          name:w.name||w.title||'Entrenamiento'
+        });
+      }
     });
+
+    // Store recent hevy sessions for computeFatigue
+    S._hevyRecent = recentHevySess;
+    console.log('ATLAS Hevy recent sessions:', recentHevySess.map(s=>({name:s.name,type:s.type,age:Math.round(s.age/3600000)+'h'})));
 
     S.hevy={workouts,strength,totalWorkouts:data.workout_count||workouts.length,parsed:new Date().toISOString(),source:'api'};
     save();
     renderMAV();
     renderHevySummary();
-    toast('Hevy sincronizado',`${workouts.length} sesiones · ${Object.keys(S.weeklyVol).length} grupos musculares`,'💪');
+    computeFatigue(); // Update fatigue indices with real Hevy session data
+
+    const recentStr=recentHevySess.length?
+      recentHevySess.map(s=>`${s.name} (${Math.round(s.age/3600000)}h)`).join(', '):
+      'ninguna reciente';
+    toast('Hevy sincronizado',`${workouts.length} sesiones · ${Object.keys(S.weeklyVol).length} grupos · Recientes: ${recentStr}`,'💪',5000);
 
   } catch(err){
     console.error('ATLAS Hevy error:',err);
@@ -1959,21 +1991,41 @@ function computeFatigue() {
       warn: m.tsb<-15||m.tsb>25
     };
   }
-  // sRPE accumulated
+  // sRPE accumulated — manual logs + Hevy estimated sRPE
   const recent48=S.logs.filter(l=>{const d=parseDate(l.date);return d&&(now-d)<48*3600000;});
   const recent72=S.logs.filter(l=>{const d=parseDate(l.date);return d&&(now-d)<72*3600000;});
-  const srpe48=recent48.reduce((s,l)=>s+(parseFloat(l.srpe)||0),0);
-  const srpe72=recent72.reduce((s,l)=>s+(parseFloat(l.srpe)||0),0);
-  signals.srpe48={label:`sRPE acumulado 48h: ${srpe48}`,ok:srpe48<400,warn:srpe48>700};
+  let srpe48=recent48.reduce((s,l)=>s+(parseFloat(l.srpe)||0),0);
+  let srpe72=recent72.reduce((s,l)=>s+(parseFloat(l.srpe)||0),0);
+
+  // Add Hevy real sessions (not already in manual log)
+  const hevyRecent=S._hevyRecent||[];
+  hevyRecent.forEach(s=>{
+    if(s.age<48*3600000) srpe48+=s.sRPE;
+    if(s.age<72*3600000) srpe72+=s.sRPE;
+  });
+
+  signals.srpe48={label:`sRPE acumulado 48h: ${srpe48}${hevyRecent.filter(s=>s.age<48*3600000).length?' (incl. Hevy)':''}`,ok:srpe48<400,warn:srpe48>700};
   signals.srpe72={label:`sRPE acumulado 72h: ${srpe72}`,ok:srpe72<600,warn:srpe72>900};
 
-  // Leg sessions
-  const legSess72=recent72.filter(l=>l.sess&&/(pierna|D2|D5)/i.test(l.sess));
-  signals.legSess={label:`Sesiones pierna 72h: ${legSess72.length}`,ok:legSess72.length<2,warn:legSess72.length>=2};
+  // Leg sessions — manual logs + Hevy lower body
+  const legSess72Log=recent72.filter(l=>l.sess&&/(pierna|D2|D5)/i.test(l.sess));
+  const legSess72Hevy=hevyRecent.filter(s=>s.age<72*3600000&&s.hasLower);
+  const legSess72Total=legSess72Log.length+legSess72Hevy.length;
+  const legNames=[...legSess72Log.map(l=>l.sess.split('—')[0].trim()),...legSess72Hevy.map(s=>s.name)];
+  signals.legSess={
+    label:`Sesiones pierna 72h: ${legSess72Total}${legNames.length?' ('+legNames.slice(0,2).join(', ')+')':''}`,
+    ok:legSess72Total<2, warn:legSess72Total>=2
+  };
 
-  // Upper sessions
-  const upperSess48=recent48.filter(l=>l.sess&&/(empuje|tirón|tiron|D1|D4)/i.test(l.sess));
-  signals.upperSess={label:`Sesiones tren sup 48h: ${upperSess48.length}`,ok:upperSess48.length<2,warn:upperSess48.length>=2};
+  // Upper sessions — manual logs + Hevy upper body
+  const upperSess48Log=recent48.filter(l=>l.sess&&/(empuje|tirón|tiron|D1|D4)/i.test(l.sess));
+  const upperSess48Hevy=hevyRecent.filter(s=>s.age<48*3600000&&s.hasUpper);
+  const upperSess48Total=upperSess48Log.length+upperSess48Hevy.length;
+  const upperNames=[...upperSess48Log.map(l=>l.sess.split('—')[0].trim()),...upperSess48Hevy.map(s=>s.name)];
+  signals.upperSess={
+    label:`Sesiones tren sup 48h: ${upperSess48Total}${upperNames.length?' ('+upperNames.slice(0,2).join(', ')+')':''}`,
+    ok:upperSess48Total<2, warn:upperSess48Total>=2
+  };
 
   // Knee
   signals.knee={label:`Rodilla ${knee}/10`,ok:knee<=2,warn:knee>3};
@@ -2150,6 +2202,8 @@ function renderMuscleFatigue(recentLogs) {
   };
 
   const muscleFat={};
+
+  // Manual logs
   recentLogs.forEach(l=>{
     const key=Object.keys(map).find(k=>l.sess&&l.sess.includes(k));
     if(!key)return;
@@ -2160,15 +2214,27 @@ function renderMuscleFatigue(recentLogs) {
     });
   });
 
+  // Hevy real sessions — use actual muscles hit
+  const hevyRecent=(S._hevyRecent||[]).filter(s=>s.age<72*3600000);
+  hevyRecent.forEach(s=>{
+    const intensity=0.7; // default RPE 7
+    s.muscles.forEach(muscle=>{
+      if(muscle==='Cardio')return;
+      const baseSets=3; // conservative estimate
+      muscleFat[muscle]=(muscleFat[muscle]||0)+baseSets*intensity*20;
+    });
+  });
+
   const container=document.getElementById('muscleFatigue');
+  if(!container)return;
   const muscles=Object.keys(muscleFat).filter(m=>m!=='Cardio');
 
   if(!muscles.length){
-    container.innerHTML='<div class="empty"><div class="empty-icon">💪</div><div class="empty-title">Sin sesiones recientes (72h)</div><div class="empty-msg">Registra sesiones en Log para ver la fatiga por grupo</div></div>';
+    container.innerHTML='<div class="empty"><div class="empty-icon">💪</div><div class="empty-title">Sin sesiones recientes (72h)</div><div class="empty-msg">Registra sesiones en Log o sincroniza Hevy para ver fatiga por grupo</div></div>';
     return;
   }
 
-  container.innerHTML=muscles.map(muscle=>{
+  container.innerHTML=muscles.sort((a,b)=>muscleFat[b]-muscleFat[a]).map(muscle=>{
     const fat=Math.min(100,Math.round(muscleFat[muscle]));
     const color=fat<30?'var(--g)':fat<60?'var(--y)':'var(--r)';
     const status=fat<30?'OK':fat<60?'Moderada':'Alta';
