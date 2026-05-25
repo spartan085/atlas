@@ -1440,6 +1440,15 @@ async function fetchIntervals() {
 
     // ── ACTIVITIES ──
     S.metrics.activities = activities;
+    // Index activities by date (YYYY-MM-DD) for Hevy cross-reference
+    S._activitiesByDate = {};
+    activities.forEach(a=>{
+      const d=(a.start_date_local||'').split('T')[0];
+      if(d){
+        if(!S._activitiesByDate[d]) S._activitiesByDate[d]=[];
+        S._activitiesByDate[d].push(a);
+      }
+    });
     const week7acts = activities.filter(a=>(a.start_date_local||'')>=from7);
     S.metrics.weekLoad = Math.round(week7acts.reduce((s,a)=>s+(a.icu_training_load||0),0));
     S.metrics.weekActivities = week7acts.length;
@@ -1591,16 +1600,26 @@ async function fetchHevy() {
         const lowerMuscles=['Cuádriceps','Isquiotibiales','Glúteo','Gemelos/Sóleo','Aductores'];
         const hasUpper=[...musclesHit].some(m=>upperMuscles.includes(m));
         const hasLower=[...musclesHit].some(m=>lowerMuscles.includes(m));
-        // Estimate sRPE from workout duration if available
-        const durSecs=(w.end_time&&w.start_time)?
-          (new Date(w.end_time)-new Date(w.start_time))/1000 : 3600;
-        const durMins=Math.round(durSecs/60);
-        const estRPE=7; // conservative default
-        const sRPE=Math.round(estRPE*durMins);
+        // Get RPE from Intervals activity on same date (real RPE, not invented)
+        const wDateStr=wDate.toISOString().split('T')[0];
+        const intervalsActs=(S._activitiesByDate||{})[wDateStr]||[];
+        // Find strength/workout activity — or any activity that day with RPE
+        const matchAct=intervalsActs.find(a=>
+          a.icu_rpe!=null && a.icu_rpe>0
+        ) || intervalsActs[0];
+        const realRPE=matchAct?.icu_rpe||null;
+        const durSecs=matchAct?.moving_time ||
+          ((w.end_time&&w.start_time)?(new Date(w.end_time)-new Date(w.start_time))/1000:null);
+        const durMins=durSecs?Math.round(durSecs/60):null;
+        // Only calculate sRPE if we have BOTH real RPE and duration
+        const sRPE=(realRPE&&durMins)?Math.round(realRPE*durMins):null;
+
         recentHevySess.push({
           date:wDate, age, type:hasLower?'lower':'upper',
-          hasUpper, hasLower, muscles:[...musclesHit], sRPE,
-          name:w.name||w.title||'Entrenamiento'
+          hasUpper, hasLower, muscles:[...musclesHit],
+          sRPE, rpe:realRPE, durMins,
+          name:w.name||w.title||'Entrenamiento',
+          noRPE: !realRPE  // flag: RPE not available yet
         });
       }
     });
@@ -1991,21 +2010,28 @@ function computeFatigue() {
       warn: m.tsb<-15||m.tsb>25
     };
   }
-  // sRPE accumulated — manual logs + Hevy estimated sRPE
+  // sRPE accumulated — manual logs + Hevy with real Intervals RPE
   const recent48=S.logs.filter(l=>{const d=parseDate(l.date);return d&&(now-d)<48*3600000;});
   const recent72=S.logs.filter(l=>{const d=parseDate(l.date);return d&&(now-d)<72*3600000;});
   let srpe48=recent48.reduce((s,l)=>s+(parseFloat(l.srpe)||0),0);
   let srpe72=recent72.reduce((s,l)=>s+(parseFloat(l.srpe)||0),0);
 
-  // Add Hevy real sessions (not already in manual log)
   const hevyRecent=S._hevyRecent||[];
+  const hevyNoRPE=hevyRecent.filter(s=>s.age<48*3600000&&s.noRPE);
+
   hevyRecent.forEach(s=>{
+    if(s.sRPE==null) return; // skip if no real RPE available
     if(s.age<48*3600000) srpe48+=s.sRPE;
     if(s.age<72*3600000) srpe72+=s.sRPE;
   });
 
-  signals.srpe48={label:`sRPE acumulado 48h: ${srpe48}${hevyRecent.filter(s=>s.age<48*3600000).length?' (incl. Hevy)':''}`,ok:srpe48<400,warn:srpe48>700};
-  signals.srpe72={label:`sRPE acumulado 72h: ${srpe72}`,ok:srpe72<600,warn:srpe72>900};
+  const srpeNote=hevyNoRPE.length?` ⚠ ${hevyNoRPE.length} sesión sin RPE en Intervals aún`:'';
+  signals.srpe48={
+    label:`sRPE 48h: ${srpe48}${srpeNote}`,
+    ok:srpe48<400&&!hevyNoRPE.length,
+    warn:srpe48>700
+  };
+  signals.srpe72={label:`sRPE 72h: ${srpe72}`,ok:srpe72<600,warn:srpe72>900};
 
   // Leg sessions — manual logs + Hevy lower body
   const legSess72Log=recent72.filter(l=>l.sess&&/(pierna|D2|D5)/i.test(l.sess));
