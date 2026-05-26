@@ -724,12 +724,6 @@ function getPatternLabel(pat){
   return map[pat]||pat||'—';
 }
 
-function getExDB(name){
-  const lower=(name||'').toLowerCase();
-  for(const [k,d] of Object.entries(EXDB)){if(lower.includes(k))return d;}
-  return null;
-}
-
 // ══ HRV ENGINE ══
 // Pure deterministic. EWMA baseline. Z-score. Coupling. Confidence.
 function HRVEngine(history){
