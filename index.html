@@ -958,20 +958,47 @@ function runEngines(){
 
 // ══ UI RENDERERS ══
 function renderReadinessGrid(){
-  const f=S._fatigue;if(!f)return;
+  const f=S._fatigue;const hrv=S._hrv;if(!f)return;
+  const conf=hrv?.confidence||0.5;
+  const confLabel=conf>=0.8?'Alta':conf>=0.5?'Moderada':'Baja';
+  const confColor=conf>=0.8?'var(--g)':conf>=0.5?'var(--y)':'var(--r)';
+
+  // Honest state labels — no absolutes
+  function stateLabel(score){
+    if(score>=85) return 'Carga tolerable';
+    if(score>=70) return 'Fatiga baja';
+    if(score>=50) return 'Acumulación moderada';
+    if(score>=30) return 'Fatiga elevada';
+    return 'Carga alta';
+  }
+
   function setCard(id,score,sigKeys){
     const card=document.getElementById(id);if(!card)return;
     const vEl=document.getElementById(id+'-val'),lEl=document.getElementById(id+'-lbl'),sEl=document.getElementById(id+'-sigs');
-    const st=score>=75?'ok':score>=45?'warn':'bad';
+    const st=score>=70?'ok':score>=45?'warn':'bad';
     card.className='rsys-card '+st;
     if(vEl)vEl.textContent=score+'%';
-    if(lEl)lEl.textContent=score>=75?'Recuperado':score>=45?'Moderado':'Fatigado';
-    if(sEl)sEl.innerHTML=sigKeys.filter(k=>f.signals[k]).map(k=>{const s=f.signals[k];const c=s.warn?'var(--r)':s.ok?'var(--g)':'var(--y)';return`<li style="color:${c};">${s.warn?'↓':s.ok?'✓':'~'} ${s.label}</li>`;}).join('');
+    if(lEl)lEl.textContent=stateLabel(score);
+    if(sEl)sEl.innerHTML=sigKeys.filter(k=>f.signals[k]).map(k=>{
+      const s=f.signals[k];
+      const c=s.warn?'var(--r)':s.ok?'var(--g)':'var(--y)';
+      return`<li style="color:${c};">${s.warn?'↓':s.ok?'✓':'~'} ${s.label}</li>`;
+    }).join('');
   }
+
   setCard('rsys-cardio',f.cardioScore,['hrv','sleep','bb','tsb','coupling']);
-  setCard('rsys-neuro',f.neuroScore,['srpe48','srpe72']);
-  setCard('rsys-upper',f.upperScore,['upperSess','domsUpper','hrv','sleep']);
-  setCard('rsys-lower',f.lowerScore,['lowerSess','domsLower','knee','srpe72']);
+  setCard('rsys-neuro', f.neuroScore, ['srpe48','srpe72']);
+  setCard('rsys-upper', f.upperScore, ['upperSess','domsUpper','hrv','sleep']);
+  setCard('rsys-lower', f.lowerScore, ['lowerSess','domsLower','knee','srpe72']);
+
+  // Confidence badge on cardio card (HRV-driven)
+  const cardioCard=document.getElementById('rsys-cardio');
+  if(cardioCard){
+    let badge=cardioCard.querySelector('.conf-badge');
+    if(!badge){badge=document.createElement('div');badge.className='conf-badge';cardioCard.appendChild(badge);}
+    badge.innerHTML=`<span style="font-family:'Geist Mono',monospace;font-size:8px;color:${confColor};letter-spacing:1px;">CONF ${confLabel.toUpperCase()}</span>`;
+    badge.style.cssText='position:absolute;bottom:8px;right:10px;';
+  }
 }
 
 function renderFatigueHero(){
@@ -985,25 +1012,90 @@ function renderFatigueHero(){
   const hero=document.getElementById('feHero'),orb=document.getElementById('feOrb'),title=document.getElementById('feTitle'),msg=document.getElementById('feMsg'),status=document.getElementById('feStatus');
   if(!hero)return;
   const topRec=r?.actions[0];
-  if(f.signals.knee?.warn){hero.className='fe-hero bad';orb.textContent='⚠️';title.textContent='Protocolo rodilla activo';status.textContent='DOLOR >3/10';msg.textContent='Pre-activación obligatoria.';}
-  else if(f.systemic<30){hero.className='fe-hero ok';orb.textContent='✓';title.textContent='Verde — Carga completa';status.textContent='FATIGA '+f.systemic+'%';msg.textContent=topRec?.action||'Todas las señales favorables.';}
-  else if(f.systemic<60){hero.className='fe-hero warn';orb.textContent='!';title.textContent='Amarillo — Ajusta volumen';status.textContent='FATIGA '+f.systemic+'%';msg.textContent=topRec?.action||'Reduce series 25-35%.';}
-  else{hero.className='fe-hero bad';orb.textContent='✕';title.textContent='Rojo — Descanso activo';status.textContent='FATIGA '+f.systemic+'%';msg.textContent=topRec?.action||'Descanso activo o Z1 ≤30min.';}
+  if(f.signals.knee?.warn){
+    hero.className='fe-hero bad';orb.textContent='⚠️';
+    title.textContent='Protocolo rodilla activo';
+    status.textContent='DOLOR >3/10';
+    msg.textContent='Pre-activación obligatoria. Para cualquier ejercicio >3/10.';
+  } else if(f.systemic<25){
+    hero.className='fe-hero ok';orb.textContent='✓';
+    title.textContent='Disposición favorable';
+    status.textContent='CARGA SISTÉMICA '+f.systemic+'%';
+    msg.textContent=topRec?.action||'Señales favorables. Plan completo tolerable.';
+  } else if(f.systemic<50){
+    hero.className='fe-hero warn';orb.textContent='!';
+    title.textContent='Acumulación moderada';
+    status.textContent='CARGA SISTÉMICA '+f.systemic+'%';
+    msg.textContent=topRec?.action||'Reduce volumen 20-30%. Monitorea sensaciones.';
+  } else if(f.systemic<70){
+    hero.className='fe-hero warn';orb.textContent='!';
+    title.textContent='Fatiga elevada';
+    status.textContent='CARGA SISTÉMICA '+f.systemic+'%';
+    msg.textContent=topRec?.action||'Reduce volumen 35-50%. Evita fallo muscular.';
+  } else{
+    hero.className='fe-hero bad';orb.textContent='✕';
+    title.textContent='Carga alta — recuperación prioritaria';
+    status.textContent='CARGA SISTÉMICA '+f.systemic+'%';
+    msg.textContent=topRec?.action||'Descanso activo o Z1 ≤30min. Sin fuerza.';
+  }
 }
 
 function renderFatigueSignals(){
-  const f=S._fatigue;const el=document.getElementById('fatigueSignals');if(!f||!el)return;
-  const conf=document.getElementById('sigConf');if(conf)conf.textContent=`Confianza ${Math.round((f.confidence||0.5)*100)}%`;
-  el.innerHTML=Object.entries(f.signals||{}).map(([k,s])=>{const c=s.warn?'var(--r)':s.ok?'var(--g)':'var(--y)';return`<div class="sig-row"><span class="sig-icon" style="color:${c};">${s.warn?'↓':s.ok?'✓':'~'}</span><span class="sig-text" style="color:${s.warn?'var(--fg)':'var(--fg2)'};">${s.label}</span></div>`;}).join('')||'<div style="color:var(--fg3);font-size:11px;">Sin señales</div>';
+  const f=S._fatigue;const hrv=S._hrv;const el=document.getElementById('fatigueSignals');if(!f||!el)return;
+  const conf=f.confidence||0.5;
+  const confLabel=conf>=0.8?'Alta':conf>=0.5?'Moderada':'Baja';
+  const confColor=conf>=0.8?'var(--g)':conf>=0.5?'var(--y)':'var(--r)';
+  const confEl=document.getElementById('sigConf');
+  if(confEl)confEl.innerHTML=`<span style="color:${confColor};font-family:'Geist Mono',monospace;font-size:10px;">● Confianza ${confLabel}</span>`;
+  el.innerHTML=Object.entries(f.signals||{}).map(([k,s])=>{
+    const c=s.warn?'var(--r)':s.ok?'var(--g)':'var(--y)';
+    return`<div class="sig-row"><span class="sig-icon" style="color:${c};">${s.warn?'↓':s.ok?'✓':'~'}</span><span class="sig-text" style="color:${s.warn?'var(--fg)':'var(--fg2)'};">${s.label}</span></div>`;
+  }).join('')||'<div style="color:var(--fg3);font-size:11px;">Sin señales</div>';
 }
 
 function renderRecommendations(){
-  const r=S._recs;const card=document.getElementById('recsCard');const list=document.getElementById('recsList');const conf=document.getElementById('recsConf');
+  const r=S._recs;const f=S._fatigue;const card=document.getElementById('recsCard');const list=document.getElementById('recsList');const conf=document.getElementById('recsConf');
   if(!r||!card||!list)return;
   if(!r.actions.length){card.style.display='none';return;}
   card.style.display='block';
   if(conf)conf.textContent=r.count+' reglas activas';
-  list.innerHTML=r.actions.map(a=>`<li class="rec-item"><div><div class="rec-text">${a.action}</div><div class="rec-conf">Prioridad ${a.priority} · Confianza ${Math.round(a.conf*100)}%</div></div></li>`).join('');
+
+  // WHY: map rule id → which signals/drivers justify it
+  const WHY_MAP={
+    'knee_pain_high':   ['knee'],
+    'severe_fatigue':   ['tsb','srpe48','srpe72','sleep','hrv'],
+    'high_interference':['srpe72','lowerSess'],
+    'hrv_suppressed':   ['hrv','coupling','trend3d'],
+    'hrv_rhr_coupling': ['hrv','coupling','rhr_delta'],
+    'high_doms_lower':  ['domsLower','lowerSess'],
+    'low_sleep':        ['sleep','sleep_debt'],
+    'neg_tsb':          ['tsb'],
+    'high_srpe':        ['srpe48','srpe72'],
+    'hrv_rebound':      ['hrv','trend3d'],
+    'all_green':        ['hrv','sleep','srpe48'],
+  };
+
+  list.innerHTML=r.actions.map(a=>{
+    const whyKeys=WHY_MAP[a.id]||[];
+    const whySignals=whyKeys.filter(k=>f?.signals[k]).map(k=>{
+      const s=f.signals[k];
+      const col=s.warn?'var(--r)':s.ok?'var(--g)':'var(--y)';
+      const icon=s.warn?'↓':s.ok?'✓':'~';
+      return`<div style="display:flex;align-items:center;gap:5px;padding:2px 0;"><span style="color:${col};font-family:'Geist Mono',monospace;font-size:10px;width:10px;">${icon}</span><span style="font-size:10px;color:var(--fg3);">${s.label}</span></div>`;
+    }).join('');
+
+    const priorityCol=a.priority>=8?'var(--r)':a.priority>=5?'var(--y)':'var(--g)';
+    return`<li class="rec-item" style="flex-direction:column;align-items:flex-start;gap:6px;">
+      <div style="display:flex;align-items:flex-start;justify-content:space-between;width:100%;gap:8px;">
+        <div class="rec-text" style="flex:1;">${a.action}</div>
+        <span style="font-family:'Geist Mono',monospace;font-size:9px;color:${priorityCol};flex-shrink:0;margin-top:2px;">P${a.priority}</span>
+      </div>
+      ${whySignals?`<div style="background:var(--bg3);border-radius:6px;padding:6px 8px;width:100%;border-left:2px solid var(--line2);">
+        <div style="font-family:'Geist Mono',monospace;font-size:8px;color:var(--fg4);letter-spacing:1px;margin-bottom:3px;">PORQUE</div>
+        ${whySignals}
+      </div>`:''}
+    </li>`;
+  }).join('');
 }
 
 function renderInterferencePanel(){
