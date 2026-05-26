@@ -827,42 +827,28 @@ function MuscleFatigueEngine(logs,hevyRecent){
     if(!key)return;
     Object.entries(sessMap[key]).forEach(([m,{sets,isPrimary}])=>{
       const d_val=decay(ageMs,isPrimary);
-      const load=sets*rpeMultiplier*(isPrimary?1.0:0.4)*d_val*15;
+      const load=sets*rpeMultiplier*(isPrimary?1.0:0.4)*d_val*5;
       fatigue[m]=(fatigue[m]||0)+load;
     });
   });
 
-  // From Hevy sessions — FIX 2: use actual exercise DB to weight per muscle
+  // From Hevy sessions — use muscleSets already computed during fetchHevy
   hevyRecent.forEach(sess=>{
     const ageMs=sess.age;if(ageMs>96*3600000)return;
     const rpe=sess.rpe||7;
     const rpeM=rpe/7;
 
-    // Build muscle → sets from exercises using exercise DB
-    const muscleSets={};
-    (sess.exercises||[]).forEach(ex=>{
-      const exData=getExDB(ex.title||ex.name||'');
-      const nSets=(ex.sets||[]).filter(s=>parseInt(s.reps||0)>0).length;
-      if(!nSets)return;
-      if(exData){
-        exData.p.forEach(m=>{muscleSets[m]=(muscleSets[m]||0)+nSets;});
-        exData.s.forEach(m=>{muscleSets[m]=(muscleSets[m]||0)+nSets*0.4;});
-      } else {
-        // Fallback: use muscle list from Hevy session
-        (sess.muscles||[]).forEach(m=>{muscleSets[m]=(muscleSets[m]||0)+nSets;});
-      }
-    });
-
-    // If no exercise-level data, fall back to session muscles evenly
-    if(!Object.keys(muscleSets).length){
-      (sess.muscles||[]).forEach(m=>{muscleSets[m]=(muscleSets[m]||0)+4;});
-    }
+    // Use pre-computed muscleSets from fetchHevy (already exercise-DB weighted)
+    const muscleSets=sess.muscleSets||{};
+    if(!Object.keys(muscleSets).length) return;
 
     const totalSets=Object.values(muscleSets).reduce((a,b)=>a+b,0)||1;
     Object.entries(muscleSets).forEach(([m,sets])=>{
       const isPrimary=sets/totalSets>0.15;
       const d_val=decay(ageMs,isPrimary);
-      const load=sets*rpeM*d_val*12;
+      // Calibration: 8 sets RPE7 primary fresh = ~55% fatigue
+      // 8 * 1.0 * 1.0 * 4.8 = 38.4 → reasonable
+      const load=sets*rpeM*d_val*4.8;
       fatigue[m]=(fatigue[m]||0)+load;
     });
   });
@@ -1322,12 +1308,13 @@ async function fetchHevy(){
       });
 
       if(isRecent&&Object.keys(muscleSets).length>0){
-        // FIX 1: classify by dominant group (>50% of sets)
+        // FIX: classify by dominant group — if neither >60% it's mixed
         const upperSets=Object.entries(muscleSets).filter(([m])=>UPPER_M.includes(m)).reduce((s,[,v])=>s+v,0);
         const lowerSets=Object.entries(muscleSets).filter(([m])=>LOWER_M.includes(m)).reduce((s,[,v])=>s+v,0);
         const total=upperSets+lowerSets||1;
-        const isUpperDom=upperSets/total>0.5;
-        const isLowerDom=lowerSets/total>0.5;
+        // Require >60% dominance to classify, otherwise mixed
+        const isUpperDom=upperSets/total>0.6;
+        const isLowerDom=lowerSets/total>0.6;
         const muscles=Object.keys(muscleSets).filter(m=>muscleSets[m]>0);
         const wDateStr=wDate.toISOString().split('T')[0];
         const intervalsActs=(S._activitiesByDate||{})[wDateStr]||[];
