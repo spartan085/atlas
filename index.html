@@ -217,6 +217,8 @@ textarea.field{resize:vertical;min-height:60px;}
       <div class="st y"><div class="st-src">Body Battery</div><div class="st-val" id="m-bb">—</div><div class="st-unit">/100</div></div>
       <div class="st o"><div class="st-src">FC Reposo</div><div class="st-val" id="m-rhr">—</div><div class="st-unit">ppm <span id="m-rhr-d" style="font-size:10px;"></span></div></div>
       <div class="st p"><div class="st-src">Pasos</div><div class="st-val" id="m-steps">—</div><div class="st-unit">pasos</div></div>
+      <div class="st b"><div class="st-src">VO2max · Garmin</div><div class="st-val" id="m-vo2max">—</div><div class="st-unit">ml/kg/min</div></div>
+      <div class="st g"><div class="st-src">FC Nocturna</div><div class="st-val" id="m-nocthr">—</div><div class="st-unit">ppm durmiendo</div></div>
     </div>
 
     <div class="card" style="margin-bottom:10px;">
@@ -611,60 +613,116 @@ function loadPersisted(){
   if(!S.claude.key) S.claude.key=localStorage.getItem('atlas_anthropic_key')||getCookie('atlas_ckey')||'';
 }
 
-// ══ EXERCISE DATABASE ══
-// key=name fragment, primary[], secondary[], axial(0-1), knee(0-1), lumbar(0-1), sfr(0-1)
-const EXDB = {
-  'sentadilla goblet':   {p:['Cuádriceps'],s:['Glúteo','Core'],ax:0.6,kn:0.5,lb:0.4,sfr:0.8},
-  'sentadilla búlgara':  {p:['Cuádriceps'],s:['Glúteo'],ax:0.4,kn:0.7,lb:0.3,sfr:0.9},
-  'sentadilla bulgar':   {p:['Cuádriceps'],s:['Glúteo'],ax:0.4,kn:0.7,lb:0.3,sfr:0.9},
-  'sentadilla sumo':     {p:['Aductores'],s:['Glúteo','Cuádriceps'],ax:0.5,kn:0.4,lb:0.4,sfr:0.8},
-  'sentadilla':          {p:['Cuádriceps'],s:['Glúteo','Core'],ax:0.8,kn:0.7,lb:0.6,sfr:0.7},
-  'squat':               {p:['Cuádriceps'],s:['Glúteo'],ax:0.8,kn:0.7,lb:0.6,sfr:0.7},
-  'peso muerto rumano':  {p:['Isquiotibiales'],s:['Glúteo'],ax:0.7,kn:0.2,lb:0.7,sfr:0.9},
-  'romanian deadlift':   {p:['Isquiotibiales'],s:['Glúteo'],ax:0.7,kn:0.2,lb:0.7,sfr:0.9},
-  'rdl':                 {p:['Isquiotibiales'],s:['Glúteo'],ax:0.7,kn:0.2,lb:0.7,sfr:0.9},
-  'peso muerto':         {p:['Isquiotibiales'],s:['Dorsal','Core'],ax:1.0,kn:0.3,lb:0.9,sfr:0.7},
-  'hip thrust':          {p:['Glúteo'],s:['Isquiotibiales'],ax:0.2,kn:0.2,lb:0.3,sfr:0.95},
-  'puente de glúteo':    {p:['Glúteo'],s:[],ax:0.1,kn:0.1,lb:0.2,sfr:0.9},
-  'glute bridge':        {p:['Glúteo'],s:[],ax:0.1,kn:0.1,lb:0.2,sfr:0.9},
-  'curl de piernas':     {p:['Isquiotibiales'],s:[],ax:0.0,kn:0.3,lb:0.1,sfr:0.85},
-  'leg curl':            {p:['Isquiotibiales'],s:[],ax:0.0,kn:0.3,lb:0.1,sfr:0.85},
-  'extensión de pierna': {p:['Cuádriceps'],s:[],ax:0.0,kn:0.6,lb:0.1,sfr:0.7},
-  'leg extension':       {p:['Cuádriceps'],s:[],ax:0.0,kn:0.6,lb:0.1,sfr:0.7},
-  'elevación de gemelos':{p:['Gemelos/Sóleo'],s:[],ax:0.2,kn:0.2,lb:0.1,sfr:0.85},
-  'calf raise':          {p:['Gemelos/Sóleo'],s:[],ax:0.2,kn:0.2,lb:0.1,sfr:0.85},
-  'gemelo':              {p:['Gemelos/Sóleo'],s:[],ax:0.1,kn:0.1,lb:0.0,sfr:0.9},
-  'zancada':             {p:['Cuádriceps'],s:['Glúteo'],ax:0.4,kn:0.6,lb:0.3,sfr:0.8},
-  'lunge':               {p:['Cuádriceps'],s:['Glúteo'],ax:0.4,kn:0.6,lb:0.3,sfr:0.8},
-  'press de banca':      {p:['Pectoral'],s:['Tríceps','Deltoides'],ax:0.1,kn:0.0,lb:0.2,sfr:0.85},
-  'bench press':         {p:['Pectoral'],s:['Tríceps'],ax:0.1,kn:0.0,lb:0.2,sfr:0.85},
-  'press banca':         {p:['Pectoral'],s:['Tríceps'],ax:0.1,kn:0.0,lb:0.2,sfr:0.85},
-  'press inclinado':     {p:['Pectoral'],s:['Deltoides','Tríceps'],ax:0.1,kn:0.0,lb:0.1,sfr:0.9},
-  'aperturas':           {p:['Pectoral'],s:[],ax:0.0,kn:0.0,lb:0.1,sfr:0.95},
-  'chest fly':           {p:['Pectoral'],s:[],ax:0.0,kn:0.0,lb:0.1,sfr:0.95},
-  'fondos':              {p:['Tríceps'],s:['Pectoral'],ax:0.2,kn:0.0,lb:0.1,sfr:0.8},
-  'press de hombros':    {p:['Deltoides'],s:['Tríceps'],ax:0.4,kn:0.0,lb:0.3,sfr:0.8},
-  'overhead press':      {p:['Deltoides'],s:['Tríceps'],ax:0.4,kn:0.0,lb:0.3,sfr:0.8},
-  'press militar':       {p:['Deltoides'],s:['Tríceps'],ax:0.4,kn:0.0,lb:0.3,sfr:0.8},
-  'elevación lateral':   {p:['Deltoides'],s:[],ax:0.0,kn:0.0,lb:0.0,sfr:0.9},
-  'lateral raise':       {p:['Deltoides'],s:[],ax:0.0,kn:0.0,lb:0.0,sfr:0.9},
-  'remo':                {p:['Dorsal'],s:['Bíceps'],ax:0.3,kn:0.0,lb:0.4,sfr:0.85},
-  'row':                 {p:['Dorsal'],s:['Bíceps'],ax:0.3,kn:0.0,lb:0.4,sfr:0.85},
-  'jalón':               {p:['Dorsal'],s:['Bíceps'],ax:0.1,kn:0.0,lb:0.2,sfr:0.9},
-  'jalon':               {p:['Dorsal'],s:['Bíceps'],ax:0.1,kn:0.0,lb:0.2,sfr:0.9},
-  'pullover':            {p:['Dorsal'],s:['Pectoral'],ax:0.1,kn:0.0,lb:0.2,sfr:0.9},
-  'dominadas':           {p:['Dorsal'],s:['Bíceps'],ax:0.1,kn:0.0,lb:0.2,sfr:0.9},
-  'face pull':           {p:['Deltoides'],s:[],ax:0.0,kn:0.0,lb:0.0,sfr:0.95},
-  'curl':                {p:['Bíceps'],s:[],ax:0.0,kn:0.0,lb:0.0,sfr:0.9},
-  'press francés':       {p:['Tríceps'],s:[],ax:0.1,kn:0.0,lb:0.1,sfr:0.85},
-  'skull crusher':       {p:['Tríceps'],s:[],ax:0.1,kn:0.0,lb:0.1,sfr:0.85},
-  'tricep':              {p:['Tríceps'],s:[],ax:0.0,kn:0.0,lb:0.0,sfr:0.9},
-  'plancha':             {p:['Core'],s:[],ax:0.2,kn:0.0,lb:0.2,sfr:0.95},
-  'plank':               {p:['Core'],s:[],ax:0.2,kn:0.0,lb:0.2,sfr:0.95},
-  'dead bug':            {p:['Core'],s:[],ax:0.1,kn:0.0,lb:0.1,sfr:0.98},
-  'pallof':              {p:['Core'],s:[],ax:0.3,kn:0.0,lb:0.2,sfr:0.95},
-  'abducción':           {p:['Aductores'],s:[],ax:0.0,kn:0.1,lb:0.0,sfr:0.95},
+// ══ EXERCISE INTELLIGENCE ENGINE (Phase 2) ══
+// Evidence sources:
+// - Schoenfeld 2010: eccentric damage & DOMS
+// - Fry 2003: spinal/axial loading & CNS fatigue  
+// - Kraemer & Ratamess 2004: neural fatigue from compound lifts
+// - Israetel et al 2019: MEV/MAV/MRV & SFR
+// - Colquhoun 2018: volume landmarks
+// - Morton 2016: proximity to failure & stimulus quality
+// - Beardsley & Contreras 2014: stretched-position stimulus
+
+const EXERCISE_INTELLIGENCE = {
+  // ── LOWER — Quad dominant ──
+  'sentadilla goblet':    {p:['Cuádriceps'],s:['Glúteo','Core'],ax:0.6,ecc:1.1,sys:0.6,kn:0.5,lb:0.4,sfr:0.82,hl:52,pat:'squat',tags:['bilateral','knee-dominant']},
+  'sentadilla búlgara':   {p:['Cuádriceps'],s:['Glúteo'],ax:0.4,ecc:1.4,sys:0.7,kn:0.7,lb:0.3,sfr:0.92,hl:62,pat:'squat',tags:['unilateral','stretch-mediated','high-ecc']},
+  'sentadilla bulgar':    {p:['Cuádriceps'],s:['Glúteo'],ax:0.4,ecc:1.4,sys:0.7,kn:0.7,lb:0.3,sfr:0.92,hl:62,pat:'squat',tags:['unilateral','stretch-mediated']},
+  'sentadilla sumo':      {p:['Aductores'],s:['Glúteo','Cuádriceps'],ax:0.5,ecc:1.0,sys:0.6,kn:0.4,lb:0.4,sfr:0.80,hl:50,pat:'squat',tags:['bilateral','adductor']},
+  'sentadilla':           {p:['Cuádriceps'],s:['Glúteo','Core'],ax:0.85,ecc:1.2,sys:0.85,kn:0.7,lb:0.65,sfr:0.72,hl:62,pat:'squat',tags:['bilateral','axial','compound']},
+  'squat':                {p:['Cuádriceps'],s:['Glúteo'],ax:0.85,ecc:1.2,sys:0.85,kn:0.7,lb:0.65,sfr:0.72,hl:62,pat:'squat',tags:['bilateral','axial']},
+  'extensión de pierna':  {p:['Cuádriceps'],s:[],ax:0.0,ecc:1.0,sys:0.3,kn:0.6,lb:0.05,sfr:0.70,hl:30,pat:'isolation',tags:['isolation','machine','low-sys']},
+  'leg extension':        {p:['Cuádriceps'],s:[],ax:0.0,ecc:1.0,sys:0.3,kn:0.6,lb:0.05,sfr:0.70,hl:30,pat:'isolation',tags:['isolation','machine']},
+  'zancada':              {p:['Cuádriceps'],s:['Glúteo'],ax:0.45,ecc:1.3,sys:0.6,kn:0.65,lb:0.3,sfr:0.82,hl:55,pat:'squat',tags:['unilateral','knee-dominant']},
+  'lunge':                {p:['Cuádriceps'],s:['Glúteo'],ax:0.45,ecc:1.3,sys:0.6,kn:0.65,lb:0.3,sfr:0.82,hl:55,pat:'squat',tags:['unilateral']},
+  'prensa':               {p:['Cuádriceps'],s:['Glúteo'],ax:0.2,ecc:1.1,sys:0.5,kn:0.5,lb:0.1,sfr:0.78,hl:44,pat:'squat',tags:['bilateral','machine']},
+  'leg press':            {p:['Cuádriceps'],s:['Glúteo'],ax:0.2,ecc:1.1,sys:0.5,kn:0.5,lb:0.1,sfr:0.78,hl:44,pat:'squat',tags:['bilateral','machine']},
+  // ── LOWER — Hip/Posterior ──
+  'peso muerto rumano':   {p:['Isquiotibiales'],s:['Glúteo'],ax:0.75,ecc:1.5,sys:0.8,kn:0.2,lb:0.72,sfr:0.92,hl:68,pat:'hinge',tags:['bilateral','stretch-mediated','high-ecc']},
+  'romanian deadlift':    {p:['Isquiotibiales'],s:['Glúteo'],ax:0.75,ecc:1.5,sys:0.8,kn:0.2,lb:0.72,sfr:0.92,hl:68,pat:'hinge',tags:['bilateral','stretch-mediated']},
+  'rdl':                  {p:['Isquiotibiales'],s:['Glúteo'],ax:0.75,ecc:1.5,sys:0.8,kn:0.2,lb:0.72,sfr:0.92,hl:68,pat:'hinge',tags:['stretch-mediated']},
+  'peso muerto':          {p:['Isquiotibiales'],s:['Dorsal','Core'],ax:1.0,ecc:1.2,sys:1.0,kn:0.3,lb:0.92,sfr:0.68,hl:70,pat:'hinge',tags:['bilateral','axial','high-cns']},
+  'deadlift':             {p:['Isquiotibiales'],s:['Dorsal','Core'],ax:1.0,ecc:1.2,sys:1.0,kn:0.3,lb:0.92,sfr:0.68,hl:70,pat:'hinge',tags:['bilateral','axial','high-cns']},
+  'hip thrust':           {p:['Glúteo'],s:['Isquiotibiales'],ax:0.2,ecc:0.85,sys:0.55,kn:0.15,lb:0.25,sfr:0.95,hl:40,pat:'hip-ext',tags:['bilateral','high-sfr','glute']},
+  'puente de glúteo':     {p:['Glúteo'],s:[],ax:0.1,ecc:0.8,sys:0.35,kn:0.1,lb:0.2,sfr:0.92,hl:36,pat:'hip-ext',tags:['bilateral','low-sys']},
+  'glute bridge':         {p:['Glúteo'],s:[],ax:0.1,ecc:0.8,sys:0.35,kn:0.1,lb:0.2,sfr:0.92,hl:36,pat:'hip-ext',tags:['bilateral']},
+  'patada de glúteo':     {p:['Glúteo'],s:[],ax:0.05,ecc:0.7,sys:0.3,kn:0.1,lb:0.1,sfr:0.90,hl:32,pat:'hip-ext',tags:['unilateral','isolation']},
+  'curl de piernas':      {p:['Isquiotibiales'],s:[],ax:0.0,ecc:1.0,sys:0.3,kn:0.3,lb:0.08,sfr:0.82,hl:34,pat:'isolation',tags:['isolation','machine']},
+  'leg curl':             {p:['Isquiotibiales'],s:[],ax:0.0,ecc:1.0,sys:0.3,kn:0.3,lb:0.08,sfr:0.82,hl:34,pat:'isolation',tags:['isolation']},
+  'good morning':         {p:['Isquiotibiales'],s:['Glúteo'],ax:0.9,ecc:1.4,sys:0.8,kn:0.2,lb:0.8,sfr:0.75,hl:65,pat:'hinge',tags:['axial','stretch-mediated']},
+  // ── LOWER — Calves ──
+  'elevación de gemelos': {p:['Gemelos/Sóleo'],s:[],ax:0.15,ecc:0.9,sys:0.25,kn:0.15,lb:0.08,sfr:0.85,hl:28,pat:'isolation',tags:['calf','low-sys']},
+  'calf raise':           {p:['Gemelos/Sóleo'],s:[],ax:0.15,ecc:0.9,sys:0.25,kn:0.15,lb:0.08,sfr:0.85,hl:28,pat:'isolation',tags:['calf']},
+  'gemelo':               {p:['Gemelos/Sóleo'],s:[],ax:0.1,ecc:0.85,sys:0.22,kn:0.1,lb:0.05,sfr:0.88,hl:26,pat:'isolation',tags:['calf']},
+  'pantorrilla':          {p:['Gemelos/Sóleo'],s:[],ax:0.1,ecc:0.85,sys:0.22,kn:0.1,lb:0.05,sfr:0.88,hl:26,pat:'isolation',tags:['calf']},
+  // ── LOWER — Adductors ──
+  'aductor':              {p:['Aductores'],s:[],ax:0.05,ecc:0.9,sys:0.25,kn:0.15,lb:0.05,sfr:0.90,hl:30,pat:'isolation',tags:['adductor','rehab']},
+  'abducción':            {p:['Aductores'],s:[],ax:0.05,ecc:0.8,sys:0.2,kn:0.1,lb:0.04,sfr:0.92,hl:28,pat:'isolation',tags:['abductor','rehab']},
+  // ── UPPER — Push horizontal ──
+  'press de banca':       {p:['Pectoral'],s:['Tríceps','Deltoides'],ax:0.12,ecc:1.15,sys:0.65,kn:0.0,lb:0.22,sfr:0.85,hl:48,pat:'push-h',tags:['bilateral','compound']},
+  'bench press':          {p:['Pectoral'],s:['Tríceps','Deltoides'],ax:0.12,ecc:1.15,sys:0.65,kn:0.0,lb:0.22,sfr:0.85,hl:48,pat:'push-h',tags:['bilateral']},
+  'press banca':          {p:['Pectoral'],s:['Tríceps','Deltoides'],ax:0.12,ecc:1.15,sys:0.65,kn:0.0,lb:0.22,sfr:0.85,hl:48,pat:'push-h',tags:['bilateral']},
+  'press inclinado':      {p:['Pectoral'],s:['Deltoides','Tríceps'],ax:0.15,ecc:1.1,sys:0.6,kn:0.0,lb:0.18,sfr:0.88,hl:46,pat:'push-i',tags:['bilateral','upper-pec']},
+  'press declinado':      {p:['Pectoral'],s:['Tríceps'],ax:0.1,ecc:1.1,sys:0.55,kn:0.0,lb:0.15,sfr:0.82,hl:44,pat:'push-d',tags:['bilateral','lower-pec']},
+  'aperturas':            {p:['Pectoral'],s:[],ax:0.02,ecc:1.3,sys:0.35,kn:0.0,lb:0.1,sfr:0.95,hl:42,pat:'push-h',tags:['isolation','stretch-mediated','high-ecc']},
+  'chest fly':            {p:['Pectoral'],s:[],ax:0.02,ecc:1.3,sys:0.35,kn:0.0,lb:0.1,sfr:0.95,hl:42,pat:'push-h',tags:['isolation','stretch-mediated']},
+  'peck deck':            {p:['Pectoral'],s:[],ax:0.02,ecc:1.2,sys:0.3,kn:0.0,lb:0.1,sfr:0.95,hl:38,pat:'push-h',tags:['isolation','machine']},
+  'cruces':               {p:['Pectoral'],s:[],ax:0.02,ecc:1.25,sys:0.32,kn:0.0,lb:0.1,sfr:0.93,hl:40,pat:'push-h',tags:['isolation']},
+  'fondos':               {p:['Tríceps'],s:['Pectoral'],ax:0.25,ecc:1.1,sys:0.5,kn:0.0,lb:0.15,sfr:0.80,hl:46,pat:'push-h',tags:['bodyweight','compound']},
+  // ── UPPER — Push vertical ──
+  'press de hombros':     {p:['Deltoides'],s:['Tríceps'],ax:0.42,ecc:1.0,sys:0.52,kn:0.0,lb:0.32,sfr:0.80,hl:48,pat:'push-v',tags:['bilateral','overhead','axial']},
+  'overhead press':       {p:['Deltoides'],s:['Tríceps'],ax:0.42,ecc:1.0,sys:0.52,kn:0.0,lb:0.32,sfr:0.80,hl:48,pat:'push-v',tags:['bilateral','overhead']},
+  'press militar':        {p:['Deltoides'],s:['Tríceps'],ax:0.45,ecc:1.0,sys:0.55,kn:0.0,lb:0.35,sfr:0.78,hl:50,pat:'push-v',tags:['bilateral','overhead','axial']},
+  'arnold':               {p:['Deltoides'],s:['Tríceps'],ax:0.35,ecc:1.0,sys:0.5,kn:0.0,lb:0.28,sfr:0.82,hl:46,pat:'push-v',tags:['unilateral','overhead']},
+  'elevación lateral':    {p:['Deltoides'],s:[],ax:0.02,ecc:0.85,sys:0.22,kn:0.0,lb:0.02,sfr:0.90,hl:26,pat:'isolation',tags:['isolation','side-delt']},
+  'lateral raise':        {p:['Deltoides'],s:[],ax:0.02,ecc:0.85,sys:0.22,kn:0.0,lb:0.02,sfr:0.90,hl:26,pat:'isolation',tags:['isolation']},
+  'elevación frontal':    {p:['Deltoides'],s:[],ax:0.05,ecc:0.85,sys:0.25,kn:0.0,lb:0.05,sfr:0.82,hl:28,pat:'isolation',tags:['isolation','front-delt']},
+  // ── UPPER — Pull ──
+  'jalón':                {p:['Dorsal'],s:['Bíceps'],ax:0.12,ecc:1.1,sys:0.52,kn:0.0,lb:0.18,sfr:0.90,hl:44,pat:'pull-v',tags:['bilateral','compound']},
+  'jalon':                {p:['Dorsal'],s:['Bíceps'],ax:0.12,ecc:1.1,sys:0.52,kn:0.0,lb:0.18,sfr:0.90,hl:44,pat:'pull-v',tags:['bilateral']},
+  'dominadas':            {p:['Dorsal'],s:['Bíceps'],ax:0.1,ecc:1.15,sys:0.6,kn:0.0,lb:0.2,sfr:0.90,hl:46,pat:'pull-v',tags:['bodyweight','compound']},
+  'pullover':             {p:['Dorsal'],s:['Pectoral'],ax:0.12,ecc:1.2,sys:0.42,kn:0.0,lb:0.18,sfr:0.92,hl:42,pat:'pull-v',tags:['stretch-mediated']},
+  'remo':                 {p:['Dorsal'],s:['Bíceps'],ax:0.32,ecc:1.05,sys:0.58,kn:0.0,lb:0.38,sfr:0.86,hl:46,pat:'pull-h',tags:['bilateral','compound']},
+  'row':                  {p:['Dorsal'],s:['Bíceps'],ax:0.32,ecc:1.05,sys:0.58,kn:0.0,lb:0.38,sfr:0.86,hl:46,pat:'pull-h',tags:['bilateral']},
+  'face pull':            {p:['Deltoides'],s:[],ax:0.02,ecc:0.8,sys:0.2,kn:0.0,lb:0.02,sfr:0.96,hl:24,pat:'pull-h',tags:['rehab','rear-delt','low-sys']},
+  // ── UPPER — Arms ──
+  'curl':                 {p:['Bíceps'],s:[],ax:0.02,ecc:1.0,sys:0.22,kn:0.0,lb:0.02,sfr:0.90,hl:30,pat:'isolation',tags:['isolation','bicep']},
+  'curl martillo':        {p:['Bíceps'],s:[],ax:0.02,ecc:1.0,sys:0.22,kn:0.0,lb:0.02,sfr:0.90,hl:30,pat:'isolation',tags:['isolation','brachialis']},
+  'press francés':        {p:['Tríceps'],s:[],ax:0.08,ecc:1.1,sys:0.28,kn:0.0,lb:0.1,sfr:0.86,hl:34,pat:'isolation',tags:['isolation','stretch-mediated']},
+  'skull crusher':        {p:['Tríceps'],s:[],ax:0.08,ecc:1.1,sys:0.28,kn:0.0,lb:0.1,sfr:0.86,hl:34,pat:'isolation',tags:['isolation']},
+  'tríceps':              {p:['Tríceps'],s:[],ax:0.02,ecc:0.9,sys:0.22,kn:0.0,lb:0.02,sfr:0.88,hl:28,pat:'isolation',tags:['isolation','tricep']},
+  'tricep':               {p:['Tríceps'],s:[],ax:0.02,ecc:0.9,sys:0.22,kn:0.0,lb:0.02,sfr:0.88,hl:28,pat:'isolation',tags:['isolation']},
+  // ── CORE ──
+  'plancha':              {p:['Core'],s:[],ax:0.22,ecc:0.7,sys:0.28,kn:0.0,lb:0.2,sfr:0.95,hl:30,pat:'core',tags:['isometric','anti-ext']},
+  'plank':                {p:['Core'],s:[],ax:0.22,ecc:0.7,sys:0.28,kn:0.0,lb:0.2,sfr:0.95,hl:30,pat:'core',tags:['isometric']},
+  'dead bug':             {p:['Core'],s:[],ax:0.12,ecc:0.7,sys:0.2,kn:0.0,lb:0.1,sfr:0.98,hl:24,pat:'core',tags:['rehab','anti-ext']},
+  'pallof':               {p:['Core'],s:[],ax:0.28,ecc:0.8,sys:0.28,kn:0.0,lb:0.22,sfr:0.96,hl:28,pat:'core',tags:['anti-rotation']},
+  'encogimiento':         {p:['Core'],s:[],ax:0.18,ecc:0.9,sys:0.25,kn:0.0,lb:0.15,sfr:0.82,hl:26,pat:'core',tags:['flexion']},
+  'crunch':               {p:['Core'],s:[],ax:0.18,ecc:0.9,sys:0.25,kn:0.0,lb:0.15,sfr:0.82,hl:26,pat:'core',tags:['flexion']},
 };
+
+// ── EXERCISE INTELLIGENCE LOOKUP ──
+// Returns full exercise data with all physiological fields
+function getExDB(name){
+  const lower=(name||'').toLowerCase();
+  for(const [k,d] of Object.entries(EXERCISE_INTELLIGENCE)){
+    if(lower.includes(k))return d;
+  }
+  return null;
+}
+
+// Get SFR label for UI
+function getSFRLabel(sfr){
+  if(sfr>=0.90)return'SFR alto';
+  if(sfr>=0.80)return'SFR medio';
+  return'SFR bajo';
+}
+
+// Get movement pattern label
+function getPatternLabel(pat){
+  const map={'squat':'Sentadilla','hinge':'Bisagra','hip-ext':'Extensión cadera','push-h':'Empuje horizontal','push-v':'Empuje vertical','push-i':'Empuje inclinado','pull-v':'Tirón vertical','pull-h':'Tirón horizontal','isolation':'Aislamiento','core':'Core'};
+  return map[pat]||pat||'—';
+}
 
 function getExDB(name){
   const lower=(name||'').toLowerCase();
@@ -747,7 +805,7 @@ function FatigueEngine(metrics,logs,hevyRecent,domsUpper,domsLower,knee){
   if(metrics.tsb!=null){const tf=metrics.tsb>5?0:metrics.tsb>-5?10:metrics.tsb>-15?25:40;autonomic+=tf;if(metrics.tsb<-15)drivers.push('negative_tsb');signals.tsb={label:`TSB ${metrics.tsb>0?'+':''}${metrics.tsb}`,ok:metrics.tsb>-5&&metrics.tsb<25,warn:metrics.tsb<-15};}
   autonomic=Math.min(100,Math.max(0,Math.round(autonomic)));
 
-  // ── MECHANICAL ──
+  // ── MECHANICAL (sRPE-based) ──
   let mechanical=0;
   const r48=logs.filter(l=>{const d=parseDate(l.date);return d&&(now-d)<48*3600000;});
   const r72=logs.filter(l=>{const d=parseDate(l.date);return d&&(now-d)<72*3600000;});
@@ -762,102 +820,204 @@ function FatigueEngine(metrics,logs,hevyRecent,domsUpper,domsLower,knee){
   if(domsLower>0){signals.domsLower={label:`DOMS inf ${domsLower}/10`,ok:domsLower<=3,warn:domsLower>6};if(domsLower>6)drivers.push('high_doms_lower');}
   if(knee>3){signals.knee={label:`Rodilla ${knee}/10`,ok:false,warn:true};drivers.push('knee_pain');}
   else if(knee>0)signals.knee={label:`Rodilla ${knee}/10`,ok:true,warn:false};
+
+  // VO2max signal
+  if(metrics.vo2max){signals.vo2max={label:`VO2max ${metrics.vo2max} ml/kg/min`,ok:metrics.vo2max>=45,warn:false};}
+
+  // Monotony (Foster 1998) — same load daily = CNS suppression risk
+  // monotony = mean daily load / SD of daily load
+  const last7Logs=logs.filter(l=>{const d=parseDate(l.date);return d&&(now-d)<7*864e5;});
+  if(last7Logs.length>=3){
+    const dailySRPE=last7Logs.map(l=>parseFloat(l.srpe)||0);
+    const mean=dailySRPE.reduce((a,b)=>a+b,0)/dailySRPE.length;
+    const sd=Math.sqrt(dailySRPE.map(v=>(v-mean)**2).reduce((a,b)=>a+b,0)/dailySRPE.length);
+    const monotony=sd>0?Math.round(mean/sd*10)/10:0;
+    const strain=Math.round(mean*dailySRPE.reduce((a,b)=>a+b,0));
+    if(monotony>2){signals.monotony={label:`Monotonía alta (${monotony}) — riesgo CNS`,ok:false,warn:true};drivers.push('high_monotony');}
+    else if(monotony>1.5){signals.monotony={label:`Monotonía moderada (${monotony})`,ok:false,warn:false};}
+  }
+
   mechanical=Math.min(100,Math.round((srpe48/800)*40+(domsUpper||0)*5+(domsLower||0)*5+(knee>3?25:0)));
 
-  // ── UPPER/LOWER READINESS — FIX 1: use session dominance ──
-  // Hevy sessions: classify by set majority, not just any muscle
+  // ── UPPER/LOWER — based on muscle fatigue, not just session count ──
   const UPPER_M=['Pectoral','Deltoides','Tríceps','Dorsal','Bíceps'];
   const LOWER_M=['Cuádriceps','Isquiotibiales','Glúteo','Gemelos/Sóleo','Aductores'];
 
-  const r48Hevy=hevyRecent.filter(s=>s.age<48*3600000);
-  const r72Hevy=hevyRecent.filter(s=>s.age<72*3600000);
-
-  // FIX 1: classify Hevy session by dominant muscle group
+  // Classify sessions by >60% dominance
   function classifySession(sess){
-    if(!sess.muscleSets)return{isUpper:false,isLower:false}; // no data = mixed
-    const upperSets=Object.entries(sess.muscleSets).filter(([m])=>UPPER_M.includes(m)).reduce((s,[,v])=>s+v,0);
-    const lowerSets=Object.entries(sess.muscleSets).filter(([m])=>LOWER_M.includes(m)).reduce((s,[,v])=>s+v,0);
-    const total=upperSets+lowerSets||1;
-    // >60% dominance required — mixed sessions count as neither
-    return{isUpper:upperSets/total>0.6,isLower:lowerSets/total>0.6};
+    if(!sess.muscleSets)return{isUpper:false,isLower:false};
+    const uS=Object.entries(sess.muscleSets).filter(([m])=>UPPER_M.includes(m)).reduce((s,[,v])=>s+v,0);
+    const lS=Object.entries(sess.muscleSets).filter(([m])=>LOWER_M.includes(m)).reduce((s,[,v])=>s+v,0);
+    const total=uS+lS||1;
+    return{isUpper:uS/total>0.6,isLower:lS/total>0.6};
   }
 
+  // Use muscle fatigue engine outputs for upper/lower scores
+  const mf = S._muscleFatigue || {};
+  // New format: mf[muscle] = {value, local, neural, confidence}
+  const getMFVal = m => (mf[m]?.value ?? mf[m] ?? 0);
+  const getMFConf = m => mf[m]?.confidence ?? 0.5;
+
+  const upperMuscles = UPPER_M.filter(m => getMFVal(m) > 0);
+  const lowerMuscles = LOWER_M.filter(m => getMFVal(m) > 0);
+  const avgUpperFat = upperMuscles.length ? Math.round(upperMuscles.reduce((s,m)=>s+getMFVal(m),0)/upperMuscles.length) : 0;
+  const avgLowerFat = lowerMuscles.length ? Math.round(lowerMuscles.reduce((s,m)=>s+getMFVal(m),0)/lowerMuscles.length) : 0;
+  const avgUpperConf = upperMuscles.length ? upperMuscles.reduce((s,m)=>s+getMFConf(m),0)/upperMuscles.length : 0.5;
+  const avgLowerConf = lowerMuscles.length ? lowerMuscles.reduce((s,m)=>s+getMFConf(m),0)/lowerMuscles.length : 0.5;
+
+  // Session counts — upper 48h, lower 72h (evidence: axial/eccentric lower needs more recovery)
+  const r72Hevy=hevyRecent.filter(s=>s.age<72*3600000);
+  const r48Hevy=hevyRecent.filter(s=>s.age<48*3600000);
   const upperSess48=r48Hevy.filter(s=>classifySession(s).isUpper).length+r48.filter(l=>/D1|D4|empuje|tirón|tiron/i.test(l.sess||'')).length;
   const lowerSess72=r72Hevy.filter(s=>classifySession(s).isLower).length+r72.filter(l=>/D2|D5|pierna/i.test(l.sess||'')).length;
 
-  signals.upperSess={label:`Sesiones tren sup 48h: ${upperSess48}`,ok:upperSess48<2,warn:upperSess48>=2};
-  signals.lowerSess={label:`Sesiones tren inf 72h: ${lowerSess72}`,ok:lowerSess72<2,warn:lowerSess72>=2};
-  if(lowerSess72>=2)drivers.push('frequent_leg_sessions');
+  const confLabel = c => c>=0.75?'conf alta':c>=0.5?'conf mod':'conf baja';
+  signals.upperSess={label:`Tren sup 48h: ${upperSess48} sesión${upperSess48!==1?'es':''} · fatiga ${avgUpperFat}% (${confLabel(avgUpperConf)})`,ok:upperSess48<2&&avgUpperFat<40,warn:upperSess48>=2||avgUpperFat>60};
+  signals.lowerSess={label:`Tren inf 72h: ${lowerSess72} sesión${lowerSess72!==1?'es':''} · fatiga ${avgLowerFat}% (${confLabel(avgLowerConf)})`,ok:lowerSess72<2&&avgLowerFat<40,warn:lowerSess72>=2||avgLowerFat>60};
+  if(lowerSess72>=2||avgLowerFat>60)drivers.push('frequent_leg_sessions');
 
-  function scoreSystem(keys){let sc=100;keys.forEach(k=>{if(!signals[k])return;if(signals[k].warn)sc-=28;else if(!signals[k].ok)sc-=12;});return Math.max(0,Math.round(sc));}
-  const cardioScore=scoreSystem(['hrv','sleep','bb','tsb','coupling']);
-  const neuroScore=scoreSystem(['srpe48','srpe72','domsUpper','domsLower']);
-  const upperScore=scoreSystem(['hrv','sleep','upperSess','srpe48','domsUpper']);
-  const lowerScore=scoreSystem(['lowerSess','srpe72','knee','domsLower','hrv']);
-  const systemic=Math.min(100,Math.round(autonomic*0.4+mechanical*0.4+(100-Math.min(cardioScore,lowerScore,upperScore))*0.2));
+  // Scores — weighted: muscle fatigue 50% + autonomic context 30% + DOMS 20%
+  function calcReadiness(avgFat, domsVal, autoScore){
+    const fatPenalty=Math.round(avgFat*0.5);
+    const domsPenalty=Math.round((domsVal||0)*5);
+    const autoBonus=Math.round((100-autoScore)*0.3);
+    return Math.max(0,Math.min(100,100-fatPenalty-domsPenalty-autoBonus));
+  }
+
+  const cardioScore=Math.max(0,Math.min(100,100-autonomic));
+  const neuroScore=Math.max(0,100-Math.round((srpe48/800)*40+(srpe72/900)*20));
+  const upperScore=calcReadiness(avgUpperFat,domsUpper,autonomic);
+  const lowerScore=calcReadiness(avgLowerFat,domsLower,autonomic);
+  const systemic=Math.min(100,Math.round(autonomic*0.35+mechanical*0.35+(100-Math.min(cardioScore,lowerScore,upperScore))*0.3));
   const neuralReadiness=hrv?.zScore!=null?Math.min(100,Math.max(0,Math.round(50+hrv.zScore*25))):100-autonomic;
 
-  return{autonomic,mechanical,systemic,neuralReadiness,cardioScore,neuroScore,upperScore,lowerScore,srpe48,srpe72,signals,drivers,confidence:hrv?.confidence||0.5,hevyNoRPE:hevyNoRPE.length};
+  return{autonomic,mechanical,systemic,neuralReadiness,cardioScore,neuroScore,upperScore,lowerScore,avgUpperFat,avgLowerFat,srpe48,srpe72,signals,drivers,confidence:hrv?.confidence||0.5,hevyNoRPE:hevyNoRPE.length};
 }
 
-// ══ MUSCLE FATIGUE ENGINE ══
-// FIX 2: Exponential decay per muscle, weighted by primary(1.0) vs secondary(0.4) × set count
-function MuscleFatigueEngine(logs,hevyRecent){
-  const now=Date.now();
-  // Decay: half-life ~48h for primary muscles
-  function decay(ageMs,isPrimary){
-    const halfLife=isPrimary?48*3600000:36*3600000;
-    return Math.exp(-0.693*ageMs/halfLife);
-  }
-  const fatigue={};
+// ══ MUSCLE FATIGUE ENGINE v2 (Phase 2) ══
+// Architecture: exercise type + volume FIRST, RPE modulates on top
+// Half-life is MODULAR, not fixed: baseHL × volumeMod × intensityMod × recoveryMod
+// Separates: local fatigue / mechanical damage / neural cost
+// Each output has confidence score
+function MuscleFatigueEngine(logs, hevyRecent){
+  const now = Date.now();
 
-  // From log entries — use session map for set estimates
-  const sessMap={
-    'D1':{'Pectoral':{sets:8,isPrimary:true},'Deltoides':{sets:6,isPrimary:true},'Tríceps':{sets:5,isPrimary:true},'Core':{sets:3,isPrimary:false}},
-    'D2':{'Cuádriceps':{sets:7,isPrimary:true},'Glúteo':{sets:5,isPrimary:true},'Gemelos/Sóleo':{sets:4,isPrimary:true},'Aductores':{sets:3,isPrimary:false}},
-    'D4':{'Dorsal':{sets:8,isPrimary:true},'Bíceps':{sets:5,isPrimary:true},'Tríceps':{sets:2,isPrimary:false},'Core':{sets:3,isPrimary:false}},
-    'D5':{'Isquiotibiales':{sets:7,isPrimary:true},'Glúteo':{sets:7,isPrimary:true},'Gemelos/Sóleo':{sets:3,isPrimary:true},'Aductores':{sets:2,isPrimary:false}},
+  // Modular half-life (hours) — base value modified by context
+  function effectiveHalfLife(baseHL, nSets, rpe, recoveryContext){
+    // Volume modifier: more sets = slower recovery (Colquhoun 2018)
+    const volMod = nSets <= 4 ? 0.85 : nSets <= 8 ? 1.0 : nSets <= 12 ? 1.2 : 1.4;
+    // Intensity modifier: higher RPE = slower recovery (Morton 2016)
+    const intMod = rpe <= 5 ? 0.8 : rpe <= 7 ? 1.0 : rpe <= 8 ? 1.2 : 1.4;
+    // Recovery context (HRV, sleep) — if suppressed, slower recovery
+    const recMod = recoveryContext || 1.0;
+    return baseHL * volMod * intMod * recMod;
+  }
+
+  // Exponential decay with modular half-life
+  function decay(ageMs, halfLifeH){
+    return Math.exp(-0.693 * ageMs / (halfLifeH * 3600000));
+  }
+
+  // Recovery context from HRV + sleep
+  const hrv = S._hrv;
+  const sl = S.metrics.sleep ? parseFloat(S.metrics.sleep) : null;
+  let recovMod = 1.0;
+  if(hrv?.pctVsBase < -10) recovMod = 1.25; // suppressed HRV = slower recovery
+  else if(hrv?.pctVsBase > 8) recovMod = 0.9; // elevated HRV = faster recovery
+  if(sl && sl < 6) recovMod *= 1.2;
+  else if(sl && sl > 8) recovMod *= 0.92;
+
+  const fatigue = {}; // muscle → {local, neural, confidence, drivers}
+  const rawFatigue = {};
+
+  // Session map for log-based estimation
+  const sessMap = {
+    'D1':{'Pectoral':{sets:8,ex:'press banca'},'Deltoides':{sets:6,ex:'press de hombros'},'Tríceps':{sets:5,ex:'press banca'},'Core':{sets:3,ex:'plancha'}},
+    'D2':{'Cuádriceps':{sets:7,ex:'sentadilla'},'Glúteo':{sets:5,ex:'hip thrust'},'Gemelos/Sóleo':{sets:4,ex:'gemelo'},'Aductores':{sets:3,ex:'abducción'}},
+    'D4':{'Dorsal':{sets:8,ex:'remo'},'Bíceps':{sets:5,ex:'curl'},'Tríceps':{sets:2,ex:'fondos'},'Core':{sets:3,ex:'plancha'}},
+    'D5':{'Isquiotibiales':{sets:7,ex:'rdl'},'Glúteo':{sets:7,ex:'hip thrust'},'Gemelos/Sóleo':{sets:3,ex:'gemelo'},'Aductores':{sets:2,ex:'abducción'}},
   };
 
-  logs.slice(0,10).forEach(l=>{
-    const d=parseDate(l.date);if(!d)return;
-    const ageMs=now-d;if(ageMs>96*3600000)return;
-    const rpe=parseFloat(l.rpe)||5;
-    const rpeMultiplier=rpe/7;
-    const key=['D1','D2','D4','D5'].find(k=>l.sess&&l.sess.includes(k));
-    if(!key)return;
-    Object.entries(sessMap[key]).forEach(([m,{sets,isPrimary}])=>{
-      const d_val=decay(ageMs,isPrimary);
-      const load=sets*rpeMultiplier*(isPrimary?1.0:0.4)*d_val*5;
-      fatigue[m]=(fatigue[m]||0)+load;
+  function addFatigue(muscle, sets, rpe, exName, ageMs, isPrimary){
+    const exData = getExDB(exName);
+    const baseHL = exData ? exData.hl : 44;
+    const ax = exData ? exData.ax : 0.5;
+    const ecc = exData ? exData.ecc : 1.0;
+    const hl = effectiveHalfLife(baseHL, sets, rpe, recovMod);
+    const d = decay(ageMs, hl);
+    const rpeM = rpe / 7;
+    const primaryMult = isPrimary ? 1.0 : 0.35;
+    // Local fatigue: volume × exercise type × decay
+    // Calibration: 8 sets RPE7 squat (ax=0.85,ecc=1.2) → ~42% residual at t=0
+    const local = sets * rpeM * ecc * primaryMult * d * 4.2;
+    // Neural cost: axial load matters more here (Kraemer 2004)
+    const neural = sets * rpeM * ax * primaryMult * d * 3.5;
+    if(!rawFatigue[muscle]) rawFatigue[muscle] = {local:0, neural:0, sets:0, exHL:[]};
+    rawFatigue[muscle].local += local;
+    rawFatigue[muscle].neural += neural;
+    rawFatigue[muscle].sets += sets * primaryMult;
+    rawFatigue[muscle].exHL.push(hl);
+  }
+
+  // From manual logs
+  logs.slice(0, 10).forEach(l => {
+    const d = parseDate(l.date); if(!d) return;
+    const ageMs = now - d; if(ageMs > 120*3600000) return;
+    const rpe = parseFloat(l.rpe) || 6;
+    const key = ['D1','D2','D4','D5'].find(k => l.sess && l.sess.includes(k));
+    if(!key) return;
+    Object.entries(sessMap[key]).forEach(([m, {sets, ex}]) => {
+      const isPrimary = ['Pectoral','Dorsal','Cuádriceps','Isquiotibiales','Glúteo','Deltoides'].includes(m);
+      addFatigue(m, sets, rpe, ex, ageMs, isPrimary);
     });
   });
 
-  // From Hevy sessions — use muscleSets already computed during fetchHevy
-  hevyRecent.forEach(sess=>{
-    const ageMs=sess.age;if(ageMs>96*3600000)return;
-    const rpe=sess.rpe||7;
-    const rpeM=rpe/7;
-
-    // Use pre-computed muscleSets from fetchHevy (already exercise-DB weighted)
-    const muscleSets=sess.muscleSets||{};
+  // From Hevy sessions (real exercise data)
+  hevyRecent.forEach(sess => {
+    const ageMs = sess.age; if(ageMs > 120*3600000) return;
+    const rpe = sess.rpe || 7;
+    const muscleSets = sess.muscleSets || {};
     if(!Object.keys(muscleSets).length) return;
+    const totalSets = Object.values(muscleSets).reduce((a,b) => a+b, 0) || 1;
 
-    const totalSets=Object.values(muscleSets).reduce((a,b)=>a+b,0)||1;
-    Object.entries(muscleSets).forEach(([m,sets])=>{
-      const isPrimary=sets/totalSets>0.15;
-      const d_val=decay(ageMs,isPrimary);
-      // Calibration: 8 sets RPE7 primary fresh = ~55% fatigue
-      // 8 * 1.0 * 1.0 * 4.8 = 38.4 → reasonable
-      const load=sets*rpeM*d_val*4.8;
-      fatigue[m]=(fatigue[m]||0)+load;
+    // Get best exercise name for each muscle from exercises list
+    const muscleExName = {};
+    (sess.exercises || []).forEach(ex => {
+      const exData = getExDB(ex.title || '');
+      if(!exData) return;
+      const nSets = (ex.sets||[]).filter(s=>parseInt(s.reps||0)>0).length;
+      exData.p.forEach(m => {
+        // Keep the highest-fatigue exercise per muscle
+        if(!muscleExName[m] || nSets > (muscleExName[m].sets||0)){
+          muscleExName[m] = {name: ex.title||'', sets: nSets};
+        }
+      });
+    });
+
+    Object.entries(muscleSets).forEach(([m, sets]) => {
+      const isPrimary = sets/totalSets > 0.15;
+      const exName = muscleExName[m]?.name || '';
+      addFatigue(m, sets, rpe, exName, ageMs, isPrimary);
     });
   });
 
-  // Normalize to 0-100
-  const result={};
-  Object.entries(fatigue).forEach(([m,v])=>{result[m]=Math.min(100,Math.round(v));});
-  return result;
+  // Build result with confidence
+  const dataPoints = logs.slice(0,5).length + hevyRecent.length;
+  const baseConfidence = Math.min(0.9, 0.4 + dataPoints * 0.08);
+
+  Object.entries(rawFatigue).forEach(([m, data]) => {
+    const local = Math.min(100, Math.round(data.local));
+    const neural = Math.min(100, Math.round(data.neural));
+    // Combined: local fatigue drives the score, neural adds context
+    const combined = Math.min(100, Math.round(local * 0.7 + neural * 0.3));
+    // Confidence based on data quality + recency
+    const avgHL = data.exHL.length ? data.exHL.reduce((a,b)=>a+b,0)/data.exHL.length : 44;
+    const conf = Math.round(Math.min(0.92, baseConfidence) * 100) / 100;
+    fatigue[m] = {value: combined, local, neural, confidence: conf,
+      halfLife: Math.round(avgHL), sets: Math.round(data.sets)};
+  });
+
+  return fatigue;
 }
 
 // ══ INTERFERENCE ENGINE ══
@@ -941,11 +1101,13 @@ function runEngines(){
   const domsUp=parseFloat(document.getElementById('domsUpper')?.value)||0;
   const domsLow=parseFloat(document.getElementById('domsLower')?.value)||0;
   S._hrv=HRVEngine(S._wellnessHistory||[]);
+  // IMPORTANT: muscle fatigue must run BEFORE fatigue engine
+  // so upper/lower scores can use real muscle fatigue values
+  S._muscleFatigue=MuscleFatigueEngine(S.logs,S._hevyRecent||[]);
   S._fatigue=FatigueEngine(S.metrics,S.logs,S._hevyRecent||[],domsUp,domsLow,knee);
   S._interference=InterferenceEngine(S.metrics.activities||[]);
   S._mav=MAVEngine(S._fatigue,S.metrics,knee);
   S._recs=RecommendationEngine(S._fatigue,S._interference);
-  S._muscleFatigue=MuscleFatigueEngine(S.logs,S._hevyRecent||[]);
   renderReadinessGrid();
   renderFatigueHero();
   renderFatigueSignals();
@@ -960,8 +1122,12 @@ function runEngines(){
 function renderReadinessGrid(){
   const f=S._fatigue;const hrv=S._hrv;if(!f)return;
   const conf=hrv?.confidence||0.5;
-  const confLabel=conf>=0.8?'Alta':conf>=0.5?'Moderada':'Baja';
-  const confColor=conf>=0.8?'var(--g)':conf>=0.5?'var(--y)':'var(--r)';
+  const confLabel=conf>=0.75?'Alta':conf>=0.5?'Moderada':'Baja';
+  const confColor=conf>=0.75?'var(--g)':conf>=0.5?'var(--y)':'var(--r)';
+  // 2 weeks of data = moderate confidence
+  const dataWeeks=Math.min((S._wellnessHistory||[]).length/7, 4);
+  const overallConf=Math.min(0.9, 0.35 + dataWeeks*0.14);
+  const overallConfLabel=overallConf>=0.75?'Alta':overallConf>=0.5?'Moderada':'Baja';
 
   // Honest state labels — no absolutes
   function stateLabel(score){
@@ -996,7 +1162,7 @@ function renderReadinessGrid(){
   if(cardioCard){
     let badge=cardioCard.querySelector('.conf-badge');
     if(!badge){badge=document.createElement('div');badge.className='conf-badge';cardioCard.appendChild(badge);}
-    badge.innerHTML=`<span style="font-family:'Geist Mono',monospace;font-size:8px;color:${confColor};letter-spacing:1px;">CONF ${confLabel.toUpperCase()}</span>`;
+    badge.innerHTML=`<span style="font-family:'Geist Mono',monospace;font-size:8px;color:${confColor};letter-spacing:1px;">CONF ${overallConfLabel.toUpperCase()} · ${Math.round(dataWeeks)}sem datos</span>`;
     badge.style.cssText='position:absolute;bottom:8px;right:10px;';
   }
 }
@@ -1108,15 +1274,58 @@ function renderInterferencePanel(){
 function renderMuscleFatigue(){
   const container=document.getElementById('muscleFatigue');if(!container)return;
   const mf=S._muscleFatigue||{};
-  const muscles=Object.keys(mf).filter(m=>mf[m]>0).sort((a,b)=>mf[b]-mf[a]);
-  if(!muscles.length){container.innerHTML='<div class="empty"><div class="empty-icon">💪</div><div class="empty-title">Sin sesiones 72h</div><div class="empty-msg">Registra en Log o sincroniza Hevy</div></div>';return;}
+
+  // Handle both old format (number) and new format (object)
+  const getVal=m=>typeof mf[m]==='object'?mf[m].value:(mf[m]||0);
+  const getConf=m=>typeof mf[m]==='object'?mf[m].confidence:0.5;
+  const getLocal=m=>typeof mf[m]==='object'?mf[m].local:null;
+  const getNeural=m=>typeof mf[m]==='object'?mf[m].neural:null;
+  const getHL=m=>typeof mf[m]==='object'?mf[m].halfLife:null;
+
+  const muscles=Object.keys(mf).filter(m=>getVal(m)>0).sort((a,b)=>getVal(b)-getVal(a));
+  if(!muscles.length){
+    container.innerHTML='<div class="empty"><div class="empty-icon">💪</div><div class="empty-title">Sin sesiones 96h</div><div class="empty-msg">Registra en Log o sincroniza Hevy</div></div>';
+    return;
+  }
+
+  function fatigueLabel(pct){
+    if(pct<10)return'Fresco';
+    if(pct<25)return'Fatiga baja';
+    if(pct<50)return'Moderada';
+    if(pct<70)return'Elevada';
+    return'Alta';
+  }
+
   container.innerHTML=muscles.map(m=>{
-    const fat=mf[m];
-    const col=fat<30?'var(--g)':fat<60?'var(--y)':'var(--r)';
-    const st=fat<30?'Recuperado':fat<60?'Moderada':'Alta';
+    const fat=getVal(m);
+    const conf=getConf(m);
+    const local=getLocal(m);
+    const neural=getNeural(m);
+    const hl=getHL(m);
+    const col=fat<25?'var(--g)':fat<50?'var(--y)':'var(--r)';
+    const confCol=conf>=0.75?'var(--g)':conf>=0.5?'var(--y)':'var(--fg4)';
+    const label=fatigueLabel(fat);
     const mav=S._mav?.muscles[m];
-    const effMRV=mav?mav.effectiveMRV:null;
-    return`<div class="mf-row"><div class="mf-name">${m}</div><div class="mf-bar-track"><div class="mf-bar-fill" style="width:${fat}%;background:${col};"></div></div><div class="mf-status" style="color:${col};">${fat}% ${st}${effMRV?` · MRV${effMRV}`:''}</div></div>`;
+    const effMRV=mav?`MRV${mav.effectiveMRV}`:'';
+    // Recovery time estimate
+    const hrsToFresh=fat>5?Math.round((-Math.log(5/fat)/0.693)*(hl||44)):0;
+    const recovNote=fat>10&&hrsToFresh>0?`~${hrsToFresh}h`:'';
+    // Neural note
+    const neuralNote=neural&&neural>30?`SNC ${neural}%`:'';
+
+    return`<div class="mf-row">
+      <div class="mf-name">${m}</div>
+      <div class="mf-bar-track">
+        <div class="mf-bar-fill" style="width:${fat}%;background:${col};"></div>
+      </div>
+      <div style="text-align:right;flex-shrink:0;min-width:140px;">
+        <div style="font-family:'Geist Mono',monospace;font-size:9px;color:${col};">${fat}% · ${label}</div>
+        <div style="font-size:9px;color:var(--fg4);">
+          ${[effMRV, recovNote, neuralNote].filter(Boolean).join(' · ')}
+          <span style="color:${confCol};margin-left:3px;">●${Math.round(conf*100)}%</span>
+        </div>
+      </div>
+    </div>`;
   }).join('');
 }
 
@@ -1126,6 +1335,8 @@ function updateMetrics(){
   sv('m-hrv',m.hrv?m.hrv+'ms':null);sv('m-sleep',m.sleep);sv('m-sleep-score',m.sleepScore?'score '+m.sleepScore:'');
   sv('m-bb',m.bb);sv('m-rhr',m.restingHR?m.restingHR+'ppm':null);
   sv('m-steps',m.steps?(m.steps>=1000?(Math.round(m.steps/1000)+'k'):m.steps):null);
+  sv('m-vo2max',m.vo2max?m.vo2max+'':null);
+  sv('m-nocthr',m.avgNocturnalHR?Math.round(m.avgNocturnalHR)+'ppm':null);
   sv('m-ctl',m.ctl!=null&&m.atl!=null?`CTL ${Math.round(m.ctl)} · ATL ${Math.round(m.atl)}`:m.ctl?Math.round(m.ctl):null);
   const hEl=document.getElementById('m-hrv-d');
   if(hEl&&S._hrv?.pctVsBase!=null){const p=S._hrv.pctVsBase;hEl.textContent=`${p>=0?'+':''}${p}% vs base ${Math.round(S._hrv.baseline28||0)}ms`;hEl.className='st-delta '+(p>=-5?'up':p<-10?'dn':'nt');}
@@ -1326,6 +1537,8 @@ async function fetchIntervals(){
     S.metrics.bb=latestBio.bodyBattery!=null?Math.round(latestBio.bodyBattery):latestBio.body_battery!=null?Math.round(latestBio.body_battery):null;
     S.metrics.steps=latestBio.steps!=null?Math.round(latestBio.steps):null;
     S.metrics.weight=latestBio.weight?parseFloat(latestBio.weight.toFixed(1)):null;
+    S.metrics.vo2max=latestBio.vo2max||null;
+    S.metrics.avgNocturnalHR=latestBio.avgSleepingHR||null;
     const fv=latestBio.fieldValues||{};
     // % grasa: use today's value OR last known value from history
     const todayFat=latestBio.bodyFat||latestBio.fatPercent||fv['BodyFatPercent']||fv['PercentageOfBodyFat']||null;
@@ -1349,7 +1562,7 @@ async function fetchIntervals(){
     if(S.metrics.ctl==null&&latestBio.ctl!=null)S.metrics.ctl=Math.round(latestBio.ctl);
     if(S.metrics.atl==null&&latestBio.atl!=null)S.metrics.atl=Math.round(latestBio.atl);
     if(S.metrics.tsb==null&&latestBio.ctl!=null&&latestBio.atl!=null)S.metrics.tsb=Math.round(latestBio.ctl-latestBio.atl);
-    try{const atR=await fetch(`https://intervals.icu/api/v1/athlete/${aid}`,{headers:H,mode:'cors'});if(atR.ok){const at=await atR.json();if(!S.metrics.weight&&at.icu_weight)S.metrics.weight=parseFloat(at.icu_weight.toFixed(1));if(!S.metrics.restingHR&&at.icu_resting_hr)S.metrics.restingHR=at.icu_resting_hr;if(S.metrics.ctl==null&&at.ctl!=null)S.metrics.ctl=Math.round(at.ctl);if(S.metrics.atl==null&&at.atl!=null)S.metrics.atl=Math.round(at.atl);if(S.metrics.tsb==null&&at.form!=null)S.metrics.tsb=Math.round(at.form);}}catch(e){}
+    try{const atR=await fetch(`https://intervals.icu/api/v1/athlete/${aid}`,{headers:H,mode:'cors'});if(atR.ok){const at=await atR.json();if(!S.metrics.weight&&at.icu_weight)S.metrics.weight=parseFloat(at.icu_weight.toFixed(1));if(!S.metrics.restingHR&&at.icu_resting_hr)S.metrics.restingHR=at.icu_resting_hr;if(!S.metrics.vo2max&&at.icu_vo2max)S.metrics.vo2max=Math.round(at.icu_vo2max*10)/10;if(S.metrics.ctl==null&&at.ctl!=null)S.metrics.ctl=Math.round(at.ctl);if(S.metrics.atl==null&&at.atl!=null)S.metrics.atl=Math.round(at.atl);if(S.metrics.tsb==null&&at.form!=null)S.metrics.tsb=Math.round(at.form);}}catch(e){}
     S.metrics.activities=activities;
     S._activitiesByDate={};activities.forEach(a=>{const d=(a.start_date_local||'').split('T')[0];if(d){if(!S._activitiesByDate[d])S._activitiesByDate[d]=[];S._activitiesByDate[d].push(a);}});
     S.metrics.weightHistory=wSorted.filter(d=>d.weight||(d.fieldValues||{})['BodyFatPercent']).map(d=>({date:d.id,w:d.weight?parseFloat(d.weight.toFixed(1)):null,fat:d.fatPercent||(d.fieldValues||{})['BodyFatPercent']||null}));
@@ -1476,7 +1689,40 @@ function parseDate(str){if(!str)return null;const p=str.split('/');if(p.length==
 
 // ══ AI ══
 const SYS=`Eres ATLAS v6 — coach fisiológico de Carlos. Español. Directo, basado en evidencia. Máx 380 palabras. Los motores fisiológicos ya procesaron datos determinísticamente. Tu rol: EXPLICAR en lenguaje humano claro. NO decides — interpretas. Carlos: 78.2kg, 15.6% grasa, objetivo ~10%+hipertrofia+running. Ex maratonista. Rodilla: condromalacia/ITB sin dolor. VMO descompensado, piernas en varo. Gemelos: 2x/semana mínimo. Mesociclo 1, semanas 1-4. D1 Empuje · D2 Pierna A (pre-act) · D3 Z2 · D4 Tirón · D5 Pierna B (pre-act) · D6 Z2+Mov · D7 Descanso. Rodilla >3/10 = parar ejercicio. Sistémica <30%=completo · 30-60%=-35% · >60%=descanso.`;
-function buildCtx(){const f=S._fatigue;const h=S._hrv;const i=S._interference;const m=S._mav;const r=S._recs;return`HRV: estado=${h?.state||'—'} z=${h?.zScore||'—'} vs-base=${h?.pctVsBase||0}% conf=${Math.round((h?.confidence||0)*100)}% drivers=${h?.drivers?.join(',')||'ninguno'}\nFATIGA: auto=${f?.autonomic||0}% mec=${f?.mechanical||0}% sys=${f?.systemic||0}%\nCardio=${f?.cardioScore||'—'}% Upper=${f?.upperScore||'—'}% Lower=${f?.lowerScore||'—'}%\nsRPE48=${f?.srpe48||0} sRPE72=${f?.srpe72||0}\nDrivers: ${f?.drivers?.join(', ')||'ninguno'}\nINTERFERENCIA: ${i?.level||'none'} (${i?.score||0}%) block=${i?.blockLower}\nMAV mult global=${m?.global||1}: ${m?.reasons?.join(' · ')||'ninguno'}\nRECS: ${r?.actions?.map(a=>a.id).join(', ')||'ninguna'}`.trim();}
+function buildCtx(){
+  const f=S._fatigue;const h=S._hrv;const i=S._interference;const m=S._mav;const r=S._recs;
+  const mf=S._muscleFatigue||{};
+  const getMFVal=mu=>typeof mf[mu]==='object'?mf[mu].value:(mf[mu]||0);
+  const getMFConf=mu=>typeof mf[mu]==='object'?Math.round(mf[mu].confidence*100)+'%':'—';
+  const dataWeeks=Math.min(((S._wellnessHistory||[]).length/7),4).toFixed(1);
+  const overallConf=Math.min(0.9,0.35+parseFloat(dataWeeks)*0.14);
+
+  const muscleCtx=Object.entries(mf).filter(([,v])=>(typeof v==='object'?v.value:v)>0)
+    .sort((a,b)=>(typeof b[1]==='object'?b[1].value:b[1])-(typeof a[1]==='object'?a[1].value:a[1]))
+    .slice(0,6).map(([mu,v])=>{
+      const val=typeof v==='object'?v.value:v;
+      const conf=typeof v==='object'?Math.round(v.confidence*100)+'%':'—';
+      const neural=typeof v==='object'&&v.neural>30?` SNC:${v.neural}%`:'';
+      return`${mu}:${val}%(conf${conf}${neural})`;
+    }).join(', ');
+
+  return`SISTEMA: ${dataWeeks} semanas datos · Confianza global ${Math.round(overallConf*100)}%
+HRV: estado=${h?.state||'—'} z=${h?.zScore||'—'} vs-base=${h?.pctVsBase||0}% conf=${Math.round((h?.confidence||0)*100)}%
+  Drivers HRV: ${h?.drivers?.join(',')||'ninguno'}
+  Señales: ${h?.signals?.map(s=>s.label).slice(0,3).join(' · ')||'—'}
+
+FATIGA: auto=${f?.autonomic||0}% mecánica=${f?.mechanical||0}% sistémica=${f?.systemic||0}%
+  Cardio=${f?.cardioScore||'—'}% Upper=${f?.upperScore||'—'}% Lower=${f?.lowerScore||'—'}%
+  sRPE48=${f?.srpe48||0} sRPE72=${f?.srpe72||0}
+  Drivers: ${f?.drivers?.join(', ')||'ninguno'}
+
+FATIGA MUSCULAR (residual, con confianza):
+  ${muscleCtx||'sin datos'}
+
+INTERFERENCIA: ${i?.level||'none'} (${i?.score||0}%) blockLower=${i?.blockLower}
+MAV: ×${m?.global||1} — ${m?.reasons?.join(' · ')||'sin modificadores'}
+RECOMENDACIONES ACTIVAS: ${r?.actions?.map(a=>a.id).join(', ')||'ninguna'}`.trim();
+}
 async function callAI(prompt,panelId,txtId,timeId){
   const key=S.claude.key;if(!key||!key.startsWith('sk-ant')){toast('Sin API Key','Añade Claude API Key en Datos','⚠️');return;}
   const panel=document.getElementById(panelId);const txt=document.getElementById(txtId);const tEl=document.getElementById(timeId);
