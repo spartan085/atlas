@@ -164,7 +164,10 @@ transition:color .2s;min-width:52px;}
 .srpe-num{font-family:'Instrument Serif',serif;font-size:24px;line-height:1;}
 .srpe-lbl{font-family:'Geist Mono',monospace;font-size:8px;color:var(--fg3);margin-top:1px;letter-spacing:.5px;}
 
-/* READINESS GRID v5 */
+/* WEEK SELECTOR */
+.btn-wk{background:var(--bg3);border:1px solid var(--line);border-radius:8px;width:36px;height:36px;color:var(--fg);font-size:18px;cursor:pointer;display:flex;align-items:center;justify-content:center;flex-shrink:0;}
+.btn-wk:active{background:var(--bg4);}
+.btn-wk:disabled{opacity:0.3;cursor:default;}
 .rsys-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin:14px 18px 0;}
 .rsys-card{background:var(--bg2);border:1px solid var(--line);border-radius:var(--radius);padding:13px;position:relative;overflow:hidden;}
 .rsys-card::before{content:'';position:absolute;top:0;left:0;right:0;height:2px;transition:background .5s;}
@@ -494,18 +497,31 @@ transform:translateY(-8px);opacity:0;transition:all .3s cubic-bezier(.34,1.56,.6
       </div>
     </div>
 
-    <!-- Zone distribution -->
+    <!-- Week summary mini (replaces full zone card — detail now in MEV/MAV) -->
     <div class="card" style="margin-bottom:10px;">
       <div class="card-hdr">
-        <span class="t-md">Zonas FC — 7 días</span>
-        <span class="mono" style="font-size:10px;color:var(--fg3);" id="m-week-acts">—</span>
+        <span class="t-md">Semana — resumen</span>
+        <span class="mono" style="font-size:10px;color:var(--fg3);" id="m-week-acts">— actividades</span>
       </div>
-      <div class="card-body">
-        <div style="display:flex;gap:8px;align-items:flex-end;" id="zoneDist">
-          <div style="width:100%;text-align:center;color:var(--fg4);font-size:11px;padding:8px;">Conecta Intervals.icu para ver distribución de zonas</div>
+      <div class="card-body" style="display:flex;gap:8px;flex-wrap:wrap;">
+        <div style="flex:1;min-width:70px;text-align:center;padding:8px;background:var(--bg3);border-radius:7px;">
+          <div style="font-family:'Instrument Serif',serif;font-size:20px;color:var(--c);" id="wk-runs">—</div>
+          <div style="font-size:9px;color:var(--fg3);">runs</div>
         </div>
-        <div id="zoneAnalysis" style="display:none;margin-top:8px;font-size:11px;padding:6px 0;border-top:1px solid var(--line);"></div>
+        <div style="flex:1;min-width:70px;text-align:center;padding:8px;background:var(--bg3);border-radius:7px;">
+          <div style="font-family:'Instrument Serif',serif;font-size:20px;color:var(--o);" id="wk-strength">—</div>
+          <div style="font-size:9px;color:var(--fg3);">fuerza</div>
+        </div>
+        <div style="flex:1;min-width:70px;text-align:center;padding:8px;background:var(--bg3);border-radius:7px;">
+          <div style="font-family:'Instrument Serif',serif;font-size:20px;color:var(--g);" id="wk-load">—</div>
+          <div style="font-size:9px;color:var(--fg3);">carga total</div>
+        </div>
+        <div style="flex:1;min-width:70px;text-align:center;padding:8px;background:var(--bg3);border-radius:7px;">
+          <div style="font-family:'Instrument Serif',serif;font-size:20px;color:var(--b);" id="wk-steps">—</div>
+          <div style="font-size:9px;color:var(--fg3);">pasos/día</div>
+        </div>
       </div>
+      <div style="padding:4px 0 0;font-size:10px;color:var(--fg3);text-align:center;">Detalle de zonas en MEV/MAV →</div>
     </div>
 
     <!-- Nutrición + Composición corporal (v5.1) -->
@@ -730,19 +746,58 @@ transform:translateY(-8px);opacity:0;transition:all .3s cubic-bezier(.34,1.56,.6
   <div class="pad">
     <div class="over">Volumen óptimo</div>
     <div class="t-xl">MEV · MAV · <em>MRV</em></div>
-    <p class="t-sm" style="margin-top:4px;margin-bottom:16px;">Volumen real calculado de tu historial de Hevy vs tus rangos óptimos. La IA recomienda si subir, mantener o bajar series esta semana.</p>
+
+    <!-- Week selector -->
+    <div style="display:flex;align-items:center;gap:8px;margin:12px 0 16px;">
+      <button class="btn-wk" onclick="changeWeek(-1)">‹</button>
+      <div style="flex:1;text-align:center;">
+        <div style="font-family:'Geist Mono',monospace;font-size:11px;color:var(--fg);" id="wkSelectorLabel">Semana actual</div>
+        <div style="font-size:10px;color:var(--fg3);margin-top:2px;" id="wkSelectorRange">—</div>
+      </div>
+      <button class="btn-wk" onclick="changeWeek(1)" id="wkNextBtn">›</button>
+    </div>
 
     <!-- MAV bars -->
     <div class="card">
       <div class="card-hdr">
-        <span class="t-md">Volumen esta semana</span>
-        <div style="display:flex;gap:8px;font-size:10px;color:var(--fg3);">
-          <span style="display:flex;align-items:center;gap:3px;"><span style="width:8px;height:2px;background:var(--b);display:inline-block;"></span>MEV</span>
-          <span style="display:flex;align-items:center;gap:3px;"><span style="width:8px;height:2px;background:var(--r);display:inline-block;"></span>MRV</span>
+        <span class="t-md" id="mavBarsTitle">Volumen semana</span>
+        <div style="display:flex;align-items:center;gap:6px;">
+          <button onclick="changeWeek(-1)" style="background:var(--bg3);border:1px solid var(--line);color:var(--fg2);border-radius:6px;padding:3px 8px;font-size:13px;cursor:pointer;">‹</button>
+          <span id="weekLabel" style="font-family:'Geist Mono',monospace;font-size:10px;color:var(--fg2);min-width:90px;text-align:center;">Esta semana</span>
+          <button onclick="changeWeek(1)" id="weekNextBtn" style="background:var(--bg3);border:1px solid var(--line);color:var(--fg2);border-radius:6px;padding:3px 8px;font-size:13px;cursor:pointer;opacity:0.3;">›</button>
         </div>
       </div>
+      <div style="display:flex;gap:6px;flex-wrap:wrap;padding:8px 14px 0;" id="mavWeekLegend">
+        <span style="font-size:10px;color:var(--fg3);display:flex;align-items:center;gap:3px;"><span style="width:8px;height:2px;background:var(--b);display:inline-block;"></span>MEV</span>
+        <span style="font-size:10px;color:var(--fg3);display:flex;align-items:center;gap:3px;"><span style="width:8px;height:2px;background:var(--r);display:inline-block;"></span>MRV</span>
+        <span id="mavWeekNote" style="font-size:10px;color:var(--fg4);margin-left:auto;font-style:italic;"></span>
+      </div>
       <div class="card-body" id="mavBars">
-        <div class="empty"><div class="empty-icon">📊</div><div class="empty-title">Sin datos de Hevy</div><div class="empty-msg">Sube tu CSV de Hevy en "Datos" para ver el volumen real</div></div>
+        <div class="empty"><div class="empty-icon">📊</div><div class="empty-title">Sin datos de Hevy</div><div class="empty-msg">Sincroniza Hevy para ver el volumen real</div></div>
+      </div>
+    </div>
+
+    <!-- Zone distribution — SPLIT by sport type -->
+    <div class="card" style="margin-top:10px;">
+      <div class="card-hdr">
+        <span class="t-md">Zonas cardio — Running</span>
+        <span class="mono" style="font-size:10px;color:var(--fg3);" id="zoneRunLabel">7 días</span>
+      </div>
+      <div class="card-body">
+        <div style="display:flex;gap:8px;align-items:flex-end;" id="zoneDistRun">
+          <div style="width:100%;text-align:center;color:var(--fg4);font-size:11px;padding:8px;">Sin actividades de running</div>
+        </div>
+        <div id="zoneAnalysisRun" style="display:none;margin-top:8px;font-size:11px;padding:6px 0;border-top:1px solid var(--line);"></div>
+      </div>
+    </div>
+
+    <div class="card" style="margin-top:10px;">
+      <div class="card-hdr">
+        <span class="t-md">Carga fuerza/CrossFit/Hyrox</span>
+        <span class="mono" style="font-size:10px;color:var(--fg3);" id="zoneStrLabel">7 días</span>
+      </div>
+      <div class="card-body" id="zoneDistStr">
+        <div style="width:100%;text-align:center;color:var(--fg4);font-size:11px;padding:8px;">Sin sesiones de fuerza</div>
       </div>
     </div>
 
@@ -870,7 +925,14 @@ transform:translateY(-8px);opacity:0;transition:all .3s cubic-bezier(.34,1.56,.6
     </div>
 
     <div class="card">
-      <div class="card-hdr"><span class="t-md">Historial</span><span class="mono" style="font-size:10px;color:var(--fg3);" id="logCount">0 sesiones</span></div>
+      <div class="card-hdr">
+        <span class="t-md">Historial</span>
+        <div style="display:flex;align-items:center;gap:5px;">
+          <button onclick="changeLogWeek(-1)" style="background:var(--bg3);border:1px solid var(--line);color:var(--fg2);border-radius:6px;padding:2px 7px;font-size:13px;cursor:pointer;">‹</button>
+          <span id="logWeekLabel" style="font-family:'Geist Mono',monospace;font-size:10px;color:var(--fg2);min-width:80px;text-align:center;">Esta semana</span>
+          <button onclick="changeLogWeek(1)" id="logWeekNextBtn" style="background:var(--bg3);border:1px solid var(--line);color:var(--fg2);border-radius:6px;padding:2px 7px;font-size:13px;cursor:pointer;opacity:0.3;">›</button>
+        </div>
+      </div>
       <div class="card-body" id="logList">
         <div class="empty"><div class="empty-icon">📋</div><div class="empty-title">Sin sesiones</div><div class="empty-msg">Registra tu primera sesión</div></div>
       </div>
@@ -1116,6 +1178,8 @@ const S = {
   logs: [],
   weekDays: new Set(),
   weekStart: '',   // ISO date of current week's Monday — for auto-reset
+  weekOffset: 0,   // 0=current week, -1=last week, etc.
+  logWeekOffset: 0,
   // MEV/MAV/MRV by muscle group
   mavRanges: {
     'Cuádriceps':    { mev:8,  mav:14, mrv:20 },
@@ -1492,6 +1556,8 @@ async function fetchIntervals() {
     renderHRV();
     renderActivities();
     renderWeightChart();
+    renderWeekZones();     // split zones by sport type
+    renderWeekZones();     // split zones by sport type
 
     const parts=[
       S.metrics.hrv    ?`HRV ${S.metrics.hrv}ms`:null,
@@ -1891,10 +1957,23 @@ function updateMetrics() {
   const ssEl=document.getElementById('m-sleep-score');
   if(ssEl)ssEl.textContent=m.sleepScore?'Score: '+m.sleepScore:'';
 
-  // Week activities count
+  // Week summary mini tiles + activities label
+  const RUN_TYPES=['Run','VirtualRun','TrailRun','Walk','Hike'];
+  const STR_TYPES=['WeightTraining','Workout','CrossFit','Other'];
+  const {start:wkStart,end:wkEnd}=getWeekBounds(0);
+  const wkEndFull=new Date(wkEnd);wkEndFull.setHours(23,59,59,999);
+  const weekActs2=(m.activities||[]).filter(a=>{const d=new Date(a.start_date_local||0);return d>=wkStart&&d<=wkEndFull;});
+  const wkRuns=weekActs2.filter(a=>RUN_TYPES.includes(a.type)||RUN_TYPES.includes(a.sport_type));
+  const wkStr=weekActs2.filter(a=>STR_TYPES.includes(a.type)||STR_TYPES.includes(a.sport_type));
+  const wkLoad=weekActs2.reduce((s,a)=>s+(a.icu_training_load||0),0);
+  const el_r=document.getElementById('wk-runs');
+  const el_s2=document.getElementById('wk-strength');
+  const el_l=document.getElementById('wk-load');
+  if(el_r)el_r.textContent=wkRuns.length||'0';
+  if(el_s2)el_s2.textContent=wkStr.length||'0';
+  if(el_l)el_l.textContent=wkLoad?Math.round(wkLoad):'—';
   const waEl=document.getElementById('m-week-acts');
-  if(waEl&&m.weekActivities!=null)
-    waEl.textContent=m.weekActivities+(m.zoneTotalMin?' · '+m.zoneTotalMin+'min zona':' actividades');
+  if(waEl&&weekActs2.length)waEl.textContent=weekActs2.length+' actividades';
 
   // TSB display with color
   if(m.tsb!=null){
@@ -2579,14 +2658,206 @@ function parseHevy(input) {
 }
 
 // ════════════════════════════════
-// MEV / MAV / MRV RENDER (v5 — dynamic MRV)
+// WEEK NAVIGATION
+// ════════════════════════════════
+function getWeekBounds(offset){
+  const now=new Date();
+  const monday=new Date(now);
+  monday.setHours(0,0,0,0);
+  monday.setDate(now.getDate()-(now.getDay()===0?6:now.getDay()-1)+(offset*7));
+  const sunday=new Date(monday);
+  sunday.setDate(monday.getDate()+6);
+  return {start:monday,end:sunday};
+}
+
+function changeWeek(dir){
+  S.weekOffset=(S.weekOffset||0)+dir;
+  if(S.weekOffset>0)S.weekOffset=0; // can't go future
+  updateWeekSelector();
+  renderMAV();
+  renderWeekZones();
+}
+
+function updateWeekSelector(){
+  const offset=S.weekOffset||0;
+  const {start,end}=getWeekBounds(offset);
+  const fmt=d=>d.toLocaleDateString('es-ES',{day:'numeric',month:'short'});
+
+  // New IDs (from updated HTML)
+  const labelEl=document.getElementById('weekLabel');
+  const nextBtn=document.getElementById('weekNextBtn');
+  const noteEl=document.getElementById('mavWeekNote');
+
+  if(labelEl)labelEl.textContent=offset===0?'Esta semana':offset===-1?'Semana pasada':`${fmt(start)} – ${fmt(end)}`;
+  if(nextBtn)nextBtn.style.opacity=offset>=0?'0.3':'1';
+  if(noteEl)noteEl.textContent=offset===0?'':`${fmt(start)} – ${fmt(end)}`;
+
+  // Also update legacy IDs if present
+  const legacyLabel=document.getElementById('wkSelectorLabel');
+  const legacyRange=document.getElementById('wkSelectorRange');
+  const legacyNext=document.getElementById('wkNextBtn');
+  if(legacyLabel)legacyLabel.textContent=offset===0?'Semana actual':offset===-1?'Semana pasada':`Hace ${Math.abs(offset)} semanas`;
+  if(legacyRange)legacyRange.textContent=`${fmt(start)} – ${fmt(end)}`;
+  if(legacyNext)legacyNext.disabled=offset>=0;
+
+  // Update MAV title
+  const mavTitle=document.getElementById('mavBarsTitle');
+  if(mavTitle)mavTitle.textContent=offset===0?'Volumen semana':`Volumen · ${fmt(start)}`;
+}
+
+// Compute weekly volume for any week offset from Hevy workouts
+function getWeeklyVolForOffset(offset){
+  if(!S.hevy?.workouts)return S.weeklyVol||{};
+  if(offset===0)return S.weeklyVol||{};
+  const {start,end}=getWeekBounds(offset);
+  const endFull=new Date(end);endFull.setHours(23,59,59,999);
+  const vol={};
+  const MMAP=getMuscleMap();
+  S.hevy.workouts.forEach(w=>{
+    const d=new Date(w.start_time||w.created_at||0);
+    if(d<start||d>endFull)return;
+    (w.exercises||[]).forEach(ex=>{
+      const muscle=getMuscleFromMap(ex.title||ex.exercise_template_title||ex.name||'',MMAP);
+      (ex.sets||[]).forEach(s=>{if(parseInt(s.reps||0)>0&&muscle)vol[muscle]=(vol[muscle]||0)+1;});
+    });
+  });
+  return vol;
+}
+
+// Extracted muscle map for reuse
+function getMuscleMap(){
+  return {
+    'press de banca':'Pectoral','bench press':'Pectoral','press banca':'Pectoral','press inclinado':'Pectoral','aperturas':'Pectoral','fondos':'Pectoral','chest fly':'Pectoral','chest press':'Pectoral',
+    'press de hombros':'Deltoides','overhead press':'Deltoides','press militar':'Deltoides','elevación lateral':'Deltoides','elevacion lateral':'Deltoides','lateral raise':'Deltoides',
+    'remo':'Dorsal','row':'Dorsal','jalón':'Dorsal','jalon':'Dorsal','pullover':'Dorsal','dominadas':'Dorsal','pull-up':'Dorsal','lat pulldown':'Dorsal',
+    'curl de bíceps':'Bíceps','curl biceps':'Bíceps','bicep curl':'Bíceps','curl':'Bíceps',
+    'press francés':'Tríceps','skull crusher':'Tríceps','tricep':'Tríceps',
+    'sentadilla búlgara':'Cuádriceps','sentadilla bulgar':'Cuádriceps','sentadilla goblet':'Cuádriceps','sentadilla':'Cuádriceps','squat':'Cuádriceps','leg press':'Cuádriceps','extensión de pierna':'Cuádriceps','leg extension':'Cuádriceps','zancada':'Cuádriceps',
+    'peso muerto rumano':'Isquiotibiales','romanian deadlift':'Isquiotibiales','rdl':'Isquiotibiales','curl de piernas':'Isquiotibiales','leg curl':'Isquiotibiales','peso muerto':'Isquiotibiales',
+    'empuje de caderas':'Glúteo','hip thrust':'Glúteo','puente de glúteo':'Glúteo','glute bridge':'Glúteo',
+    'sentadilla sumo':'Aductores','sumo squat':'Aductores',
+    'elevación de gemelos':'Gemelos/Sóleo','calf raise':'Gemelos/Sóleo','gemelos':'Gemelos/Sóleo',
+    'pallof':'Core','plancha':'Core','plank':'Core','dead bug':'Core','crunch':'Core',
+  };
+}
+function getMuscleFromMap(name,map){
+  const l=name.toLowerCase();
+  for(const [k,m] of Object.entries(map))if(l.includes(k))return m;
+  return null;
+}
+
+// Zone rendering split by sport type
+function renderWeekZones(){
+  const offset=S.weekOffset||0;
+  const {start,end}=getWeekBounds(offset);
+  const endFull=new Date(end);endFull.setHours(23,59,59,999);
+  const acts=(S.metrics.activities||[]).filter(a=>{
+    const d=new Date(a.start_date_local||0);
+    return d>=start&&d<=endFull;
+  });
+
+  // Sport type classification
+  const RUN_TYPES=['Run','VirtualRun','TrailRun','Walk','Hike'];
+  const STR_TYPES=['WeightTraining','Workout','CrossFit','Other'];
+
+  const runActs=acts.filter(a=>RUN_TYPES.includes(a.type)||RUN_TYPES.includes(a.sport_type));
+  const strActs=acts.filter(a=>STR_TYPES.includes(a.type)||STR_TYPES.includes(a.sport_type));
+
+  // Running zones
+  renderSportZones('zoneDistRun','zoneAnalysisRun','zoneRunLabel',runActs,'running',offset);
+  // Strength load summary
+  renderStrengthLoad('zoneDistStr','zoneStrLabel',strActs,offset);
+}
+
+function renderSportZones(elId,analysisId,labelId,acts,sport,offset){
+  const el=document.getElementById(elId);
+  const analysis=document.getElementById(analysisId);
+  const labelEl=document.getElementById(labelId);
+  if(!el)return;
+
+  const {start}=getWeekBounds(offset);
+  if(labelEl)labelEl.textContent=offset===0?'Semana actual':start.toLocaleDateString('es-ES',{day:'numeric',month:'short'});
+
+  if(!acts.length){
+    el.innerHTML=`<div style="width:100%;text-align:center;color:var(--fg4);font-size:11px;padding:8px;">Sin actividades de ${sport} esta semana</div>`;
+    if(analysis)analysis.style.display='none';
+    return;
+  }
+
+  const zones=[0,0,0,0,0];
+  acts.forEach(a=>{
+    const zt=a.icu_zone_times||a.icu_hr_zone_times||[];
+    if(Array.isArray(zt))zt.slice(0,5).forEach((t,i)=>zones[i]+=(t||0));
+  });
+  const totalZ=zones.reduce((a,b)=>a+b,0);
+  if(totalZ===0){
+    el.innerHTML='<div style="width:100%;text-align:center;color:var(--fg4);font-size:11px;padding:8px;">Sin datos de zonas en estas actividades</div>';
+    return;
+  }
+  const colors=['var(--g)','var(--c)','var(--y)','var(--o)','var(--r)'];
+  const pcts=zones.map(z=>Math.round(z/totalZ*100));
+  el.style.display='flex';
+  el.innerHTML=pcts.map((p,i)=>{
+    const mins=Math.round(zones[i]/60);
+    return `<div style="text-align:center;flex:1;">
+      <div style="font-family:'Geist Mono',monospace;font-size:15px;color:${colors[i]};font-weight:600;line-height:1;">${p}%</div>
+      <div style="font-size:9px;color:var(--fg3);letter-spacing:1px;margin-top:2px;">Z${i+1}</div>
+      <div style="font-size:9px;color:var(--fg4);margin-top:1px;">${mins>0?mins+'min':'—'}</div>
+      <div style="height:4px;background:var(--bg4);border-radius:2px;margin-top:5px;overflow:hidden;">
+        <div style="height:100%;width:${Math.min(p*2,100)}%;background:${colors[i]};border-radius:2px;"></div>
+      </div>
+    </div>`;
+  }).join('');
+  if(analysis){
+    const z1z2=pcts[0]+pcts[1],z3=pcts[2],z4z5=pcts[3]+pcts[4];
+    const totalMin=Math.round(totalZ/60);
+    let msg='';
+    if(z3>25)msg=`<span style="color:var(--y);">⚠ Exceso Z3 (${z3}%) — zona gris. Más Z2 o más Z4+.</span>`;
+    else if(z1z2>=80)msg=`<span style="color:var(--g);">✓ Distribución polarizada · ${totalMin}min totales</span>`;
+    else if(z4z5>40)msg=`<span style="color:var(--o);">⚠ Alta intensidad (Z4+Z5 ${z4z5}%) — riesgo fatiga acumulada</span>`;
+    else msg=`<span style="color:var(--fg2);">Z1+Z2: ${z1z2}% · Z3: ${z3}% · Z4+Z5: ${z4z5}% · ${totalMin}min</span>`;
+    analysis.innerHTML=msg;analysis.style.display='block';
+  }
+}
+
+function renderStrengthLoad(elId,labelId,acts,offset){
+  const el=document.getElementById(elId);
+  const labelEl=document.getElementById(labelId);
+  if(!el)return;
+  const {start}=getWeekBounds(offset);
+  if(labelEl)labelEl.textContent=offset===0?'Semana actual':start.toLocaleDateString('es-ES',{day:'numeric',month:'short'});
+  if(!acts.length){
+    el.innerHTML='<div style="width:100%;text-align:center;color:var(--fg4);font-size:11px;padding:8px;">Sin sesiones de fuerza/CrossFit</div>';
+    return;
+  }
+  const rows=acts.map(a=>{
+    const rpe=a.icu_rpe?`RPE ${a.icu_rpe}`:'Sin RPE';
+    const load=a.icu_training_load?`Load ${Math.round(a.icu_training_load)}`:'';
+    const dur=a.moving_time?`${Math.round(a.moving_time/60)}min`:'';
+    const date=(a.start_date_local||'').split('T')[0].slice(5);
+    const rpeColor=a.icu_rpe?(a.icu_rpe>=8?'var(--r)':a.icu_rpe>=6?'var(--y)':'var(--g)'):'var(--fg4)';
+    return `<div style="display:flex;justify-content:space-between;align-items:center;padding:6px 0;border-bottom:1px solid var(--line);font-size:11px;">
+      <div>
+        <div style="color:var(--fg);font-weight:500;">${a.name||a.type}</div>
+        <div style="color:var(--fg3);font-size:10px;margin-top:1px;">${date} · ${dur}</div>
+      </div>
+      <div style="text-align:right;flex-shrink:0;">
+        <div style="color:${rpeColor};font-family:'Geist Mono',monospace;">${rpe}</div>
+        ${load?`<div style="color:var(--fg3);font-size:10px;">${load}</div>`:''}
+      </div>
+    </div>`;
+  }).join('');
+  el.innerHTML=rows;
+}
 // ════════════════════════════════
 function renderMAV() {
   const container=document.getElementById('mavBars');
   if(!container)return;
   const ranges=S.mavRanges;
-  const vol=S.weeklyVol||{};
+  const offset=S.weekOffset||0;
+  const vol=getWeeklyVolForOffset(offset);
   const hasData=Object.keys(vol).length>0;
+  updateWeekSelector();
 
   if(!hasData){
     container.innerHTML='<div class="empty"><div class="empty-icon">📊</div><div class="empty-title">Sin datos de Hevy</div><div class="empty-msg">Sube tu CSV de Hevy en "Datos" para ver el volumen real</div></div>';
@@ -2709,13 +2980,45 @@ function renderWeightChart() {
   }).join('');
 }
 
+function changeLogWeek(dir){
+  S.logWeekOffset=(S.logWeekOffset||0)+dir;
+  if(S.logWeekOffset>0)S.logWeekOffset=0;
+  renderLog();
+}
+
 function renderLog() {
   const el=document.getElementById('logList');
-  document.getElementById('logCount').textContent=S.logs.length+' sesiones';
-  if(!S.logs.length){el.innerHTML='<div class="empty"><div class="empty-icon">📋</div><div class="empty-title">Sin sesiones</div><div class="empty-msg">Registra tu primera sesión</div></div>';return;}
-  el.innerHTML=S.logs.slice(0,8).map(l=>`
+  if(!el)return;
+  const offset=S.logWeekOffset||0;
+  const {start,end}=getWeekBounds(offset);
+  const endFull=new Date(end);endFull.setHours(23,59,59,999);
+  const fmt=d=>d.toLocaleDateString('es-ES',{day:'numeric',month:'short'});
+
+  // Update week label
+  const labelEl=document.getElementById('logWeekLabel');
+  const nextBtn=document.getElementById('logWeekNextBtn');
+  if(labelEl)labelEl.textContent=offset===0?'Esta semana':offset===-1?'Semana pasada':`${fmt(start)} – ${fmt(end)}`;
+  if(nextBtn)nextBtn.style.opacity=offset>=0?'0.3':'1';
+
+  // Filter logs by week
+  const filtered=(S.logs||[]).filter(l=>{
+    if(!l.date)return offset===0;
+    const parts=l.date.split('/');
+    const d=parts.length===3?new Date(parts[2],parts[1]-1,parts[0]):new Date(l.date);
+    if(isNaN(d))return offset===0;
+    return d>=start&&d<=endFull;
+  });
+
+  const cntEl=document.getElementById('logCount');
+  if(cntEl)cntEl.textContent=filtered.length+' sesiones';
+
+  if(!filtered.length){
+    el.innerHTML=`<div class="empty"><div class="empty-icon">📋</div><div class="empty-title">Sin sesiones</div><div class="empty-msg">${offset===0?'Registra tu primera sesión':'Sin sesiones esta semana'}</div></div>`;
+    return;
+  }
+  el.innerHTML=filtered.slice().reverse().map(l=>`
     <div class="log-row">
-      <div class="log-left"><div class="log-name">${l.sess||'Sesión'}</div><div class="log-meta">${l.date} · Sem ${l.week||'—'} · ${l.dur||'—'}min</div></div>
+      <div class="log-left"><div class="log-name">${l.sess||'Sesión'}</div><div class="log-meta">${l.date} · ${l.dur||'—'}min${l.notes?' · '+l.notes.slice(0,35)+'…':''}</div></div>
       <div class="log-chips">
         <span class="chip ${parseFloat(l.rpe)>=8?'chip-r':parseFloat(l.rpe)>=6?'chip-y':'chip-g'}">RPE ${l.rpe||'—'}</span>
         <span class="chip chip-c">sRPE ${l.srpe||'—'}</span>
