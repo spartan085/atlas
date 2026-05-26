@@ -774,11 +774,12 @@ function FatigueEngine(metrics,logs,hevyRecent,domsUpper,domsLower,knee){
 
   // FIX 1: classify Hevy session by dominant muscle group
   function classifySession(sess){
-    if(!sess.muscleSets)return{isUpper:sess.hasUpper&&!sess.hasLower,isLower:sess.hasLower&&!sess.hasUpper};
+    if(!sess.muscleSets)return{isUpper:false,isLower:false}; // no data = mixed
     const upperSets=Object.entries(sess.muscleSets).filter(([m])=>UPPER_M.includes(m)).reduce((s,[,v])=>s+v,0);
     const lowerSets=Object.entries(sess.muscleSets).filter(([m])=>LOWER_M.includes(m)).reduce((s,[,v])=>s+v,0);
     const total=upperSets+lowerSets||1;
-    return{isUpper:upperSets/total>0.5,isLower:lowerSets/total>0.5};
+    // >60% dominance required — mixed sessions count as neither
+    return{isUpper:upperSets/total>0.6,isLower:lowerSets/total>0.6};
   }
 
   const upperSess48=r48Hevy.filter(s=>classifySession(s).isUpper).length+r48.filter(l=>/D1|D4|empuje|tirón|tiron/i.test(l.sess||'')).length;
