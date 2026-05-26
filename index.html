@@ -566,9 +566,50 @@ const S = {
   _hevyRecent:[], _activitiesByDate:{}, _rawWellness:null, _wellnessHistory:[]
 };
 
-// ══ PERSISTENCE ══
-function save(){try{localStorage.setItem('atlas6',JSON.stringify({int:S.int,claude:S.claude,metrics:S.metrics,logs:S.logs.slice(0,40),weeklyVol:S.weeklyVol,weekDays:[...S.weekDays],weekStart:S.weekStart,weekOffset:S.weekOffset,logWeekOffset:S.logWeekOffset,hevy:S.hevy?{key:S.hevy.key,totalWorkouts:S.hevy.totalWorkouts,workouts:S.hevy.workouts}:null}));}catch(e){}}
-function loadPersisted(){try{const p=JSON.parse(localStorage.getItem('atlas6')||'{}');if(p.int)S.int={...S.int,...p.int};if(p.claude)S.claude={...S.claude,...p.claude};if(p.metrics)S.metrics={...S.metrics,...p.metrics};if(p.logs)S.logs=p.logs;if(p.weeklyVol)S.weeklyVol=p.weeklyVol;if(p.weekDays)S.weekDays=new Set(p.weekDays);if(p.weekStart)S.weekStart=p.weekStart;if(p.weekOffset!=null)S.weekOffset=p.weekOffset;if(p.logWeekOffset!=null)S.logWeekOffset=p.logWeekOffset;if(p.hevy)S.hevy=p.hevy;}catch(e){}}
+// ══ PERSISTENCE — dual storage: localStorage + sessionStorage backup ══
+function setCookie(k,v,days=365){const d=new Date();d.setTime(d.getTime()+days*864e5);document.cookie=`${k}=${encodeURIComponent(v)};expires=${d.toUTCString()};path=/;SameSite=Lax`;}
+function getCookie(k){const m=document.cookie.match('(^|;)\\s*'+k+'\\s*=\\s*([^;]+)');return m?decodeURIComponent(m.pop()):null;}
+
+function save(){
+  const data={int:S.int,claude:S.claude,metrics:S.metrics,logs:S.logs.slice(0,40),weeklyVol:S.weeklyVol,weekDays:[...S.weekDays],weekStart:S.weekStart,weekOffset:S.weekOffset,logWeekOffset:S.logWeekOffset,hevy:S.hevy?{key:S.hevy.key,totalWorkouts:S.hevy.totalWorkouts,workouts:S.hevy.workouts}:null};
+  const json=JSON.stringify(data);
+  try{localStorage.setItem('atlas6',json);}catch(e){}
+  try{sessionStorage.setItem('atlas6',json);}catch(e){}
+  // Mirror v5 individual key storage — most resilient in Safari iOS
+  try{
+    if(S.int.aid)localStorage.setItem('atlas_int_aid',S.int.aid);
+    if(S.int.key)localStorage.setItem('atlas_int_key',S.int.key);
+    if(S.hevy?.key)localStorage.setItem('atlas_hevy_key',S.hevy.key);
+    if(S.claude.key)localStorage.setItem('atlas_anthropic_key',S.claude.key);
+  }catch(e){}
+  // Cookie backup
+  if(S.int.aid)setCookie('atlas_aid',S.int.aid);
+  if(S.int.key)setCookie('atlas_ikey',S.int.key);
+  if(S.hevy?.key){setCookie('atlas_hkey',S.hevy.key);}
+  if(S.claude.key)setCookie('atlas_ckey',S.claude.key);
+}
+
+function loadPersisted(){
+  try{
+    const raw=localStorage.getItem('atlas6')||sessionStorage.getItem('atlas6')||'{}';
+    const p=JSON.parse(raw);
+    if(p.int)S.int={...S.int,...p.int};
+    if(p.claude)S.claude={...S.claude,...p.claude};
+    if(p.metrics)S.metrics={...S.metrics,...p.metrics};
+    if(p.logs)S.logs=p.logs;
+    if(p.weeklyVol)S.weeklyVol=p.weeklyVol;
+    if(p.weekDays)S.weekDays=new Set(p.weekDays);
+    if(p.weekStart)S.weekStart=p.weekStart;
+    if(p.weekOffset!=null)S.weekOffset=p.weekOffset;
+    if(p.logWeekOffset!=null)S.logWeekOffset=p.logWeekOffset;
+    if(p.hevy)S.hevy=p.hevy;
+  }catch(e){}
+  // Restore individual keys (v5 compatible + cookie fallback)
+  if(!S.int.aid) S.int.aid=localStorage.getItem('atlas_int_aid')||getCookie('atlas_aid')||'';
+  if(!S.int.key) S.int.key=localStorage.getItem('atlas_int_key')||getCookie('atlas_ikey')||'';
+  if(!S.hevy?.key){const k=localStorage.getItem('atlas_hevy_key')||getCookie('atlas_hkey');if(k)S.hevy={...(S.hevy||{}),key:k};}
+  if(!S.claude.key) S.claude.key=localStorage.getItem('atlas_anthropic_key')||getCookie('atlas_ckey')||'';
+}
 
 // ══ EXERCISE DATABASE ══
 // key=name fragment, primary[], secondary[], axial(0-1), knee(0-1), lumbar(0-1), sfr(0-1)
@@ -1245,13 +1286,12 @@ async function fetchHevy(){
   if(!key){toast('Sin API Key','Añade tu API Key de Hevy','⚠️');return;}
   const sp=document.getElementById('hevySpin');if(sp)sp.style.display='block';
   try{
-    const r=await (async()=>{
-    // Try v1 endpoint first, fallback to v2
-    let r = await fetch('https://api.hevyapp.com/v1/workouts?page=1&pageSize=30',{headers:{'api-key':key,'Accept':'application/json'}});
-    if(!r.ok && r.status===400) r = await fetch('https://api.hevyapp.com/v1/workouts',{headers:{'api-key':key,'Accept':'application/json','x-api-key':key}});
-    return r;
-  })();
-    if(!r.ok)throw new Error('Hevy error '+r.status+' — verifica tu API Key en hevyapp.com/settings');
+    const PROXY='';
+    let r=await fetch('https://api.hevyapp.com/v1/workouts?page=1&pageSize=30',{
+      headers:{'api-key':key,'Accept':'application/json'},
+      mode:'cors'
+    });
+    if(!r.ok)throw new Error('Hevy error '+r.status);
     const data=await r.json();const workouts=data.workouts||data.data||data||[];
     const now=Date.now();const weekStart=getWeekBounds(0).start;
     S.weeklyVol={};const recentHevySess=[];
