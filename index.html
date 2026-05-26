@@ -222,16 +222,25 @@ textarea.field{resize:vertical;min-height:60px;}
     <div class="card" style="margin-bottom:10px;">
       <div class="card-hdr"><span class="t-md">Nutrición · Composición</span><span class="mono" style="font-size:10px;color:var(--fg3);" id="nutDate">Intervals</span></div>
       <div class="card-body">
-        <div class="sg4" style="margin-bottom:12px;">
-          <div style="text-align:center;padding:8px 4px;background:var(--bg3);border-radius:8px;"><div style="font-family:'Instrument Serif',serif;font-size:20px;color:var(--y);" id="nut-kcal">—</div><div style="font-size:9px;color:var(--fg3);">kcal · 2300</div></div>
-          <div style="text-align:center;padding:8px 4px;background:var(--bg3);border-radius:8px;"><div style="font-family:'Instrument Serif',serif;font-size:20px;color:var(--o);" id="nut-prot">—</div><div style="font-size:9px;color:var(--fg3);">g prot · 180</div></div>
-          <div style="text-align:center;padding:8px 4px;background:var(--bg3);border-radius:8px;"><div style="font-family:'Instrument Serif',serif;font-size:20px;color:var(--b);" id="nut-carbs">—</div><div style="font-size:9px;color:var(--fg3);">g carbs · 230</div></div>
-          <div style="text-align:center;padding:8px 4px;background:var(--bg3);border-radius:8px;"><div style="font-family:'Instrument Serif',serif;font-size:20px;color:var(--p);" id="nut-fat">—</div><div style="font-size:9px;color:var(--fg3);">g grasa · 65</div></div>
+        <!-- Macros row: Prot · Carbs · Grasas · Kcal -->
+        <div class="sg4" style="margin-bottom:10px;">
+          <div style="text-align:center;padding:6px 4px;background:var(--bg3);border-radius:8px;"><div style="font-family:'Instrument Serif',serif;font-size:20px;color:var(--o);" id="nut-prot">—</div><div style="font-size:9px;color:var(--fg3);">g prot · 180</div></div>
+          <div style="text-align:center;padding:6px 4px;background:var(--bg3);border-radius:8px;"><div style="font-family:'Instrument Serif',serif;font-size:20px;color:var(--b);" id="nut-carbs">—</div><div style="font-size:9px;color:var(--fg3);">g carbs · 230</div></div>
+          <div style="text-align:center;padding:6px 4px;background:var(--bg3);border-radius:8px;"><div style="font-family:'Instrument Serif',serif;font-size:20px;color:var(--p);" id="nut-fat">—</div><div style="font-size:9px;color:var(--fg3);">g grasa · 65</div></div>
+          <div style="text-align:center;padding:6px 4px;background:var(--bg3);border-radius:8px;"><div style="font-family:'Instrument Serif',serif;font-size:20px;color:var(--y);" id="nut-kcal">—</div><div style="font-size:9px;color:var(--fg3);">kcal · 2300</div></div>
+        </div>
+        <!-- Kcal balance row -->
+        <div style="display:flex;justify-content:space-between;align-items:center;padding:6px 8px;background:var(--bg3);border-radius:8px;margin-bottom:10px;">
+          <div style="font-size:11px;color:var(--fg2);">Ingeridas <span style="color:var(--y);font-family:'Geist Mono',monospace;" id="nut-kcal-ing">—</span> kcal</div>
+          <div style="font-size:10px;color:var(--fg4);">·</div>
+          <div style="font-size:11px;color:var(--fg2);">Quemadas <span style="color:var(--o);font-family:'Geist Mono',monospace;" id="nut-kcal-burned">—</span> kcal</div>
+          <div style="font-size:10px;color:var(--fg4);">·</div>
+          <div style="font-size:11px;color:var(--fg2);">Balance <span id="nut-balance" style="font-family:'Geist Mono',monospace;">—</span></div>
         </div>
         <div class="pb"><div class="pb-row"><div class="pb-label">Proteína</div><div class="pb-val" id="nut-prot-lbl">—/180g</div></div><div class="pb-track"><div class="pb-fill" id="nut-prot-bar" style="width:0%;background:var(--o)"></div></div></div>
-        <div class="pb"><div class="pb-row"><div class="pb-label">Calorías</div><div class="pb-val" id="nut-kcal-lbl">—/2300</div></div><div class="pb-track"><div class="pb-fill" id="nut-kcal-bar" style="width:0%;background:var(--y)"></div></div></div>
         <div class="pb"><div class="pb-row"><div class="pb-label">Carbohidratos</div><div class="pb-val" id="nut-carbs-lbl">—/230g</div></div><div class="pb-track"><div class="pb-fill" id="nut-carbs-bar" style="width:0%;background:var(--b)"></div></div></div>
         <div class="pb"><div class="pb-row"><div class="pb-label">Grasas</div><div class="pb-val" id="nut-fat-lbl">—/65g</div></div><div class="pb-track"><div class="pb-fill" id="nut-fat-bar" style="width:0%;background:var(--p)"></div></div></div>
+        <div class="pb"><div class="pb-row"><div class="pb-label">Calorías</div><div class="pb-val" id="nut-kcal-lbl">—/2300</div></div><div class="pb-track"><div class="pb-fill" id="nut-kcal-bar" style="width:0%;background:var(--y)"></div></div></div>
         <div style="border-top:1px solid var(--line);margin-top:12px;padding-top:12px;">
           <div class="sg4" style="margin-bottom:8px;">
             <div style="text-align:center;"><div style="font-family:'Instrument Serif',serif;font-size:18px;" id="comp-weight">—</div><div style="font-size:9px;color:var(--fg3);">kg peso</div></div>
@@ -240,9 +249,10 @@ textarea.field{resize:vertical;min-height:60px;}
             <div style="text-align:center;"><div style="font-family:'Instrument Serif',serif;font-size:18px;color:var(--b);" id="comp-water">—</div><div style="font-size:9px;color:var(--fg3);">% agua</div></div>
           </div>
           <div id="compKgRow" style="display:none;padding:8px;background:var(--bg3);border-radius:8px;">
-            <div style="display:flex;justify-content:space-between;font-size:11px;margin-bottom:3px;"><span style="color:var(--fg2);">Masa grasa estimada</span><span style="color:var(--o);font-family:'Geist Mono',monospace;" id="comp-fatkg">—</span></div>
-            <div style="display:flex;justify-content:space-between;font-size:11px;margin-bottom:3px;"><span style="color:var(--fg2);">Masa magra estimada</span><span style="color:var(--g);font-family:'Geist Mono',monospace;" id="comp-leankg">—</span></div>
-            <div style="display:flex;justify-content:space-between;font-size:11px;"><span style="color:var(--fg2);">Para llegar a 10% grasa</span><span style="color:var(--c);font-family:'Geist Mono',monospace;" id="comp-target">—</span></div>
+            <div style="display:flex;justify-content:space-between;font-size:11px;margin-bottom:3px;"><span style="color:var(--fg2);">Masa grasa</span><span style="color:var(--o);font-family:'Geist Mono',monospace;" id="comp-fatkg">—</span></div>
+            <div style="display:flex;justify-content:space-between;font-size:11px;margin-bottom:3px;"><span style="color:var(--fg2);">Masa magra</span><span style="color:var(--g);font-family:'Geist Mono',monospace;" id="comp-leankg">—</span></div>
+            <div style="display:flex;justify-content:space-between;font-size:11px;margin-bottom:3px;"><span style="color:var(--fg2);">Para 10% grasa</span><span style="color:var(--c);font-family:'Geist Mono',monospace;" id="comp-target">—</span></div>
+            <div style="font-size:9px;color:var(--fg4);margin-top:4px;" id="fatDateNote"></div>
           </div>
         </div>
       </div>
@@ -467,7 +477,10 @@ textarea.field{resize:vertical;min-height:60px;}
           <div><label class="fg-label">Body Battery</label><input class="field" type="number" id="manBB" placeholder="0-100" oninput="manualUpdate()"></div>
           <div><label class="fg-label">Sueño (h)</label><input class="field" type="number" id="manSleep" step=".1" placeholder="7.5" oninput="manualUpdate()"></div>
           <div><label class="fg-label">FC Reposo</label><input class="field" type="number" id="manRHR" placeholder="52" oninput="manualUpdate()"></div>
+          <div><label class="fg-label">DOMS tren sup (0-10)</label><input class="field" type="number" id="manDomsUpper" placeholder="0" min="0" max="10" oninput="manualUpdate()"></div>
+          <div><label class="fg-label">DOMS tren inf (0-10)</label><input class="field" type="number" id="manDomsLower" placeholder="0" min="0" max="10" oninput="manualUpdate()"></div>
         </div>
+        <div class="fg" style="margin-bottom:0;"><label class="fg-label">Dolor / molestia</label><input class="field" type="text" id="manPain" placeholder="ej. lumbar leve, hombro..."></div>
       </div>
     </div>
     <div class="card">
@@ -1004,6 +1017,12 @@ function updateMetrics(){
   const sb=(id,pct,col)=>{const e=document.getElementById(id);if(e){e.style.width=pct+'%';if(col)e.style.background=col;}};
   const sl=(id,t)=>{const e=document.getElementById(id);if(e)e.textContent=t;};
   sv('nut-kcal',m.kcal?Math.round(m.kcal):null);sv('nut-prot',m.protein?Math.round(m.protein):null);sv('nut-carbs',m.carbs?Math.round(m.carbs):null);sv('nut-fat',m.fat?Math.round(m.fat):null);
+  // Kcal balance row
+  sv('nut-kcal-ing',m.kcal?Math.round(m.kcal):null);
+  sv('nut-kcal-burned',m.kcalBurned?Math.round(m.kcalBurned):null);
+  const balEl=document.getElementById('nut-balance');
+  if(balEl&&m.kcal&&m.kcalBurned){const bal=Math.round(m.kcal-m.kcalBurned);balEl.textContent=(bal>0?'+':'')+bal+'kcal';balEl.style.color=bal>200?'var(--r)':bal<-200?'var(--b)':'var(--g)';}
+  else if(balEl)balEl.textContent='—';
   const protPct=m.protein?Math.min(Math.round(m.protein/180*100),100):0;
   const kcalPct=m.kcal?Math.min(Math.round(m.kcal/2300*100),100):0;
   const carbPct=m.carbs?Math.min(Math.round(m.carbs/230*100),100):0;
@@ -1015,7 +1034,7 @@ function updateMetrics(){
   const nutD=document.getElementById('nutDate');if(nutD&&m._nutDate)nutD.textContent='Intervals · '+m._nutDate;
   sv('comp-weight',m.weight?m.weight+'kg':null);sv('comp-fat',m.fatPct?parseFloat(m.fatPct).toFixed(1)+'%':null);sv('comp-muscle',m.musclePct?parseFloat(m.musclePct).toFixed(1)+'%':null);sv('comp-water',m.waterPct?parseFloat(m.waterPct).toFixed(1)+'%':null);
   const kr=document.getElementById('compKgRow');
-  if(m.weight&&m.fatPct){const fg=+(m.weight*parseFloat(m.fatPct)/100).toFixed(1),lg=+(m.weight-fg).toFixed(1),tw=+(lg/0.9).toFixed(1),tl=+(m.weight-tw).toFixed(1);sv('comp-fatkg',fg+'kg');sv('comp-leankg',lg+'kg');sv('comp-target',tl>0?'-'+tl+'kg grasa':'En objetivo ✓');if(kr)kr.style.display='block';}else{if(kr)kr.style.display='none';}
+  if(m.weight&&m.fatPct){const fg=+(m.weight*parseFloat(m.fatPct)/100).toFixed(1),lg=+(m.weight-fg).toFixed(1),tw=+(lg/0.9).toFixed(1),tl=+(m.weight-tw).toFixed(1);sv('comp-fatkg',fg+'kg');sv('comp-leankg',lg+'kg');sv('comp-target',tl>0?'-'+tl+'kg grasa':'En objetivo ✓');if(kr)kr.style.display='block';const fnEl=document.getElementById('fatDateNote');if(fnEl)fnEl.textContent=m._fatDate?`% grasa del ${m._fatDate}`:'';}else{if(kr)kr.style.display='none';}
 }
 
 function renderHRV(){
@@ -1188,11 +1207,19 @@ async function fetchIntervals(){
     S.metrics.steps=latestBio.steps!=null?Math.round(latestBio.steps):null;
     S.metrics.weight=latestBio.weight?parseFloat(latestBio.weight.toFixed(1)):null;
     const fv=latestBio.fieldValues||{};
-    S.metrics.fatPct=latestBio.bodyFat||latestBio.fatPercent||fv['BodyFatPercent']||fv['PercentageOfBodyFat']||null;
+    // % grasa: use today's value OR last known value from history
+    const todayFat=latestBio.bodyFat||latestBio.fatPercent||fv['BodyFatPercent']||fv['PercentageOfBodyFat']||null;
+    if(todayFat!=null) S.metrics.fatPct=todayFat;
+    else {
+      // Find last day with body fat data
+      const lastFatDay=wSorted.slice().reverse().find(d=>{const fv2=d.fieldValues||{};return d.bodyFat||d.fatPercent||fv2['BodyFatPercent']||fv2['PercentageOfBodyFat'];});
+      if(lastFatDay){const fv2=lastFatDay.fieldValues||{};S.metrics.fatPct=lastFatDay.bodyFat||lastFatDay.fatPercent||fv2['BodyFatPercent']||fv2['PercentageOfBodyFat']||null;S.metrics._fatDate=lastFatDay.id;}
+    }
     S.metrics.musclePct=fv['MuscleMass']||fv['muscleMass']||null;
     S.metrics.waterPct=fv['BodyWater']||fv['bodyWater']||null;
     const nutFv=latestNut.fieldValues||{};const allFv={...fv,...nutFv};
     S.metrics.kcal=latestNut.kcalConsumed||latestNut.calories||allFv['CaloriesConsumed']||null;
+    S.metrics.kcalBurned=latestBio.calories||latestBio.kcalBurned||latestBio.active_calories||allFv['CaloriesBurned']||allFv['ActiveCalories']||null;
     S.metrics.protein=latestNut.protein||latestNut.proteinG||allFv['Protein']||null;
     S.metrics.carbs=latestNut.carbohydrates||latestNut.carbsG||allFv['Carbohydrates']||null;
     S.metrics.fat=latestNut.fatTotal||latestNut.fatG||latestNut.fat||allFv['Fat']||null;
@@ -1218,8 +1245,13 @@ async function fetchHevy(){
   if(!key){toast('Sin API Key','Añade tu API Key de Hevy','⚠️');return;}
   const sp=document.getElementById('hevySpin');if(sp)sp.style.display='block';
   try{
-    const r=await fetch('https://api.hevyapp.com/v1/workouts?page=1&pageSize=30',{headers:{'api-key':key,'Accept':'application/json'}});
-    if(!r.ok)throw new Error('Error '+r.status);
+    const r=await (async()=>{
+    // Try v1 endpoint first, fallback to v2
+    let r = await fetch('https://api.hevyapp.com/v1/workouts?page=1&pageSize=30',{headers:{'api-key':key,'Accept':'application/json'}});
+    if(!r.ok && r.status===400) r = await fetch('https://api.hevyapp.com/v1/workouts',{headers:{'api-key':key,'Accept':'application/json','x-api-key':key}});
+    return r;
+  })();
+    if(!r.ok)throw new Error('Hevy error '+r.status+' — verifica tu API Key en hevyapp.com/settings');
     const data=await r.json();const workouts=data.workouts||data.data||data||[];
     const now=Date.now();const weekStart=getWeekBounds(0).start;
     S.weeklyVol={};const recentHevySess=[];
@@ -1293,7 +1325,24 @@ async function connectHevy(){const key=document.getElementById('hevyKey')?.value
 function disconnectHevy(){S.hevy=null;S.weeklyVol={};S._hevyRecent=[];save();renderMAV();document.getElementById('hevyKey').value='';const st=document.getElementById('hevyStatus');if(st)st.innerHTML='<span class="sdot-sm sdot-k"></span><span style="color:var(--fg3);">Sin conectar</span>';toast('Hevy desconectado','','🔌');}
 function saveClaudeKey(){const key=document.getElementById('claudeKey')?.value?.trim();if(!key||!key.startsWith('sk-ant')){toast('API Key inválida','Debe comenzar con sk-ant-...','⚠️');return;}S.claude.key=key;save();document.getElementById('claudeKey').value='sk-ant-...guardada';toast('API Key guardada','IA lista','✅');}
 function setIntStatus(state){const el=document.getElementById('intStatus');const sp=document.getElementById('intSpin');const dot=document.getElementById('syncDot');if(sp)sp.style.display=state==='loading'?'block':'none';if(!el)return;if(state==='loading')el.innerHTML='<span class="sdot-sm sdot-y" style="animation:pd 1.5s infinite;"></span><span style="color:var(--y);">Conectando...</span>';else if(state==='ok'){el.innerHTML='<span class="sdot-sm sdot-g"></span><span style="color:var(--g);">Conectado</span>';if(dot){dot.style.background='var(--g)';dot.style.animation='pd 2s ease-in-out infinite';}}else if(state==='error')el.innerHTML='<span class="sdot-sm sdot-r"></span><span style="color:var(--r);">Error</span>';else el.innerHTML='<span class="sdot-sm sdot-k"></span><span style="color:var(--fg3);">Sin conectar</span>';}
-function manualUpdate(){const h=parseFloat(document.getElementById('manHRV')?.value);const bb=parseFloat(document.getElementById('manBB')?.value);const sl=parseFloat(document.getElementById('manSleep')?.value);const rhr=parseFloat(document.getElementById('manRHR')?.value);if(!isNaN(h)&&h>0)S.metrics.hrv=h;if(!isNaN(bb))S.metrics.bb=bb;if(!isNaN(sl)&&sl>0)S.metrics.sleep=sl;if(!isNaN(rhr)&&rhr>0)S.metrics.restingHR=rhr;runEngines();updateMetrics();}
+function manualUpdate(){
+  const h=parseFloat(document.getElementById('manHRV')?.value);
+  const bb=parseFloat(document.getElementById('manBB')?.value);
+  const sl=parseFloat(document.getElementById('manSleep')?.value);
+  const rhr=parseFloat(document.getElementById('manRHR')?.value);
+  const domsUp=parseFloat(document.getElementById('manDomsUpper')?.value);
+  const domsLo=parseFloat(document.getElementById('manDomsLower')?.value);
+  if(!isNaN(h)&&h>0)S.metrics.hrv=h;
+  if(!isNaN(bb))S.metrics.bb=bb;
+  if(!isNaN(sl)&&sl>0)S.metrics.sleep=sl;
+  if(!isNaN(rhr)&&rhr>0)S.metrics.restingHR=rhr;
+  // Sync manual DOMS to the HOY screen fields
+  if(!isNaN(domsUp)){const e=document.getElementById('domsUpper');if(e)e.value=domsUp;}
+  if(!isNaN(domsLo)){const e=document.getElementById('domsLower');if(e)e.value=domsLo;}
+  const pain=document.getElementById('manPain')?.value;
+  if(pain){const e=document.getElementById('painToday');if(e)e.value=pain;}
+  runEngines();updateMetrics();
+}
 function showDebug(){const el=document.getElementById('debugPanel'),c=document.getElementById('debugContent');if(!el||!c)return;el.style.display='block';c.textContent=JSON.stringify({raw_wellness:S._rawWellness,hrv_engine:S._hrv,fatigue:{...S._fatigue,signals:Object.fromEntries(Object.entries(S._fatigue?.signals||{}).slice(0,8))},muscle_fatigue:S._muscleFatigue,interference:S._interference,mav:S._mav?{global:S._mav.global,reasons:S._mav.reasons}:null,recs:S._recs?.actions?.map(a=>a.id),hevy_recent:S._hevyRecent?.map(s=>({name:s.name,muscles:s.muscles,hasUpper:s.hasUpper,hasLower:s.hasLower,muscleSets:s.muscleSets,sRPE:s.sRPE,rpe:s.rpe}))},null,2);}
 
 // ══ WEEK UTILITIES ══
@@ -1340,6 +1389,9 @@ function init(){
   const sc=document.getElementById('wkScore');if(sc)sc.textContent=S.weekDays.size+'/6';
   if(S.metrics.hrv7?.length){S._wellnessHistory=S.metrics.hrv7.map(d=>({id:d.date,hrv:d.v,restingHR:d.rhr,sleepSecs:d.sleep?parseFloat(d.sleep)*3600:null}));}
   runEngines();updateMetrics();renderHRV();renderMAV();renderLog();renderActivities();renderWeekZones();
+  // Auto-sync if keys saved — restore session without re-entering keys
+  if(S.int.aid&&S.int.key){setTimeout(()=>fetchIntervals(),800);}
+  if(S.hevy?.key){setTimeout(()=>fetchHevy(),1200);}
 }
 window.addEventListener('DOMContentLoaded',init);
 </script>
