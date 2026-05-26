@@ -1616,9 +1616,26 @@ async function fetchHevy(){
         const isUpperDom=upperSets/total>0.6;
         const isLowerDom=lowerSets/total>0.6;
         const muscles=Object.keys(muscleSets).filter(m=>muscleSets[m]>0);
+        // Cross-reference with Intervals activities by date
+        // Search ±1 day to handle timezone differences between Hevy and Garmin/Intervals
         const wDateStr=wDate.toISOString().split('T')[0];
-        const intervalsActs=(S._activitiesByDate||{})[wDateStr]||[];
-        const matchAct=intervalsActs.find(a=>a.icu_rpe!=null&&a.icu_rpe>0)||intervalsActs[0];
+        const prevDate=new Date(wDate);prevDate.setDate(prevDate.getDate()-1);
+        const nextDate=new Date(wDate);nextDate.setDate(nextDate.getDate()+1);
+        const prevStr=prevDate.toISOString().split('T')[0];
+        const nextStr=nextDate.toISOString().split('T')[0];
+
+        const byDate=S._activitiesByDate||{};
+        const candidateActs=[
+          ...(byDate[wDateStr]||[]),
+          ...(byDate[prevStr]||[]),
+          ...(byDate[nextStr]||[]),
+        ];
+        // Prefer strength/workout activities, then any with RPE
+        const STR_TYPES=['WeightTraining','Workout','CrossFit','Other'];
+        const matchAct=
+          candidateActs.find(a=>a.icu_rpe!=null&&a.icu_rpe>0&&STR_TYPES.includes(a.type||a.sport_type))||
+          candidateActs.find(a=>a.icu_rpe!=null&&a.icu_rpe>0)||
+          candidateActs[0];
         const realRPE=matchAct?.icu_rpe||null;
         const durSecs=matchAct?.moving_time||((w.end_time&&w.start_time)?(new Date(w.end_time)-new Date(w.start_time))/1000:null);
         const durMins=durSecs?Math.round(durSecs/60):null;
