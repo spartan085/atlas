@@ -559,6 +559,7 @@ transform:translateY(-8px);opacity:0;transition:all .3s cubic-bezier(.34,1.56,.6
           <div class="pb"><div class="pb-row"><div class="pb-label">Proteína</div><div class="pb-val" id="nut-prot-lbl">— / 180g</div></div><div class="pb-track"><div class="pb-fill o" id="nut-prot-bar" style="width:0%"></div></div></div>
           <div class="pb"><div class="pb-row"><div class="pb-label">Calorías</div><div class="pb-val" id="nut-kcal-lbl">— / 2300</div></div><div class="pb-track"><div class="pb-fill y" id="nut-kcal-bar" style="width:0%"></div></div></div>
           <div class="pb"><div class="pb-row"><div class="pb-label">Carbohidratos</div><div class="pb-val" id="nut-carbs-lbl">— / 230g</div></div><div class="pb-track"><div class="pb-fill" id="nut-carbs-bar" style="width:0%;background:var(--b);"></div></div></div>
+          <div class="pb"><div class="pb-row"><div class="pb-label">Grasas</div><div class="pb-val" id="nut-fat-lbl">— / 65g</div></div><div class="pb-track"><div class="pb-fill" id="nut-fat-bar" style="width:0%;background:var(--p);"></div></div></div>
         </div>
         <!-- Composition row -->
         <div style="border-top:1px solid var(--line);margin-top:12px;padding-top:12px;">
@@ -649,6 +650,21 @@ transform:translateY(-8px);opacity:0;transition:all .3s cubic-bezier(.34,1.56,.6
             <label class="fg-label">Rodilla (0-10)</label>
             <input class="field" type="number" id="kneeToday" placeholder="0=sin dolor" min="0" max="10" oninput="computeFatigue()">
           </div>
+        </div>
+        <!-- DOMS / Dolor previo -->
+        <div class="fg2" style="margin-bottom:12px;">
+          <div>
+            <label class="fg-label">DOMS tren superior (0-10)</label>
+            <input class="field" type="number" id="domsUpper" placeholder="0=sin DOMS" min="0" max="10" oninput="computeFatigue()">
+          </div>
+          <div>
+            <label class="fg-label">DOMS tren inferior (0-10)</label>
+            <input class="field" type="number" id="domsLower" placeholder="0=sin DOMS" min="0" max="10" oninput="computeFatigue()">
+          </div>
+        </div>
+        <div class="fg" style="margin-bottom:12px;">
+          <label class="fg-label">¿Algún dolor o molestia hoy?</label>
+          <input class="field" type="text" id="painToday" placeholder="ej. lumbar leve, hombro derecho...">
         </div>
         <div class="fg" style="margin-bottom:12px;">
           <label class="fg-label">Sensaciones + notas</label>
@@ -798,6 +814,20 @@ transform:translateY(-8px);opacity:0;transition:all .3s cubic-bezier(.34,1.56,.6
       </div>
       <div class="card-body" id="zoneDistStr">
         <div style="width:100%;text-align:center;color:var(--fg4);font-size:11px;padding:8px;">Sin sesiones de fuerza</div>
+      </div>
+    </div>
+
+    <!-- Zonas cardio general — todas las actividades -->
+    <div class="card" style="margin-top:10px;">
+      <div class="card-hdr">
+        <span class="t-md">Zonas FC — Todas las actividades</span>
+        <span class="mono" style="font-size:10px;color:var(--fg3);" id="zoneAllLabel">7 días</span>
+      </div>
+      <div class="card-body">
+        <div style="display:flex;gap:8px;align-items:flex-end;" id="zoneDistAll">
+          <div style="width:100%;text-align:center;color:var(--fg4);font-size:11px;padding:8px;">Sin actividades esta semana</div>
+        </div>
+        <div id="zoneAnalysisAll" style="display:none;margin-top:8px;font-size:11px;padding:6px 0;border-top:1px solid var(--line);"></div>
       </div>
     </div>
 
@@ -1378,7 +1408,10 @@ async function fetchIntervals() {
     S.metrics.restingHR  = latestBio.restingHR   || latestBio.restHR                  || null;
     S.metrics.sleep      = latestBio.sleepSecs    ? (latestBio.sleepSecs/3600).toFixed(1) : null;
     S.metrics.sleepScore = latestBio.sleepScore   || null;
-    S.metrics.bb         = latestBio.bodyBattery  != null ? Math.round(latestBio.bodyBattery) : null;
+    S.metrics.bb = latestBio.bodyBattery != null ? Math.round(latestBio.bodyBattery)
+                 : latestBio.body_battery != null ? Math.round(latestBio.body_battery)
+                 : latestBio.garminBodyBattery != null ? Math.round(latestBio.garminBodyBattery)
+                 : null;
     S.metrics.steps      = latestBio.steps        != null ? Math.round(latestBio.steps)       : null;
     S.metrics.weight     = latestBio.weight       ? parseFloat(latestBio.weight.toFixed(1))   : null;
     S.metrics.vo2max     = latestBio.vo2max       || null;
@@ -1818,6 +1851,12 @@ function updateNutritionTiles() {
   setBar('nut-carbs-bar',carbPct);
   setLbl('nut-carbs-lbl',(m.carbs?Math.round(m.carbs):'—')+' / 230g');
 
+  const fatPct2  = m.fat    ? Math.min(Math.round(m.fat/65*100),100)    : 0;
+  const fatColor = fatPct2>=60&&fatPct2<=120?'var(--g)':fatPct2>130?'var(--r)':'var(--y)';
+
+  setBar('nut-fat-bar', fatPct2, 'var(--p)');
+  setLbl('nut-fat-lbl', (m.fat?Math.round(m.fat):'—')+' / 65g');
+
   // Nutrition date label
   const nutDateEl=document.getElementById('nutDate');
   if(nutDateEl && m._nutDate) nutDateEl.textContent='Intervals · '+m._nutDate;
@@ -2135,6 +2174,12 @@ function computeFatigue() {
   // Knee
   signals.knee={label:`Rodilla ${knee}/10`,ok:knee<=2,warn:knee>3};
 
+  // DOMS
+  const domsUpper=parseFloat(document.getElementById('domsUpper')?.value)||0;
+  const domsLower=parseFloat(document.getElementById('domsLower')?.value)||0;
+  if(domsUpper>0) signals.domsUpper={label:`DOMS tren sup ${domsUpper}/10`,ok:domsUpper<=3,warn:domsUpper>6};
+  if(domsLower>0) signals.domsLower={label:`DOMS tren inf ${domsLower}/10`,ok:domsLower<=3,warn:domsLower>6};
+
   // ── SCORE FUNCTION (transparent) ──
   function scoreReadiness(keys){
     let s=100;
@@ -2149,8 +2194,8 @@ function computeFatigue() {
   // ── 4 READINESS SCORES ──
   const cvScore  = scoreReadiness(['hrv','sleep','bb','tsb']);
   const nmScore  = scoreReadiness(['srpe48','srpe72','legSess','knee']);
-  const upScore  = scoreReadiness(['hrv','sleep','upperSess','srpe48']);
-  const loScore  = scoreReadiness(['legSess','srpe72','knee','hrv']);
+  const upScore  = scoreReadiness(['hrv','sleep','upperSess','srpe48','domsUpper']);
+  const loScore  = scoreReadiness(['legSess','srpe72','knee','hrv','domsLower']);
 
   // Fatigue = 100 - readiness
   const cvFat  = 100-cvScore;
@@ -2767,6 +2812,8 @@ function renderWeekZones(){
   renderSportZones('zoneDistRun','zoneAnalysisRun','zoneRunLabel',runActs,'running',offset);
   // Strength load summary
   renderStrengthLoad('zoneDistStr','zoneStrLabel',strActs,offset);
+  // All activities zones (general cardio summary)
+  renderSportZones('zoneDistAll','zoneAnalysisAll','zoneAllLabel',acts,'cardio',offset);
 }
 
 function renderSportZones(elId,analysisId,labelId,acts,sport,offset){
@@ -2832,17 +2879,20 @@ function renderStrengthLoad(elId,labelId,acts,offset){
   }
   const rows=acts.map(a=>{
     const rpe=a.icu_rpe?`RPE ${a.icu_rpe}`:'Sin RPE';
+    const dur=a.moving_time?Math.round(a.moving_time/60):null;
+    const durStr=dur?`${dur}min`:'';
+    const srpe=(a.icu_rpe&&dur)?`sRPE ${Math.round(a.icu_rpe*dur)}`:'';
     const load=a.icu_training_load?`Load ${Math.round(a.icu_training_load)}`:'';
-    const dur=a.moving_time?`${Math.round(a.moving_time/60)}min`:'';
     const date=(a.start_date_local||'').split('T')[0].slice(5);
     const rpeColor=a.icu_rpe?(a.icu_rpe>=8?'var(--r)':a.icu_rpe>=6?'var(--y)':'var(--g)'):'var(--fg4)';
     return `<div style="display:flex;justify-content:space-between;align-items:center;padding:6px 0;border-bottom:1px solid var(--line);font-size:11px;">
       <div>
         <div style="color:var(--fg);font-weight:500;">${a.name||a.type}</div>
-        <div style="color:var(--fg3);font-size:10px;margin-top:1px;">${date} · ${dur}</div>
+        <div style="color:var(--fg3);font-size:10px;margin-top:1px;">${date} · ${durStr}</div>
       </div>
       <div style="text-align:right;flex-shrink:0;">
         <div style="color:${rpeColor};font-family:'Geist Mono',monospace;">${rpe}</div>
+        ${srpe?`<div style="color:var(--c);font-size:10px;font-family:'Geist Mono',monospace;">${srpe}</div>`:''}
         ${load?`<div style="color:var(--fg3);font-size:10px;">${load}</div>`:''}
       </div>
     </div>`;
@@ -3112,6 +3162,9 @@ async function analyzeTodayAI() {
   const m=S.metrics;const f=S._fatigue||{};const sigs=f.signals||{};
   const sess=document.getElementById('todaySess').value;
   const knee=document.getElementById('kneeToday').value;
+  const domsUp=document.getElementById('domsUpper')?.value||'0';
+  const domsLo=document.getElementById('domsLower')?.value||'0';
+  const pain=document.getElementById('painToday')?.value||'';
   const notes=document.getElementById('notesToday').value;
   const vol=Object.entries(S.weeklyVol||{}).map(([k,v])=>`${k}:${v}`).join(', ')||'sin datos Hevy';
   const mrvAdjStr=Object.entries(S._mrvAdj||{}).filter(([,v])=>v.mrv<v.base).map(([m,v])=>`${m}: ${v.base}→${v.mrv} (${v.reasons[0]})`).join(', ')||'ninguno';
@@ -3131,6 +3184,9 @@ MRV AJUSTADOS (dinámica): ${mrvAdjStr}
 VOLUMEN SEMANAL (Hevy): ${vol}
 SESIÓN PLANIFICADA: ${sess||'no especificada'}
 RODILLA: ${knee||'0'}/10
+DOMS TREN SUPERIOR: ${domsUp}/10
+DOMS TREN INFERIOR: ${domsLo}/10
+${pain?`DOLOR/MOLESTIA: ${pain}`:''}
 NOTAS: "${notes||'ninguna'}"
 ${m.protein?`NUTRICIÓN: ${Math.round(m.protein)}g proteína ${m.kcal?Math.round(m.kcal)+'kcal':''}`:''} 
 
