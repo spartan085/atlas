@@ -818,7 +818,16 @@ function FatigueEngine(metrics,logs,hevyRecent,domsUpper,domsLower,knee){
   // VO2max signal
   if(metrics.vo2max){signals.vo2max={label:`VO2max ${metrics.vo2max} ml/kg/min`,ok:metrics.vo2max>=45,warn:false};}
 
-  // Monotony (Foster 1998) — same load daily = CNS suppression risk
+  // Session mismatch signals (Garmin RPE vs Hevy RPE)
+  const mismatchSess = (S._hevyRecent||[]).filter(s=>s.age<48*3600000&&s.mismatchNote);
+  mismatchSess.forEach((s,i) => {
+    if(s.sessionType==='high_both'){
+      signals[`mismatch_${i}`]={label:s.mismatchNote,ok:false,warn:true};
+      drivers.push('high_both_rpe');
+    } else if(s.mismatchNote){
+      signals[`mismatch_${i}`]={label:s.mismatchNote,ok:true,warn:false};
+    }
+  });
   // monotony = mean daily load / SD of daily load
   const last7Logs=logs.filter(l=>{const d=parseDate(l.date);return d&&(now-d)<7*864e5;});
   if(last7Logs.length>=3){
@@ -969,7 +978,9 @@ function MuscleFatigueEngine(logs, hevyRecent){
   // From Hevy sessions (real exercise data)
   hevyRecent.forEach(sess => {
     const ageMs = sess.age; if(ageMs > 120*3600000) return;
-    const rpe = sess.rpe || 7;
+    // KEY: use Hevy avg RPE (local stimulus) for muscle fatigue
+    // NOT Garmin RPE (systemic) — they measure different things
+    const localRPE = sess.hevyRPE || sess.rpe || 7;
     const muscleSets = sess.muscleSets || {};
     if(!Object.keys(muscleSets).length) return;
     const totalSets = Object.values(muscleSets).reduce((a,b) => a+b, 0) || 1;
@@ -991,7 +1002,7 @@ function MuscleFatigueEngine(logs, hevyRecent){
     Object.entries(muscleSets).forEach(([m, sets]) => {
       const isPrimary = sets/totalSets > 0.15;
       const exName = muscleExName[m]?.name || '';
-      addFatigue(m, sets, rpe, exName, ageMs, isPrimary);
+      addFatigue(m, sets, localRPE, exName, ageMs, isPrimary);
     });
   });
 
@@ -1452,13 +1463,31 @@ function renderStrengthLoad(elId,labelId,acts,offset){
   const {start}=getWeekBounds(offset);if(lbl)lbl.textContent=offset===0?'Semana actual':start.toLocaleDateString('es-ES',{day:'numeric',month:'short'});
   if(!acts.length){el.innerHTML='<div style="color:var(--fg4);font-size:11px;">Sin sesiones</div>';return;}
   el.innerHTML=acts.map(a=>{
-    const rpe=a.icu_rpe?`RPE ${a.icu_rpe}`:'Sin RPE';
+    const garminRPEStr=a.icu_rpe?`RPE ${a.icu_rpe} (Garmin)`:'Sin RPE Garmin';
     const dur=a.moving_time?Math.round(a.moving_time/60):null;
     const srpe=(a.icu_rpe&&dur)?`sRPE ${Math.round(a.icu_rpe*dur)}`:'';
     const load=a.icu_training_load?`Load ${Math.round(a.icu_training_load)}`:'';
     const date=(a.start_date_local||'').split('T')[0].slice(5);
     const rpeCol=a.icu_rpe?(a.icu_rpe>=8?'var(--r)':a.icu_rpe>=6?'var(--y)':'var(--g)'):'var(--fg4)';
-    return`<div style="display:flex;justify-content:space-between;align-items:center;padding:7px 0;border-bottom:1px solid var(--line);font-size:11px;"><div><div style="font-weight:500;">${a.name||a.type}</div><div style="color:var(--fg3);font-size:10px;">${date} · ${dur?dur+'min':''}</div></div><div style="text-align:right;"><div style="font-family:'Geist Mono',monospace;color:${rpeCol};">${rpe}</div>${srpe?`<div style="font-family:'Geist Mono',monospace;font-size:10px;color:var(--c);">${srpe}</div>`:''}${load?`<div style="color:var(--fg3);">${load}</div>`:''}</div></div>`;
+    // Find matching Hevy session for this activity
+    const hevySess=(S._hevyRecent||[]).find(s=>{
+      const diff=Math.abs(new Date(a.start_date_local||0).getTime()-s.date.getTime());
+      return diff<8*3600000;
+    });
+    const hevyRPEStr=hevySess?.hevyRPE?`RPE ${hevySess.hevyRPE} (Hevy)`:'';
+    const mismatch=hevySess?.mismatchNote?`<div style="font-size:9px;color:var(--y);margin-top:1px;">${hevySess.mismatchNote}</div>`:'';
+    return`<div style="padding:7px 0;border-bottom:1px solid var(--line);font-size:11px;">
+      <div style="display:flex;justify-content:space-between;align-items:flex-start;">
+        <div><div style="font-weight:500;">${a.name||a.type}</div><div style="color:var(--fg3);font-size:10px;">${date} · ${dur?dur+'min':''}</div></div>
+        <div style="text-align:right;">
+          <div style="font-family:'Geist Mono',monospace;color:${rpeCol};">${garminRPEStr}</div>
+          ${hevyRPEStr?`<div style="font-family:'Geist Mono',monospace;font-size:10px;color:var(--p);">${hevyRPEStr}</div>`:''}
+          ${srpe?`<div style="font-family:'Geist Mono',monospace;font-size:10px;color:var(--c);">${srpe}</div>`:''}
+          ${load?`<div style="color:var(--fg3);">${load}</div>`:''}
+        </div>
+      </div>
+      ${mismatch}
+    </div>`;
   }).join('');
 }
 
@@ -1616,38 +1645,79 @@ async function fetchHevy(){
         const isUpperDom=upperSets/total>0.6;
         const isLowerDom=lowerSets/total>0.6;
         const muscles=Object.keys(muscleSets).filter(m=>muscleSets[m]>0);
-        // Cross-reference with Intervals activities by date
-        // Search ±1 day to handle timezone differences between Hevy and Garmin/Intervals
-        const wDateStr=wDate.toISOString().split('T')[0];
-        const prevDate=new Date(wDate);prevDate.setDate(prevDate.getDate()-1);
-        const nextDate=new Date(wDate);nextDate.setDate(nextDate.getDate()+1);
-        const prevStr=prevDate.toISOString().split('T')[0];
-        const nextStr=nextDate.toISOString().split('T')[0];
+        // ── Time-proximity matching (ChatGPT recommendation) ──
+        // Match by abs(sessionTime - activityTime) < 8h
+        // Much more robust than date-only: handles timezone, DST, double sessions
+        const wTime = wDate.getTime();
+        const STR_TYPES_M=['WeightTraining','Workout','CrossFit','Other'];
+        const allRecentActs = Object.values(S._activitiesByDate||{}).flat();
 
-        const byDate=S._activitiesByDate||{};
-        const candidateActs=[
-          ...(byDate[wDateStr]||[]),
-          ...(byDate[prevStr]||[]),
-          ...(byDate[nextStr]||[]),
-        ];
-        // Prefer strength/workout activities, then any with RPE
-        const STR_TYPES=['WeightTraining','Workout','CrossFit','Other'];
-        const matchAct=
-          candidateActs.find(a=>a.icu_rpe!=null&&a.icu_rpe>0&&STR_TYPES.includes(a.type||a.sport_type))||
-          candidateActs.find(a=>a.icu_rpe!=null&&a.icu_rpe>0)||
-          candidateActs[0];
-        const realRPE=matchAct?.icu_rpe||null;
-        const durSecs=matchAct?.moving_time||((w.end_time&&w.start_time)?(new Date(w.end_time)-new Date(w.start_time))/1000:null);
-        const durMins=durSecs?Math.round(durSecs/60):null;
-        const sRPE=realRPE&&durMins?Math.round(realRPE*durMins):null;
+        // Score each activity: time proximity + type match
+        const scoredActs = allRecentActs
+          .map(a => {
+            const aTime = new Date(a.start_date_local||0).getTime();
+            const timeDiff = Math.abs(wTime - aTime);
+            if(timeDiff > 8*3600000) return null; // >8h apart = different session
+            const typeBonus = STR_TYPES_M.includes(a.type||a.sport_type) ? 2 : 0;
+            const rpeBonus = (a.icu_rpe!=null&&a.icu_rpe>0) ? 1 : 0;
+            const score = 10 - (timeDiff/3600000) + typeBonus + rpeBonus;
+            return {a, score, timeDiff};
+          })
+          .filter(Boolean)
+          .sort((a,b) => b.score - a.score);
+
+        const bestMatch = scoredActs[0]?.a || null;
+        const garminRPE = bestMatch?.icu_rpe || null;
+        const durSecs = bestMatch?.moving_time ||
+          ((w.end_time&&w.start_time)?(new Date(w.end_time)-new Date(w.start_time))/1000:null);
+        const durMins = durSecs ? Math.round(durSecs/60) : null;
+        const sRPE = garminRPE&&durMins ? Math.round(garminRPE*durMins) : null;
+
+        // ── Hevy avg RPE (local stimulus intensity) ──
+        // Different from Garmin RPE — measures mechanical proximity to failure
+        const hevySetRPEs = [];
+        (w.exercises||[]).forEach(ex => {
+          (ex.sets||[]).forEach(s => {
+            const r = parseFloat(s.rpe||s.rpe_rating||0);
+            if(r > 0) hevySetRPEs.push(r);
+          });
+        });
+        const hevyAvgRPE = hevySetRPEs.length
+          ? Math.round(hevySetRPEs.reduce((a,b)=>a+b,0)/hevySetRPEs.length * 10)/10
+          : null;
+
+        // ── Session mismatch detector (ChatGPT) ──
+        // Large gap between Garmin RPE (systemic) and Hevy RPE (local) = useful signal
+        let sessionType = 'normal';
+        let mismatchNote = null;
+        if(garminRPE && hevyAvgRPE) {
+          const mismatch = Math.abs(garminRPE - hevyAvgRPE);
+          if(garminRPE > hevyAvgRPE + 2.5) {
+            sessionType = 'cardio_dominant'; // high systemic, low mechanical
+            mismatchNote = `Garmin ${garminRPE} vs Hevy ${hevyAvgRPE} — alta carga sistémica, baja tensión mecánica`;
+          } else if(hevyAvgRPE > garminRPE + 2.5) {
+            sessionType = 'strength_pure'; // high mechanical, low systemic
+            mismatchNote = `Garmin ${garminRPE} vs Hevy ${hevyAvgRPE} — alta tensión mecánica, bajo coste sistémico`;
+          } else if(garminRPE >= 8 && hevyAvgRPE >= 8) {
+            sessionType = 'high_both'; // both high = real accumulation risk
+            mismatchNote = `⚠ Garmin ${garminRPE} + Hevy ${hevyAvgRPE} — acumulación alta real`;
+          }
+        }
         recentHevySess.push({
-          date:wDate,age,
-          hasUpper:isUpperDom,hasLower:isLowerDom,
-          muscleSets,muscles,
-          sRPE,rpe:realRPE,durMins,
-          name:w.name||w.title||'Entrenamiento',
-          noRPE:!realRPE,
-          exercises:(w.exercises||[]).map(ex=>({title:ex.title||ex.exercise_template_title||ex.name||'',sets:ex.sets||[]}))
+          date:wDate, age,
+          hasUpper:isUpperDom, hasLower:isLowerDom,
+          muscleSets, muscles,
+          sRPE,
+          rpe: garminRPE,        // systemic RPE (Garmin) → used for sRPE + autonomic fatigue
+          hevyRPE: hevyAvgRPE,   // local RPE (Hevy sets) → used for muscular stimulus
+          sessionType, mismatchNote,
+          durMins,
+          name: w.name||w.title||'Entrenamiento',
+          noRPE: !garminRPE,
+          exercises:(w.exercises||[]).map(ex=>({
+            title:ex.title||ex.exercise_template_title||ex.name||'',
+            sets:ex.sets||[]
+          }))
         });
       }
     });
