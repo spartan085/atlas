@@ -332,6 +332,14 @@ textarea.field{resize:vertical;min-height:60px;}
       <div class="card-hdr"><span class="t-md">Interferencia Running→Fuerza</span></div>
       <div class="card-body" id="interferencePanel"><div style="font-size:12px;color:var(--fg3);">Sin datos</div></div>
     </div>
+    <div class="card" style="margin-bottom:12px;">
+      <div class="card-hdr"><span class="t-md">Densidad de entrenamiento</span><span class="mono" style="font-size:10px;color:var(--fg3);">sets/min · Hevy</span></div>
+      <div class="card-body" id="densityPanel"><div style="font-size:12px;color:var(--fg3);">Sin datos de Hevy</div></div>
+    </div>
+    <div class="card" style="margin-bottom:12px;">
+      <div class="card-hdr"><span class="t-md">Confianza por sistema</span></div>
+      <div class="card-body" id="confidencePanel"><div style="font-size:12px;color:var(--fg3);">Sin datos</div></div>
+    </div>
     <button class="btn btn-g btn-full" onclick="analyzeFatigue()">Analizar fatiga con IA</button>
   </div>
   <div class="ai-panel" id="aiFatP" style="display:none;margin-top:0;">
@@ -393,6 +401,24 @@ textarea.field{resize:vertical;min-height:60px;}
       </div>
     </div>
     <button class="btn btn-g btn-full" style="margin-top:4px;" onclick="analyzeMav()">Analizar volumen con IA</button>
+
+    <!-- Progression Engine panel -->
+    <div class="card" style="margin-top:10px;" id="progressionCard">
+      <div class="card-hdr"><span class="t-md">Progresión por patrón motor</span><span class="mono" style="font-size:10px;color:var(--fg3);" id="progressionSubtitle">—</span></div>
+      <div class="card-body" id="progressionPanel"><div class="empty"><div class="empty-icon">📈</div><div class="empty-title">Sin historial Hevy</div><div class="empty-msg">Necesita 2+ sesiones por patrón</div></div></div>
+    </div>
+
+    <!-- e1RM trends -->
+    <div class="card" style="margin-top:10px;">
+      <div class="card-hdr"><span class="t-md">Tendencia e1RM estimado</span><span class="mono" style="font-size:10px;color:var(--fg3);">Últimas 4 semanas · Epley/Brzycki</span></div>
+      <div class="card-body" id="e1rmPanel"><div style="font-size:12px;color:var(--fg3);">Sin datos de Hevy</div></div>
+    </div>
+
+    <!-- Junk volume warnings -->
+    <div id="junkVolumeCard" style="display:none;" class="card" style="margin-top:10px;">
+      <div class="card-hdr"><span class="t-md">⚠ Volumen improductivo detectado</span></div>
+      <div class="card-body" id="junkVolumePanel"></div>
+    </div>
   </div>
   <div class="ai-panel" id="aiMavP" style="display:none;">
     <div class="ai-panel-hdr"><div class="ai-av">⬡</div><div style="flex:1;"><div style="font-size:12px;font-weight:500;">ATLAS · Volumen óptimo</div><div class="mono" style="font-size:10px;color:var(--fg3);" id="aiMavT"></div></div></div>
@@ -1006,18 +1032,18 @@ function MuscleFatigueEngine(logs, hevyRecent){
     });
   });
 
-  // Build result with confidence
+  // Build result with per-muscle confidence from ConfidenceEngine
+  const confEngine = S._confidence;
   const dataPoints = logs.slice(0,5).length + hevyRecent.length;
-  const baseConfidence = Math.min(0.9, 0.4 + dataPoints * 0.08);
+  const baseConfidence = Math.min(0.85, 0.35 + dataPoints * 0.08);
 
   Object.entries(rawFatigue).forEach(([m, data]) => {
     const local = Math.min(100, Math.round(data.local));
     const neural = Math.min(100, Math.round(data.neural));
-    // Combined: local fatigue drives the score, neural adds context
     const combined = Math.min(100, Math.round(local * 0.7 + neural * 0.3));
-    // Confidence based on data quality + recency
     const avgHL = data.exHL.length ? data.exHL.reduce((a,b)=>a+b,0)/data.exHL.length : 44;
-    const conf = Math.round(Math.min(0.92, baseConfidence) * 100) / 100;
+    // Use per-muscle confidence if available, else base confidence
+    const conf = confEngine?.muscle?.[m] ?? Math.round(Math.min(0.88, baseConfidence)*100)/100;
     fatigue[m] = {value: combined, local, neural, confidence: conf,
       halfLife: Math.round(avgHL), sets: Math.round(data.sets)};
   });
@@ -1081,6 +1107,357 @@ function MAVEngine(fatigue,metrics,knee){
   return{mult,global,reasons,muscles};
 }
 
+// ══ CONFIDENCE ENGINE ══
+// Per-system confidence: each system has independent data quality assessment
+// Degrades if: missing data, gaps, sudden changes, atypical weeks
+function ConfidenceEngine(wellnessHistory, logs, hevyRecent, metrics){
+  const now = Date.now();
+  const days = wellnessHistory.length;
+  const weeks = days / 7;
+
+  // ── HRV Confidence ──
+  // Needs: 7+ days, low CV, consistent measurement
+  const hrvDays = wellnessHistory.filter(d=>d.hrv>0).length;
+  const hrvGaps = days - hrvDays; // missing HRV days
+  const hrv = S._hrv;
+  const hrvConf = Math.min(0.95, Math.max(0.1,
+    (hrvDays >= 14 ? 0.85 : hrvDays >= 7 ? 0.65 : hrvDays >= 3 ? 0.45 : 0.2)
+    - (hrv?.cv > 25 ? 0.15 : hrv?.cv > 15 ? 0.05 : 0)  // high variability = less reliable
+    - (hrvGaps > 3 ? 0.1 : 0)                            // gaps in measurement
+  ));
+
+  // ── Sleep Confidence ──
+  const sleepDays = wellnessHistory.filter(d=>d.sleepSecs>0).length;
+  const sleepConf = Math.min(0.9, Math.max(0.1,
+    (sleepDays >= 10 ? 0.82 : sleepDays >= 5 ? 0.62 : sleepDays >= 2 ? 0.42 : 0.2)
+  ));
+
+  // ── Strength Confidence ──
+  // Needs: Hevy sessions with RPE, multiple muscle groups tracked
+  const hevyWithRPE = hevyRecent.filter(s=>s.hevyRPE||s.rpe).length;
+  const hevyTotal = hevyRecent.length;
+  const musclesTracked = Object.keys(S._muscleFatigue||{}).length;
+  const strengthConf = Math.min(0.92, Math.max(0.1,
+    (hevyTotal >= 4 ? 0.70 : hevyTotal >= 2 ? 0.55 : hevyTotal >= 1 ? 0.40 : 0.15)
+    + (hevyWithRPE/Math.max(hevyTotal,1)) * 0.15  // bonus for RPE data
+    + (musclesTracked >= 6 ? 0.08 : musclesTracked >= 3 ? 0.04 : 0)
+  ));
+
+  // ── Interference Confidence ──
+  // Needs: recent running data with zone times
+  const runActs = (metrics.activities||[]).filter(a=>{
+    const d=new Date(a.start_date_local||0);
+    return (now-d)<7*864e5 && ['Run','VirtualRun','TrailRun'].includes(a.type||a.sport_type);
+  });
+  const runWithZones = runActs.filter(a=>(a.icu_zone_times||a.icu_hr_zone_times||[]).some(t=>t>0)).length;
+  const interferenceConf = Math.min(0.88, Math.max(0.1,
+    runActs.length > 0 ? (runWithZones/Math.max(runActs.length,1)) * 0.75 + 0.15 : 0.20
+  ));
+
+  // ── Recovery Confidence ──
+  // Cross-system: needs HRV + sleep + strength data
+  const recoveryConf = Math.min(0.90, Math.max(0.1,
+    (hrvConf + sleepConf + strengthConf) / 3
+  ));
+
+  // ── Muscle Fatigue Confidence (per muscle) ──
+  // Based on how many sessions per muscle group in last 2 weeks
+  const muscleConf = {};
+  const muscleSessions = {};
+  hevyRecent.forEach(sess=>{
+    Object.keys(sess.muscleSets||{}).forEach(m=>{
+      muscleSessions[m] = (muscleSessions[m]||0) + 1;
+    });
+  });
+  logs.slice(0,10).forEach(l=>{
+    const sessMap={'D1':['Pectoral','Deltoides','Tríceps'],'D2':['Cuádriceps','Glúteo','Isquiotibiales'],'D4':['Dorsal','Bíceps'],'D5':['Isquiotibiales','Glúteo','Gemelos/Sóleo']};
+    const key=Object.keys(sessMap).find(k=>l.sess&&l.sess.includes(k));
+    if(key)sessMap[key].forEach(m=>{muscleSessions[m]=(muscleSessions[m]||0)+1;});
+  });
+  Object.entries(muscleSessions).forEach(([m,n])=>{
+    muscleConf[m] = Math.min(0.92, Math.max(0.20,
+      n >= 4 ? 0.85 : n >= 2 ? 0.68 : n >= 1 ? 0.48 : 0.25
+    ));
+  });
+
+  // ── Overall system confidence ──
+  const overall = Math.min(0.92, (hrvConf + sleepConf + strengthConf + interferenceConf) / 4);
+
+  return {
+    hrv: Math.round(hrvConf*100)/100,
+    sleep: Math.round(sleepConf*100)/100,
+    strength: Math.round(strengthConf*100)/100,
+    interference: Math.round(interferenceConf*100)/100,
+    recovery: Math.round(recoveryConf*100)/100,
+    overall: Math.round(overall*100)/100,
+    muscle: muscleConf,
+    label: overall>=0.75?'Alta':overall>=0.5?'Moderada':'Baja',
+    weeks: Math.round(weeks*10)/10
+  };
+}
+
+// ══ DENSITY ENGINE ══
+// Calculates training density from Hevy: sets/min, tonnage/min, density stress
+// Evidence: density = volume / time → affects metabolic fatigue differently from pure volume
+function DensityEngine(hevyRecent){
+  const results = [];
+  hevyRecent.forEach(sess=>{
+    if(!sess.durMins || sess.durMins < 5) return;
+    const muscleSets = sess.muscleSets||{};
+    const totalSets = Object.values(muscleSets).reduce((a,b)=>a+b,0);
+    if(!totalSets) return;
+
+    // Sets per minute
+    const setsPerMin = Math.round(totalSets/sess.durMins*100)/100;
+
+    // Density classification (evidence: Schoenfeld 2016, rest intervals)
+    // <0.15 sets/min = low density (long rest, ~3-5min) → strength focus
+    // 0.15-0.30 = moderate (2-3min rest) → hypertrophy
+    // >0.30 = high density (<2min rest) → metabolic/conditioning
+    let densityLevel, metabolicStress;
+    if(setsPerMin < 0.15){
+      densityLevel = 'baja'; metabolicStress = 0.3;
+    } else if(setsPerMin < 0.30){
+      densityLevel = 'moderada'; metabolicStress = 0.6;
+    } else {
+      densityLevel = 'alta'; metabolicStress = 1.0;
+    }
+
+    // High density amplifies systemic fatigue (metabolic accumulation)
+    const densityFatigueMult = 1 + (metabolicStress * 0.4);
+
+    results.push({
+      name: sess.name,
+      age: sess.age,
+      durMins: sess.durMins,
+      totalSets,
+      setsPerMin,
+      densityLevel,
+      metabolicStress,
+      densityFatigueMult,
+      note: setsPerMin > 0.3 ? `Alta densidad (${setsPerMin}s/min) — fatiga metabólica elevada` :
+            setsPerMin < 0.15 ? `Baja densidad (${setsPerMin}s/min) — orientado a fuerza` :
+            `Densidad moderada (${setsPerMin}s/min)`
+    });
+  });
+  return results;
+}
+
+// ══ PROGRESSION ENGINE ══
+// Evidence sources:
+// - Epley 1985: e1RM = weight × (1 + reps/30)
+// - Brzycki 1993: e1RM = weight × 36/(37-reps) [more accurate at high reps]
+// - Schoenfeld 2010: progressive overload as primary driver of hypertrophy
+// - Israetel 2019: MEV→MAV progression should match recovery capacity
+// - Haff & Triplett 2016: performance tracking for periodization
+// - Helms 2014: RPE-based autoregulation superior to fixed progression
+// - Morton 2016: proximity to failure determines stimulus quality
+
+function ProgressionEngine(workouts, hevyRecent, muscleFatigue, fatigue, metrics){
+  if(!workouts||!workouts.length) return null;
+
+  // ── e1RM Calculation ──
+  // Use Epley for reps 1-10, Brzycki for higher reps (more accurate)
+  // Confidence-weighted: higher reps = lower e1RM accuracy
+  function calc1RM(kg, reps){
+    if(!kg||!reps||reps<1) return null;
+    if(reps === 1) return kg;
+    if(reps <= 10) return Math.round(kg * (1 + reps/30) * 10) / 10; // Epley
+    return Math.round(kg * 36/(37-Math.min(reps,36)) * 10) / 10;   // Brzycki
+  }
+
+  // Confidence of e1RM estimate (lower at high reps, Morton 2016)
+  function e1RMConfidence(reps, hevyRPE){
+    const repConf = reps <= 3 ? 0.92 : reps <= 6 ? 0.82 : reps <= 10 ? 0.70 : 0.55;
+    // High RPE (near failure) = more reliable e1RM (Helms 2014)
+    const rpeBonus = hevyRPE >= 8 ? 0.08 : hevyRPE >= 7 ? 0.04 : 0;
+    return Math.min(0.95, repConf + rpeBonus);
+  }
+
+  // ── Build exercise history ──
+  // For each exercise: track best e1RM per session over time
+  const exHistory = {}; // exName → [{date, e1rm, kg, reps, conf}]
+
+  workouts.forEach(w => {
+    const date = new Date(w.start_time||w.created_at||0);
+    if(Date.now()-date > 28*864e5) return; // last 28 days only
+
+    (w.exercises||[]).forEach(ex => {
+      const name = (ex.title||ex.exercise_template_title||ex.name||'').trim();
+      if(!name) return;
+
+      // Get best set (highest e1RM) for this exercise in this session
+      let bestE1RM = null, bestKg = 0, bestReps = 0;
+      (ex.sets||[]).forEach(s => {
+        const kg = parseFloat(s.weight_kg||s.weight||0);
+        const reps = parseInt(s.reps||0);
+        if(!kg||!reps) return;
+        const e1rm = calc1RM(kg, reps);
+        if(e1rm > (bestE1RM||0)){ bestE1RM = e1rm; bestKg = kg; bestReps = reps; }
+      });
+
+      if(!bestE1RM) return;
+      if(!exHistory[name]) exHistory[name] = [];
+      exHistory[name].push({
+        date, e1rm: bestE1RM, kg: bestKg, reps: bestReps,
+        conf: e1RMConfidence(bestReps, null)
+      });
+    });
+  });
+
+  // ── Trend analysis per exercise ──
+  // Slope of e1RM over last 3-5 sessions (Haff & Triplett 2016)
+  const exTrends = {};
+  Object.entries(exHistory).forEach(([name, sessions]) => {
+    if(sessions.length < 2) return;
+    const sorted = sessions.sort((a,b) => a.date-b.date);
+    const recent = sorted.slice(-5); // last 5 sessions
+
+    // Simple linear regression on e1RM
+    const n = recent.length;
+    const xs = recent.map((_,i) => i);
+    const ys = recent.map(s => s.e1rm);
+    const sumX = xs.reduce((a,b)=>a+b,0);
+    const sumY = ys.reduce((a,b)=>a+b,0);
+    const sumXY = xs.reduce((s,x,i)=>s+x*ys[i],0);
+    const sumX2 = xs.reduce((s,x)=>s+x*x,0);
+    const slope = n>1 ? (n*sumXY - sumX*sumY)/(n*sumX2 - sumX*sumX) : 0;
+
+    const latest = recent[recent.length-1];
+    const baseline = recent[0].e1rm;
+    const pctChange = baseline > 0 ? Math.round((latest.e1rm-baseline)/baseline*100) : 0;
+
+    // Trend direction with hysteresis (avoid noise)
+    let trend;
+    if(slope > 0.5)      trend = 'improving';   // >0.5kg/session
+    else if(slope < -0.5) trend = 'declining';
+    else                  trend = 'stable';
+
+    // Stagnation detection: stable for 4+ sessions = plateau
+    const isStagnant = trend === 'stable' && recent.length >= 4;
+
+    exTrends[name] = {
+      latest: latest.e1rm, baseline, slope: Math.round(slope*10)/10,
+      pctChange, trend, isStagnant, sessions: recent.length,
+      lastKg: latest.kg, lastReps: latest.reps
+    };
+  });
+
+  // ── Pattern motor aggregation ──
+  // Group exercises by movement pattern, aggregate trends
+  const patternTrends = {};
+  Object.entries(exTrends).forEach(([name, trend]) => {
+    const exData = getExDB(name);
+    const pat = exData?.pat || 'other';
+    if(!patternTrends[pat]) patternTrends[pat] = {slopes:[], trends:[], exercises:[]};
+    patternTrends[pat].slopes.push(trend.slope);
+    patternTrends[pat].trends.push(trend.trend);
+    patternTrends[pat].exercises.push({name, ...trend});
+  });
+
+  const patternSummary = {};
+  Object.entries(patternTrends).forEach(([pat, data]) => {
+    const avgSlope = data.slopes.reduce((a,b)=>a+b,0)/data.slopes.length;
+    const improving = data.trends.filter(t=>t==='improving').length;
+    const declining = data.trends.filter(t=>t==='declining').length;
+    const dominant = improving > declining ? 'improving' : declining > improving ? 'declining' : 'stable';
+    patternSummary[pat] = {
+      avgSlope: Math.round(avgSlope*10)/10, dominant,
+      exercises: data.exercises.sort((a,b)=>b.sessions-a.sessions)
+    };
+  });
+
+  // ── Junk volume detection ──
+  // (Israetel 2019: volume without stimulus = junk volume)
+  // Signal: volume increasing week-over-week but e1RM flat or declining
+  const junkVolumeWarnings = [];
+  const currentWeekVol = S.weeklyVol || {};
+  Object.entries(patternSummary).forEach(([pat, ps]) => {
+    if(ps.dominant === 'declining' && pat !== 'isolation'){
+      junkVolumeWarnings.push({
+        pattern: pat,
+        message: `Patrón ${getPatternLabel(pat)}: e1RM bajando — posible volumen improductivo`
+      });
+    }
+  });
+
+  // ── Progression readiness per pattern ──
+  // (Helms 2014: progress when: fatigue low + trend positive + recovery adequate)
+  const getMFVal = m => {
+    const mf = muscleFatigue||{};
+    return typeof mf[m]==='object' ? mf[m].value : (mf[m]||0);
+  };
+
+  const patternMuscles = {
+    'squat':   ['Cuádriceps','Glúteo'],
+    'hinge':   ['Isquiotibiales','Glúteo'],
+    'push-h':  ['Pectoral','Tríceps'],
+    'push-v':  ['Deltoides','Tríceps'],
+    'pull-v':  ['Dorsal','Bíceps'],
+    'pull-h':  ['Dorsal','Bíceps'],
+    'hip-ext': ['Glúteo'],
+    'isolation':[]
+  };
+
+  const progressionReadiness = {};
+  Object.entries(patternSummary).forEach(([pat, ps]) => {
+    const muscles = patternMuscles[pat] || [];
+    const avgFat = muscles.length
+      ? muscles.reduce((s,m)=>s+getMFVal(m),0)/muscles.length
+      : 0;
+    const autonomic = fatigue?.autonomic || 50;
+    const hrv = S._hrv;
+
+    // Readiness factors (evidence-based weights)
+    const fatigueFactor  = avgFat < 20 ? 1.0 : avgFat < 40 ? 0.75 : avgFat < 60 ? 0.50 : 0.25;
+    const autonomicFact  = autonomic < 25 ? 1.0 : autonomic < 45 ? 0.80 : autonomic < 65 ? 0.55 : 0.30;
+    const trendFactor    = ps.dominant==='improving' ? 1.1 : ps.dominant==='stable' ? 1.0 : 0.75;
+    const stagnantMalus  = ps.exercises.some(e=>e.isStagnant) ? 0.85 : 1.0;
+
+    const readinessScore = Math.min(1.0, fatigueFactor * autonomicFact * trendFactor * stagnantMalus);
+
+    // Progression type recommendation (Haff & Triplett 2016)
+    let progressionType, progressionNote;
+    const neuralHigh = (fatigue?.neuralReadiness||50) < 40;
+    const volumeNearMRV = muscles.some(m => {
+      const vol = currentWeekVol[m]||0;
+      const mrv = S.mavRanges?.[m]?.mrv||20;
+      return vol >= mrv * 0.85;
+    });
+
+    if(readinessScore >= 0.85 && ps.dominant === 'improving'){
+      progressionType = 'load'; progressionNote = 'Añade 2.5-5kg o reduce RIR en 1';
+    } else if(readinessScore >= 0.75 && !neuralHigh && !volumeNearMRV){
+      progressionType = 'volume'; progressionNote = 'Añade 1 serie manteniendo carga';
+    } else if(readinessScore >= 0.65 && neuralHigh){
+      progressionType = 'density'; progressionNote = 'Reduce descansos 15s manteniendo carga';
+    } else if(readinessScore >= 0.50 && ps.isStagnant){
+      progressionType = 'technique'; progressionNote = 'Mantén carga, mejora ROM y control';
+    } else if(readinessScore < 0.40){
+      progressionType = 'deload'; progressionNote = 'Reduce volumen 30-40% esta semana';
+    } else {
+      progressionType = 'maintain'; progressionNote = 'Mantén carga y volumen actuales';
+    }
+
+    progressionReadiness[pat] = {
+      score: Math.round(readinessScore*100),
+      avgFat: Math.round(avgFat),
+      progressionType,
+      progressionNote,
+      trend: ps.dominant,
+      exercises: ps.exercises.slice(0,3)
+    };
+  });
+
+  return {
+    exTrends,
+    patternSummary,
+    progressionReadiness,
+    junkVolumeWarnings,
+    totalExercisesTracked: Object.keys(exTrends).length
+  };
+}
+
 // ══ RECOMMENDATION ENGINE ══
 const RULES=[
   {id:'knee_pain_high',priority:10,cond:(f,i)=>f.signals.knee?.warn,action:'🦵 Protocolo rodilla activo. Pre-activación obligatoria. Para cualquier ejercicio >3/10.',conf:1.0},
@@ -1106,12 +1483,13 @@ function runEngines(){
   const domsUp=parseFloat(document.getElementById('domsUpper')?.value)||0;
   const domsLow=parseFloat(document.getElementById('domsLower')?.value)||0;
   S._hrv=HRVEngine(S._wellnessHistory||[]);
-  // IMPORTANT: muscle fatigue must run BEFORE fatigue engine
-  // so upper/lower scores can use real muscle fatigue values
   S._muscleFatigue=MuscleFatigueEngine(S.logs,S._hevyRecent||[]);
+  S._confidence=ConfidenceEngine(S._wellnessHistory||[],S.logs,S._hevyRecent||[],S.metrics);
+  S._density=DensityEngine(S._hevyRecent||[]);
   S._fatigue=FatigueEngine(S.metrics,S.logs,S._hevyRecent||[],domsUp,domsLow,knee);
   S._interference=InterferenceEngine(S.metrics.activities||[]);
   S._mav=MAVEngine(S._fatigue,S.metrics,knee);
+  S._progression=ProgressionEngine(S.hevy?.workouts||[],S._hevyRecent||[],S._muscleFatigue,S._fatigue,S.metrics);
   S._recs=RecommendationEngine(S._fatigue,S._interference);
   renderReadinessGrid();
   renderFatigueHero();
@@ -1119,6 +1497,9 @@ function runEngines(){
   renderRecommendations();
   renderMuscleFatigue();
   renderInterferencePanel();
+  renderDensityPanel();
+  renderProgressionPanel();
+  renderE1RMPanel();
   renderMAV();
   updateMetrics();
 }
@@ -1126,13 +1507,11 @@ function runEngines(){
 // ══ UI RENDERERS ══
 function renderReadinessGrid(){
   const f=S._fatigue;const hrv=S._hrv;if(!f)return;
-  const conf=hrv?.confidence||0.5;
-  const confLabel=conf>=0.75?'Alta':conf>=0.5?'Moderada':'Baja';
-  const confColor=conf>=0.75?'var(--g)':conf>=0.5?'var(--y)':'var(--r)';
-  // 2 weeks of data = moderate confidence
-  const dataWeeks=Math.min((S._wellnessHistory||[]).length/7, 4);
-  const overallConf=Math.min(0.9, 0.35 + dataWeeks*0.14);
-  const overallConfLabel=overallConf>=0.75?'Alta':overallConf>=0.5?'Moderada':'Baja';
+  const confE = S._confidence || {};
+  const overallConf = confE.overall || 0.5;
+  const overallConfLabel = confE.label || 'Moderada';
+  const confColor = overallConf>=0.75?'var(--g)':overallConf>=0.5?'var(--y)':'var(--r)';
+  const dataWeeks = confE.weeks || 0;
 
   // Honest state labels — no absolutes
   function stateLabel(score){
@@ -1143,7 +1522,13 @@ function renderReadinessGrid(){
     return 'Carga alta';
   }
 
-  function setCard(id,score,sigKeys){
+  function confBadge(conf){
+    const col=conf>=0.75?'var(--g)':conf>=0.5?'var(--y)':'var(--r)';
+    const lbl=conf>=0.75?'ALTA':conf>=0.5?'MOD':'BAJA';
+    return `<div style="position:absolute;bottom:6px;right:8px;font-family:'Geist Mono',monospace;font-size:8px;color:${col};">● ${lbl}</div>`;
+  }
+
+  function setCard(id,score,sigKeys,sysConf){
     const card=document.getElementById(id);if(!card)return;
     const vEl=document.getElementById(id+'-val'),lEl=document.getElementById(id+'-lbl'),sEl=document.getElementById(id+'-sigs');
     const st=score>=70?'ok':score>=45?'warn':'bad';
@@ -1151,16 +1536,22 @@ function renderReadinessGrid(){
     if(vEl)vEl.textContent=score+'%';
     if(lEl)lEl.textContent=stateLabel(score);
     if(sEl)sEl.innerHTML=sigKeys.filter(k=>f.signals[k]).map(k=>{
-      const s=f.signals[k];
-      const c=s.warn?'var(--r)':s.ok?'var(--g)':'var(--y)';
+      const s=f.signals[k];const c=s.warn?'var(--r)':s.ok?'var(--g)':'var(--y)';
       return`<li style="color:${c};">${s.warn?'↓':s.ok?'✓':'~'} ${s.label}</li>`;
     }).join('');
+    // Per-system confidence badge
+    let badge=card.querySelector('.conf-badge');
+    if(!badge){badge=document.createElement('div');badge.className='conf-badge';card.appendChild(badge);}
+    const cc=sysConf>=0.75?'var(--g)':sysConf>=0.5?'var(--y)':'var(--r)';
+    const cl=sysConf>=0.75?'ALTA':sysConf>=0.5?'MOD':'BAJA';
+    badge.innerHTML=`<span style="font-family:'Geist Mono',monospace;font-size:8px;color:${cc};">● ${cl}</span>`;
+    badge.style.cssText='position:absolute;bottom:6px;right:8px;';
   }
 
-  setCard('rsys-cardio',f.cardioScore,['hrv','sleep','bb','tsb','coupling']);
-  setCard('rsys-neuro', f.neuroScore, ['srpe48','srpe72']);
-  setCard('rsys-upper', f.upperScore, ['upperSess','domsUpper','hrv','sleep']);
-  setCard('rsys-lower', f.lowerScore, ['lowerSess','domsLower','knee','srpe72']);
+  setCard('rsys-cardio',f.cardioScore,['hrv','sleep','bb','tsb','coupling'],confE.hrv||0.5);
+  setCard('rsys-neuro', f.neuroScore, ['srpe48','srpe72'],confE.strength||0.5);
+  setCard('rsys-upper', f.upperScore, ['upperSess','domsUpper','hrv','sleep'],(confE.strength+confE.hrv)/2||0.5);
+  setCard('rsys-lower', f.lowerScore, ['lowerSess','domsLower','knee','srpe72'],(confE.strength+confE.hrv)/2||0.5);
 
   // Confidence badge on cardio card (HRV-driven)
   const cardioCard=document.getElementById('rsys-cardio');
@@ -1211,6 +1602,137 @@ function renderFatigueHero(){
   }
 }
 
+function renderDensityPanel(){
+  const el=document.getElementById('densityPanel');if(!el)return;
+  const density=S._density||[];
+  if(!density.length){el.innerHTML='<div style="font-size:12px;color:var(--fg3);">Sin sesiones de Hevy recientes</div>';return;}
+  const colMap={baja:'var(--g)',moderada:'var(--c)',alta:'var(--r)'};
+  el.innerHTML=density.map(d=>{
+    const ageH=Math.round(d.age/3600000);
+    const col=colMap[d.densityLevel]||'var(--fg3)';
+    return`<div style="padding:7px 0;border-bottom:1px solid var(--line);">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:3px;">
+        <span style="font-size:12px;font-weight:500;">${d.name}</span>
+        <span style="font-family:'Geist Mono',monospace;font-size:10px;color:${col};">${d.setsPerMin} s/min · ${d.densityLevel}</span>
+      </div>
+      <div style="font-size:10px;color:var(--fg3);">${ageH}h · ${d.durMins}min · ${d.totalSets} sets totales</div>
+      ${d.densityLevel==='alta'?`<div style="font-size:10px;color:var(--y);margin-top:2px;">⚠ Alta densidad → fatiga metabólica elevada</div>`:''}
+    </div>`;
+  }).join('');
+}
+
+function renderConfidencePanel(){
+  const el=document.getElementById('confidencePanel');if(!el)return;
+  const conf=S._confidence;if(!conf){el.innerHTML='<div style="font-size:12px;color:var(--fg3);">Sin datos</div>';return;}
+  const systems=[
+    {label:'HRV / Autonómico',val:conf.hrv,note:`${Math.round((S._wellnessHistory||[]).filter(d=>d.hrv>0).length)} días con HRV`},
+    {label:'Sueño',val:conf.sleep,note:`${Math.round((S._wellnessHistory||[]).filter(d=>d.sleepSecs>0).length)} días con sueño`},
+    {label:'Fuerza / Hevy',val:conf.strength,note:`${(S._hevyRecent||[]).length} sesiones recientes`},
+    {label:'Interferencia',val:conf.interference,note:'Running últimos 7d'},
+    {label:'Recuperación',val:conf.recovery,note:'Índice cruzado'},
+  ];
+  el.innerHTML=systems.map(s=>{
+    const col=s.val>=0.75?'var(--g)':s.val>=0.5?'var(--y)':'var(--r)';
+    const lbl=s.val>=0.75?'Alta':s.val>=0.5?'Moderada':'Baja';
+    const pct=Math.round(s.val*100);
+    return`<div style="display:flex;align-items:center;gap:8px;padding:5px 0;border-bottom:1px solid var(--line);">
+      <div style="flex:1;font-size:12px;">${s.label}</div>
+      <div style="width:80px;height:4px;background:var(--bg4);border-radius:2px;overflow:hidden;">
+        <div style="height:100%;width:${pct}%;background:${col};border-radius:2px;"></div>
+      </div>
+      <div style="font-family:'Geist Mono',monospace;font-size:10px;color:${col};width:55px;text-align:right;">${pct}% ${lbl}</div>
+    </div>`;
+  }).join('')+`<div style="font-size:10px;color:var(--fg4);margin-top:8px;font-style:italic;">${conf.weeks} semanas de datos · Global ${Math.round(conf.overall*100)}% ${conf.label}</div>`;
+}
+
+function renderProgressionPanel(){
+  const prog=S._progression;
+  const panel=document.getElementById('progressionPanel');
+  const subtitle=document.getElementById('progressionSubtitle');
+  const junkCard=document.getElementById('junkVolumeCard');
+  const junkPanel=document.getElementById('junkVolumePanel');
+  if(!panel)return;
+
+  if(!prog||!Object.keys(prog.progressionReadiness||{}).length){
+    panel.innerHTML='<div class="empty"><div class="empty-icon">📈</div><div class="empty-title">Sin historial suficiente</div><div class="empty-msg">Necesita 2+ sesiones por patrón motor</div></div>';
+    return;
+  }
+
+  if(subtitle)subtitle.textContent=`${prog.totalExercisesTracked} ejercicios tracked`;
+
+  const typeIcon={'load':'↑','volume':'＋','density':'⚡','technique':'○','maintain':'→','deload':'↓'};
+  const typeCol={'load':'var(--g)','volume':'var(--c)','density':'var(--y)','technique':'var(--b)','maintain':'var(--fg3)','deload':'var(--r)'};
+
+  const patLabels={'squat':'Sentadilla','hinge':'Bisagra','push-h':'Empuje horiz.','push-v':'Empuje vert.','pull-v':'Tirón vert.','pull-h':'Tirón horiz.','hip-ext':'Ext. cadera','isolation':'Aislamiento'};
+
+  panel.innerHTML=Object.entries(prog.progressionReadiness).map(([pat,data])=>{
+    const col=typeCol[data.progressionType]||'var(--fg3)';
+    const icon=typeIcon[data.progressionType]||'→';
+    const trendIcon=data.trend==='improving'?'↑':data.trend==='declining'?'↓':'→';
+    const trendCol=data.trend==='improving'?'var(--g)':data.trend==='declining'?'var(--r)':'var(--fg3)';
+    const readPct=data.score;
+    const readCol=readPct>=75?'var(--g)':readPct>=50?'var(--y)':'var(--r)';
+
+    return`<div style="padding:10px 0;border-bottom:1px solid var(--line);">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:5px;">
+        <span style="font-size:13px;font-weight:500;">${patLabels[pat]||pat}</span>
+        <div style="display:flex;align-items:center;gap:6px;">
+          <span style="font-family:'Geist Mono',monospace;font-size:10px;color:${trendCol};">${trendIcon} e1RM</span>
+          <span style="font-family:'Geist Mono',monospace;font-size:10px;color:${readCol};">${readPct}% listo</span>
+        </div>
+      </div>
+      <div style="display:flex;align-items:center;gap:8px;margin-bottom:4px;">
+        <span style="font-size:18px;color:${col};font-weight:700;">${icon}</span>
+        <span style="font-size:12px;color:${col};font-weight:500;">${data.progressionNote}</span>
+      </div>
+      <div style="font-size:10px;color:var(--fg4);">Fatiga muscular ${data.avgFat}% · ${data.exercises.slice(0,2).map(e=>`${e.name.split(' ').slice(0,2).join(' ')} ${e.latest||'—'}kg e1RM`).join(' · ')}</div>
+    </div>`;
+  }).join('');
+
+  // Junk volume warnings
+  if(junkCard&&junkPanel){
+    if(prog.junkVolumeWarnings.length){
+      junkCard.style.display='block';
+      junkPanel.innerHTML=prog.junkVolumeWarnings.map(w=>`
+        <div style="font-size:12px;color:var(--y);padding:4px 0;border-bottom:1px solid var(--line);">⚠ ${w.message}</div>
+      `).join('');
+    } else {
+      junkCard.style.display='none';
+    }
+  }
+}
+
+function renderE1RMPanel(){
+  const prog=S._progression;
+  const el=document.getElementById('e1rmPanel');
+  if(!el)return;
+  if(!prog||!Object.keys(prog.exTrends||{}).length){
+    el.innerHTML='<div style="font-size:12px;color:var(--fg3);">Sin historial de Hevy</div>';
+    return;
+  }
+
+  const trends=Object.entries(prog.exTrends)
+    .sort((a,b)=>b[1].sessions-a[1].sessions)
+    .slice(0,8);
+
+  el.innerHTML=trends.map(([name,t])=>{
+    const trendIcon=t.trend==='improving'?'↑':t.trend==='declining'?'↓':'→';
+    const trendCol=t.trend==='improving'?'var(--g)':t.trend==='declining'?'var(--r)':'var(--fg3)';
+    const stagnantNote=t.isStagnant?`<span style="color:var(--y);font-size:9px;"> · MESETA</span>`:'';
+    return`<div style="display:flex;align-items:center;justify-content:space-between;padding:6px 0;border-bottom:1px solid var(--line);font-size:11px;">
+      <div>
+        <span style="font-weight:500;">${name.split(' ').slice(0,3).join(' ')}</span>
+        ${stagnantNote}
+        <div style="color:var(--fg3);font-size:10px;margin-top:1px;">${t.sessions} sesiones · ${t.lastKg}kg×${t.lastReps}</div>
+      </div>
+      <div style="text-align:right;flex-shrink:0;">
+        <div style="font-family:'Geist Mono',monospace;color:var(--fg);">${t.latest}kg e1RM</div>
+        <div style="font-family:'Geist Mono',monospace;font-size:10px;color:${trendCol};">${trendIcon} ${t.pctChange>=0?'+':''}${t.pctChange}% · ${t.slope>=0?'+':''}${t.slope}kg/ses</div>
+      </div>
+    </div>`;
+  }).join('');
+}
+
 function renderFatigueSignals(){
   const f=S._fatigue;const hrv=S._hrv;const el=document.getElementById('fatigueSignals');if(!f||!el)return;
   const conf=f.confidence||0.5;
@@ -1225,46 +1747,90 @@ function renderFatigueSignals(){
 }
 
 function renderRecommendations(){
-  const r=S._recs;const f=S._fatigue;const card=document.getElementById('recsCard');const list=document.getElementById('recsList');const conf=document.getElementById('recsConf');
+  const r=S._recs;const f=S._fatigue;const h=S._hrv;
+  const card=document.getElementById('recsCard');const list=document.getElementById('recsList');const conf=document.getElementById('recsConf');
   if(!r||!card||!list)return;
   if(!r.actions.length){card.style.display='none';return;}
   card.style.display='block';
   if(conf)conf.textContent=r.count+' reglas activas';
 
-  // WHY: map rule id → which signals/drivers justify it
-  const WHY_MAP={
-    'knee_pain_high':   ['knee'],
-    'severe_fatigue':   ['tsb','srpe48','srpe72','sleep','hrv'],
-    'high_interference':['srpe72','lowerSess'],
-    'hrv_suppressed':   ['hrv','coupling','trend3d'],
-    'hrv_rhr_coupling': ['hrv','coupling','rhr_delta'],
-    'high_doms_lower':  ['domsLower','lowerSess'],
-    'low_sleep':        ['sleep','sleep_debt'],
-    'neg_tsb':          ['tsb'],
-    'high_srpe':        ['srpe48','srpe72'],
-    'hrv_rebound':      ['hrv','trend3d'],
-    'all_green':        ['hrv','sleep','srpe48'],
-  };
+  // Full reasoning chain — maps each rule to its evidence
+  function buildReasoningChain(ruleId){
+    const chain=[];
+    const fat=f||{};
+    const signals=fat.signals||{};
+    const drivers=fat.drivers||[];
+    const hrv=h||{};
+
+    // Rule-specific evidence
+    if(ruleId==='hrv_suppressed'||ruleId==='hrv_rhr_coupling'){
+      if(hrv.pctVsBase<-5) chain.push({text:`HRV ${hrv.current}ms (${hrv.pctVsBase}% bajo baseline ${Math.round(hrv.baseline28||0)}ms)`,level:'warn'});
+      if(hrv.coupling==='suppressed_strong') chain.push({text:'HRV↓ + FCr↑ simultáneos — señal doble supresión',level:'warn'});
+      if(hrv.trendSlope<-2) chain.push({text:`Tendencia 3d bajando ${Math.abs(Math.round(hrv.trendSlope))}ms`,level:'warn'});
+      if(hrv.sleepDebt>1) chain.push({text:`Deuda sueño ${hrv.sleepDebt}h — modula recuperación HRV`,level:'mid'});
+    }
+    if(ruleId==='neg_tsb'||ruleId==='severe_fatigue'){
+      if(signals.tsb?.warn) chain.push({text:signals.tsb.label,level:'warn'});
+      if(signals.srpe72) chain.push({text:signals.srpe72.label,level:signals.srpe72.warn?'warn':'ok'});
+      if(fat.autonomic>40) chain.push({text:`Fatiga autonómica ${fat.autonomic}%`,level:fat.autonomic>60?'warn':'mid'});
+    }
+    if(ruleId==='high_doms_lower'||ruleId==='high_interference'){
+      if(signals.domsLower) chain.push({text:signals.domsLower.label,level:signals.domsLower.warn?'warn':'mid'});
+      if(signals.lowerSess) chain.push({text:signals.lowerSess.label,level:signals.lowerSess.warn?'warn':'ok'});
+      const mf=S._muscleFatigue||{};
+      ['Cuádriceps','Isquiotibiales','Glúteo'].forEach(m=>{
+        const v=typeof mf[m]==='object'?mf[m].value:(mf[m]||0);
+        if(v>30) chain.push({text:`${m}: ${v}% fatiga residual`,level:v>50?'warn':'mid'});
+      });
+    }
+    if(ruleId==='low_sleep'){
+      if(signals.sleep) chain.push({text:signals.sleep.label,level:signals.sleep.warn?'warn':'mid'});
+      if(hrv.sleepDebt>0) chain.push({text:`Deuda sueño acumulada: ${hrv.sleepDebt}h`,level:hrv.sleepDebt>3?'warn':'mid'});
+    }
+    if(ruleId==='knee_pain_high'){
+      if(signals.knee) chain.push({text:signals.knee.label,level:'warn'});
+      chain.push({text:'Protocolo pre-activación obligatorio antes de cualquier sesión de pierna',level:'warn'});
+    }
+    if(ruleId==='high_srpe'){
+      if(signals.srpe48) chain.push({text:signals.srpe48.label,level:signals.srpe48.warn?'warn':'ok'});
+      const density=S._density||[];
+      density.filter(d=>d.age<48*3600000&&d.densityLevel==='alta').forEach(d=>{
+        chain.push({text:d.note,level:'mid'});
+      });
+    }
+    if(ruleId==='hrv_rebound'||ruleId==='all_green'){
+      if(hrv.pctVsBase>5) chain.push({text:`HRV ${hrv.pctVsBase>0?'+':''}${hrv.pctVsBase}% sobre baseline`,level:'ok'});
+      if(hrv.trendSlope>2) chain.push({text:`Tendencia positiva 3d: +${Math.round(hrv.trendSlope)}ms`,level:'ok'});
+      if(fat.systemic<25) chain.push({text:`Fatiga sistémica baja: ${fat.systemic}%`,level:'ok'});
+    }
+    // Density context for all rules
+    const highDensity=(S._density||[]).filter(d=>d.age<48*3600000&&d.densityLevel==='alta');
+    if(highDensity.length&&!['all_green','hrv_rebound'].includes(ruleId)){
+      highDensity.forEach(d=>chain.push({text:d.note,level:'mid'}));
+    }
+    return chain;
+  }
 
   list.innerHTML=r.actions.map(a=>{
-    const whyKeys=WHY_MAP[a.id]||[];
-    const whySignals=whyKeys.filter(k=>f?.signals[k]).map(k=>{
-      const s=f.signals[k];
-      const col=s.warn?'var(--r)':s.ok?'var(--g)':'var(--y)';
-      const icon=s.warn?'↓':s.ok?'✓':'~';
-      return`<div style="display:flex;align-items:center;gap:5px;padding:2px 0;"><span style="color:${col};font-family:'Geist Mono',monospace;font-size:10px;width:10px;">${icon}</span><span style="font-size:10px;color:var(--fg3);">${s.label}</span></div>`;
-    }).join('');
-
+    const chain=buildReasoningChain(a.id);
     const priorityCol=a.priority>=8?'var(--r)':a.priority>=5?'var(--y)':'var(--g)';
-    return`<li class="rec-item" style="flex-direction:column;align-items:flex-start;gap:6px;">
+    const chainHTML=chain.length?`
+      <div style="background:var(--bg3);border-radius:6px;padding:7px 9px;width:100%;border-left:2px solid var(--line2);margin-top:4px;">
+        <div style="font-family:'Geist Mono',monospace;font-size:8px;color:var(--fg4);letter-spacing:1.5px;margin-bottom:4px;">POR QUÉ</div>
+        ${chain.map(e=>{
+          const col=e.level==='warn'?'var(--r)':e.level==='ok'?'var(--g)':'var(--fg3)';
+          const icon=e.level==='warn'?'↓':e.level==='ok'?'✓':'·';
+          return`<div style="display:flex;gap:6px;padding:2px 0;"><span style="color:${col};font-size:10px;flex-shrink:0;">${icon}</span><span style="font-size:10px;color:var(--fg2);">${e.text}</span></div>`;
+        }).join('')}
+      </div>`:
+      `<div style="font-size:9px;color:var(--fg4);margin-top:2px;font-style:italic;">Confianza ${Math.round(a.conf*100)}%</div>`;
+
+    return`<li class="rec-item" style="flex-direction:column;align-items:flex-start;gap:2px;padding:10px 0;">
       <div style="display:flex;align-items:flex-start;justify-content:space-between;width:100%;gap:8px;">
         <div class="rec-text" style="flex:1;">${a.action}</div>
         <span style="font-family:'Geist Mono',monospace;font-size:9px;color:${priorityCol};flex-shrink:0;margin-top:2px;">P${a.priority}</span>
       </div>
-      ${whySignals?`<div style="background:var(--bg3);border-radius:6px;padding:6px 8px;width:100%;border-left:2px solid var(--line2);">
-        <div style="font-family:'Geist Mono',monospace;font-size:8px;color:var(--fg4);letter-spacing:1px;margin-bottom:3px;">PORQUE</div>
-        ${whySignals}
-      </div>`:''}
+      ${chainHTML}
     </li>`;
   }).join('');
 }
@@ -1787,6 +2353,13 @@ function buildCtx(){
       return`${mu}:${val}%(conf${conf}${neural})`;
     }).join(', ');
 
+  // Progression context
+  const prog=S._progression;
+  const progCtx=prog?Object.entries(prog.progressionReadiness).map(([pat,d])=>
+    `${getPatternLabel(pat)}: ${d.score}% listo → ${d.progressionType} (${d.trend})`
+  ).join(', '):'sin datos';
+  const junkCtx=prog?.junkVolumeWarnings?.length?prog.junkVolumeWarnings.map(w=>w.message).join('; '):'ninguno';
+
   return`SISTEMA: ${dataWeeks} semanas datos · Confianza global ${Math.round(overallConf*100)}%
 HRV: estado=${h?.state||'—'} z=${h?.zScore||'—'} vs-base=${h?.pctVsBase||0}% conf=${Math.round((h?.confidence||0)*100)}%
   Drivers HRV: ${h?.drivers?.join(',')||'ninguno'}
@@ -1802,7 +2375,11 @@ FATIGA MUSCULAR (residual, con confianza):
 
 INTERFERENCIA: ${i?.level||'none'} (${i?.score||0}%) blockLower=${i?.blockLower}
 MAV: ×${m?.global||1} — ${m?.reasons?.join(' · ')||'sin modificadores'}
-RECOMENDACIONES ACTIVAS: ${r?.actions?.map(a=>a.id).join(', ')||'ninguna'}`.trim();
+RECOMENDACIONES ACTIVAS: ${r?.actions?.map(a=>a.id).join(', ')||'ninguna'}
+
+PROGRESIÓN:
+  Por patrón: ${progCtx}
+  Volumen improductivo: ${junkCtx}`.trim();
 }
 async function callAI(prompt,panelId,txtId,timeId){
   const key=S.claude.key;if(!key||!key.startsWith('sk-ant')){toast('Sin API Key','Añade Claude API Key en Datos','⚠️');return;}
@@ -1820,7 +2397,7 @@ async function analyzeMav(){const vol=Object.entries(S.weeklyVol||{}).map(([k,v]
 async function analyzeSession(){const last=S.logs[0];if(!last){toast('Sin sesión','Registra una sesión primero','⚠️');return;}await callAI(`ANÁLISIS DE SESIÓN\n${last.sess} · ${last.dur}min · RPE ${last.rpe} · sRPE ${last.srpe} · Rodilla ${last.knee||0}/10\nNotas: "${last.notes||'ninguna'}"\n\n${buildCtx()}\n\n1) ¿sRPE apropiado para el estado de fatiga? 2) Señales de infra/sobreestimulación. 3) Impacto en readiness mañana.`,'aiSessP','aiSessTxt','aiSessT');}
 
 // ══ NAV & SYNC ══
-function showS(id){document.querySelectorAll('.screen').forEach(s=>s.classList.remove('active'));const t=document.getElementById(id);if(t)t.classList.add('active');document.querySelectorAll('.ni').forEach(n=>n.classList.remove('active'));const map={'s-hoy':'ni-hoy','s-fatiga':'ni-fatiga','s-mav':'ni-mav','s-log':'ni-log','s-datos':'ni-datos','s-plan':'ni-plan'};const btn=document.getElementById(map[id]);if(btn)btn.classList.add('active');window.scrollTo(0,0);if(id==='s-mav'){renderWeekZones();renderMAV();}if(id==='s-log')renderLog();if(id==='s-fatiga'){renderFatigueSignals();renderMuscleFatigue();renderInterferencePanel();}}
+function showS(id){document.querySelectorAll('.screen').forEach(s=>s.classList.remove('active'));const t=document.getElementById(id);if(t)t.classList.add('active');document.querySelectorAll('.ni').forEach(n=>n.classList.remove('active'));const map={'s-hoy':'ni-hoy','s-fatiga':'ni-fatiga','s-mav':'ni-mav','s-log':'ni-log','s-datos':'ni-datos','s-plan':'ni-plan'};const btn=document.getElementById(map[id]);if(btn)btn.classList.add('active');window.scrollTo(0,0);if(id==='s-mav'){renderWeekZones();renderMAV();renderProgressionPanel();renderE1RMPanel();}if(id==='s-log')renderLog();if(id==='s-fatiga'){renderFatigueSignals();renderMuscleFatigue();renderInterferencePanel();renderDensityPanel();renderConfidencePanel();}}
 async function syncAll(){if(S.int.aid&&S.int.key)await fetchIntervals();if(S.hevy?.key)await fetchHevy();}
 function toast(title,msg,icon,ms=3500){const el=document.createElement('div');el.className='toast';el.innerHTML=`<div class="toast-t">${icon||'ℹ️'} ${title}</div>${msg?`<div class="toast-m">${msg}</div>`:''}`;document.body.appendChild(el);setTimeout(()=>el.remove(),ms);}
 
