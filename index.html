@@ -2294,9 +2294,10 @@ async function fetchHevy(){
           exData.p.forEach(m=>{muscleSets[m]=(muscleSets[m]||0)+nSets;});
           exData.s.forEach(m=>{muscleSets[m]=(muscleSets[m]||0)+nSets*0.4;});
         }
-        // Volume tracking for this week
+        // Volume tracking — primary muscles only (Israetel/Schoenfeld standard)
         if(isThisWeek&&exData){
-          exData.p.forEach(m=>{S.weeklyVol[m]=(S.weeklyVol[m]||0)+nSets;});
+          const workingSets3=(ex.sets||[]).filter(s=>parseInt(s.reps||0)>0).length;
+          if(workingSets3>0)exData.p.forEach(m=>{S.weeklyVol[m]=(S.weeklyVol[m]||0)+workingSets3;});
         }
       });
 
@@ -2426,7 +2427,27 @@ function showDebug(){const el=document.getElementById('debugPanel'),c=document.g
 // ══ WEEK UTILITIES ══
 function getWeekBounds(offset){const now=new Date();const monday=new Date(now);monday.setHours(0,0,0,0);monday.setDate(now.getDate()-(now.getDay()===0?6:now.getDay()-1)+(offset*7));const sunday=new Date(monday);sunday.setDate(monday.getDate()+6);return{start:monday,end:sunday};}
 function checkWeekReset(){const now=new Date();const monday=new Date(now);monday.setHours(0,0,0,0);monday.setDate(now.getDate()-(now.getDay()===0?6:now.getDay()-1));const ms=monday.toISOString().split('T')[0];if(S.weekStart!==ms){S.weekStart=ms;S.weeklyVol={};S.weekDays=new Set();document.querySelectorAll('.wd').forEach(el=>el.classList.remove('done'));const sc=document.getElementById('wkScore');if(sc)sc.textContent='0/6';save();}}
-function getWeeklyVolForOffset(offset){if(offset===0)return S.weeklyVol||{};if(!S.hevy?.workouts)return{};const {start,end}=getWeekBounds(offset);const endFull=new Date(end);endFull.setHours(23,59,59,999);const vol={};S.hevy.workouts.forEach(w=>{const d=new Date(w.start_time||w.created_at||0);if(d<start||d>endFull)return;(w.exercises||[]).forEach(ex=>{const exData=getExDB(ex.title||ex.exercise_template_title||ex.name||'');(ex.sets||[]).forEach(s=>{if(parseInt(s.reps||0)>0&&exData)exData.p.forEach(m=>{vol[m]=(vol[m]||0)+1;});});});});return vol;}
+function getWeeklyVolForOffset(offset){
+  if(offset===0)return S.weeklyVol||{};
+  if(!S.hevy?.workouts)return{};
+  const {start,end}=getWeekBounds(offset);
+  const endFull=new Date(end);endFull.setHours(23,59,59,999);
+  const vol={};
+  S.hevy.workouts.forEach(w=>{
+    const d=new Date(w.start_time||w.created_at||0);
+    if(d<start||d>endFull)return;
+    (w.exercises||[]).forEach(ex=>{
+      const exData=getExDB(ex.title||ex.exercise_template_title||ex.name||'');
+      if(!exData)return;
+      // Count working sets only (primary muscles only — Israetel/Schoenfeld standard)
+      const workingSets=(ex.sets||[]).filter(s=>parseInt(s.reps||0)>0);
+      if(!workingSets.length)return;
+      // Primary muscles only for volume counting
+      exData.p.forEach(m=>{vol[m]=(vol[m]||0)+workingSets.length;});
+    });
+  });
+  return vol;
+}
 function changeWeek(dir){S.weekOffset=(S.weekOffset||0)+dir;if(S.weekOffset>0)S.weekOffset=0;updateWeekSelector();renderMAV();renderWeekZones();}
 function updateWeekSelector(){const offset=S.weekOffset||0;const {start,end}=getWeekBounds(offset);const fmt=d=>d.toLocaleDateString('es-ES',{day:'numeric',month:'short'});const lEl=document.getElementById('weekLabel'),nBtn=document.getElementById('weekNextBtn'),nEl=document.getElementById('mavWeekNote');if(lEl)lEl.textContent=offset===0?'Esta semana':offset===-1?'Semana pasada':`${fmt(start)} – ${fmt(end)}`;if(nBtn)nBtn.style.opacity=offset>=0?'0.3':'1';if(nEl)nEl.textContent=offset===0?'':`${fmt(start)} – ${fmt(end)}`;const mT=document.getElementById('mavBarsTitle');if(mT)mT.textContent=offset===0?'Volumen semana':`Volumen · ${fmt(start)}`;}
 function tw(el,day){el.classList.toggle('done');if(el.classList.contains('done'))S.weekDays.add(day);else S.weekDays.delete(day);const sc=document.getElementById('wkScore');if(sc)sc.textContent=S.weekDays.size+'/6';save();}
