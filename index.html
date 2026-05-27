@@ -842,37 +842,33 @@ function FatigueEngine(metrics,logs,hevyRecent,domsUpper,domsLower,knee){
   else if(knee>0)signals.knee={label:`Rodilla ${knee}/10`,ok:true,warn:false};
 
   // VO2max signal
-  if(metrics.vo2max){signals.vo2max={label:`VO2max ${metrics.vo2max} ml/kg/min`,ok:metrics.vo2max>=45,warn:false};}
+  if(metrics.vo2max) signals.vo2max={label:`VO2max ${metrics.vo2max} ml/kg/min`,ok:metrics.vo2max>=45,warn:false};
 
-  // Session mismatch signals (Garmin RPE vs Hevy RPE)
-  const mismatchSess = (S._hevyRecent||[]).filter(s=>s.age<48*3600000&&s.mismatchNote);
-  mismatchSess.forEach((s,i) => {
-    if(s.sessionType==='high_both'){
-      signals[`mismatch_${i}`]={label:s.mismatchNote,ok:false,warn:true};
-      drivers.push('high_both_rpe');
-    } else if(s.mismatchNote){
-      signals[`mismatch_${i}`]={label:s.mismatchNote,ok:true,warn:false};
-    }
-  });
-  // monotony = mean daily load / SD of daily load
+  // Monotony (Foster 1998) — same load daily = CNS suppression risk
   const last7Logs=logs.filter(l=>{const d=parseDate(l.date);return d&&(now-d)<7*864e5;});
   if(last7Logs.length>=3){
     const dailySRPE=last7Logs.map(l=>parseFloat(l.srpe)||0);
     const mean=dailySRPE.reduce((a,b)=>a+b,0)/dailySRPE.length;
     const sd=Math.sqrt(dailySRPE.map(v=>(v-mean)**2).reduce((a,b)=>a+b,0)/dailySRPE.length);
     const monotony=sd>0?Math.round(mean/sd*10)/10:0;
-    const strain=Math.round(mean*dailySRPE.reduce((a,b)=>a+b,0));
-    if(monotony>2){signals.monotony={label:`Monotonía alta (${monotony}) — riesgo CNS`,ok:false,warn:true};drivers.push('high_monotony');}
-    else if(monotony>1.5){signals.monotony={label:`Monotonía moderada (${monotony})`,ok:false,warn:false};}
+    if(monotony>2){signals.monotony={label:`Monotonía alta (${monotony}) — riesgo SNC`,ok:false,warn:true};drivers.push('high_monotony');}
+    else if(monotony>1.5)signals.monotony={label:`Monotonía moderada (${monotony})`,ok:false,warn:false};
   }
 
-  mechanical=Math.min(100,Math.round((srpe48/800)*40+(domsUpper||0)*5+(domsLower||0)*5+(knee>3?25:0)));
+  // Session mismatch signals
+  (S._hevyRecent||[]).filter(s=>s.age<48*3600000&&s.mismatchNote).forEach((s,i)=>{
+    signals[`mismatch_${i}`]={label:s.mismatchNote,ok:s.sessionType!=='high_both',warn:s.sessionType==='high_both'};
+    if(s.sessionType==='high_both') drivers.push('high_both_rpe');
+  });
 
-  // ── UPPER/LOWER — based on muscle fatigue, not just session count ──
+  // ── NORMALIZED SCORING ──
+  // CONVENTION: fatigue values (0-100) higher=more fatigued
+  //             score values (0-100) higher=better readiness
+  // No cross-contamination between systems in systemic calculation
+
   const UPPER_M=['Pectoral','Deltoides','Tríceps','Dorsal','Bíceps'];
   const LOWER_M=['Cuádriceps','Isquiotibiales','Glúteo','Gemelos/Sóleo','Aductores'];
 
-  // Classify sessions by >60% dominance
   function classifySession(sess){
     if(!sess.muscleSets)return{isUpper:false,isLower:false};
     const uS=Object.entries(sess.muscleSets).filter(([m])=>UPPER_M.includes(m)).reduce((s,[,v])=>s+v,0);
@@ -881,46 +877,86 @@ function FatigueEngine(metrics,logs,hevyRecent,domsUpper,domsLower,knee){
     return{isUpper:uS/total>0.6,isLower:lS/total>0.6};
   }
 
-  // Use muscle fatigue engine outputs for upper/lower scores
-  const mf = S._muscleFatigue || {};
-  // New format: mf[muscle] = {value, local, neural, confidence}
-  const getMFVal = m => (mf[m]?.value ?? mf[m] ?? 0);
-  const getMFConf = m => mf[m]?.confidence ?? 0.5;
+  const mf=S._muscleFatigue||{};
+  const getMFVal=m=>(mf[m]?.value??mf[m]??0);
+  const getMFConf=m=>(mf[m]?.confidence??0.5);
+  const upperMuscles=UPPER_M.filter(m=>getMFVal(m)>0);
+  const lowerMuscles=LOWER_M.filter(m=>getMFVal(m)>0);
+  const avgUpperFat=upperMuscles.length?Math.round(upperMuscles.reduce((s,m)=>s+getMFVal(m),0)/upperMuscles.length):0;
+  const avgLowerFat=lowerMuscles.length?Math.round(lowerMuscles.reduce((s,m)=>s+getMFVal(m),0)/lowerMuscles.length):0;
+  const avgUpperConf=upperMuscles.length?upperMuscles.reduce((s,m)=>s+getMFConf(m),0)/upperMuscles.length:0.5;
+  const avgLowerConf=lowerMuscles.length?lowerMuscles.reduce((s,m)=>s+getMFConf(m),0)/lowerMuscles.length:0.5;
 
-  const upperMuscles = UPPER_M.filter(m => getMFVal(m) > 0);
-  const lowerMuscles = LOWER_M.filter(m => getMFVal(m) > 0);
-  const avgUpperFat = upperMuscles.length ? Math.round(upperMuscles.reduce((s,m)=>s+getMFVal(m),0)/upperMuscles.length) : 0;
-  const avgLowerFat = lowerMuscles.length ? Math.round(lowerMuscles.reduce((s,m)=>s+getMFVal(m),0)/lowerMuscles.length) : 0;
-  const avgUpperConf = upperMuscles.length ? upperMuscles.reduce((s,m)=>s+getMFConf(m),0)/upperMuscles.length : 0.5;
-  const avgLowerConf = lowerMuscles.length ? lowerMuscles.reduce((s,m)=>s+getMFConf(m),0)/lowerMuscles.length : 0.5;
-
-  // Session counts — upper 48h, lower 72h (evidence: axial/eccentric lower needs more recovery)
+  // Session counts — upper 48h, lower 72h (axial/eccentric evidence)
   const r72Hevy=hevyRecent.filter(s=>s.age<72*3600000);
   const r48Hevy=hevyRecent.filter(s=>s.age<48*3600000);
   const upperSess48=r48Hevy.filter(s=>classifySession(s).isUpper).length+r48.filter(l=>/D1|D4|empuje|tirón|tiron/i.test(l.sess||'')).length;
   const lowerSess72=r72Hevy.filter(s=>classifySession(s).isLower).length+r72.filter(l=>/D2|D5|pierna/i.test(l.sess||'')).length;
+  const confLbl=conf=>conf>=0.75?'conf alta':conf>=0.5?'conf mod':'conf baja';
+  signals.upperSess={label:`Tren sup 48h: ${upperSess48} ses · fatiga ${avgUpperFat}% (${confLbl(avgUpperConf)})`,ok:upperSess48<2&&avgUpperFat<40,warn:upperSess48>=2||avgUpperFat>60};
+  signals.lowerSess={label:`Tren inf 72h: ${lowerSess72} ses · fatiga ${avgLowerFat}% (${confLbl(avgLowerConf)})`,ok:lowerSess72<2&&avgLowerFat<40,warn:lowerSess72>=2||avgLowerFat>60};
+  if(lowerSess72>=2||avgLowerFat>60) drivers.push('frequent_leg_sessions');
 
-  const confLabel = c => c>=0.75?'conf alta':c>=0.5?'conf mod':'conf baja';
-  signals.upperSess={label:`Tren sup 48h: ${upperSess48} sesión${upperSess48!==1?'es':''} · fatiga ${avgUpperFat}% (${confLabel(avgUpperConf)})`,ok:upperSess48<2&&avgUpperFat<40,warn:upperSess48>=2||avgUpperFat>60};
-  signals.lowerSess={label:`Tren inf 72h: ${lowerSess72} sesión${lowerSess72!==1?'es':''} · fatiga ${avgLowerFat}% (${confLabel(avgLowerConf)})`,ok:lowerSess72<2&&avgLowerFat<40,warn:lowerSess72>=2||avgLowerFat>60};
-  if(lowerSess72>=2||avgLowerFat>60)drivers.push('frequent_leg_sessions');
+  // mechanical fatigue (0-100, higher=more fatigued)
+  mechanical=Math.min(100,Math.round(
+    (srpe48/800)*50 +        // sRPE48: primary driver (Banister 1991)
+    (domsUpper||0)*3 +       // DOMS upper: secondary
+    (domsLower||0)*3 +       // DOMS lower: secondary
+    (knee>3?20:knee>1?8:0)   // knee: binary modifier
+  ));
 
-  // Scores — weighted: muscle fatigue 50% + autonomic context 30% + DOMS 20%
-  function calcReadiness(avgFat, domsVal, autoScore){
-    const fatPenalty=Math.round(avgFat*0.5);
-    const domsPenalty=Math.round((domsVal||0)*5);
-    const autoBonus=Math.round((100-autoScore)*0.3);
-    return Math.max(0,Math.min(100,100-fatPenalty-domsPenalty-autoBonus));
-  }
+  // ── READINESS SCORES (0-100, higher=better) ──
+  // Fix 1: each score uses ONLY its own domain inputs
+  // Fix 2: autonomic penalty named correctly (high autonomic fatigue = worse score)
+  // Fix 3: neuroScore now includes DOMS (was missing)
 
+  // cardioScore: HRV+sleep+TSB+BB only
   const cardioScore=Math.max(0,Math.min(100,100-autonomic));
-  const neuroScore=Math.max(0,100-Math.round((srpe48/800)*40+(srpe72/900)*20));
-  const upperScore=calcReadiness(avgUpperFat,domsUpper,autonomic);
-  const lowerScore=calcReadiness(avgLowerFat,domsLower,autonomic);
-  const systemic=Math.min(100,Math.round(autonomic*0.35+mechanical*0.35+(100-Math.min(cardioScore,lowerScore,upperScore))*0.3));
-  const neuralReadiness=hrv?.zScore!=null?Math.min(100,Math.max(0,Math.round(50+hrv.zScore*25))):100-autonomic;
 
-  return{autonomic,mechanical,systemic,neuralReadiness,cardioScore,neuroScore,upperScore,lowerScore,avgUpperFat,avgLowerFat,srpe48,srpe72,signals,drivers,confidence:hrv?.confidence||0.5,hevyNoRPE:hevyNoRPE.length};
+  // neuroScore: sRPE + DOMS (neural recovery from mechanical+systemic load)
+  const neuroFatigue=Math.min(100,Math.round((srpe48/800)*50+(srpe72/1000)*20+(domsUpper||0)*2+(domsLower||0)*2));
+  const neuroScore=Math.max(0,100-neuroFatigue);
+
+  // upperScore: local muscle fatigue + DOMS + autonomic (20% weight only)
+  const upperScore=Math.max(0,Math.min(100,
+    100
+    - Math.round(avgUpperFat*0.6)   // local fatigue: primary (60%)
+    - Math.round((domsUpper||0)*4)   // DOMS: secondary
+    - Math.round(autonomic*0.20)     // autonomic: contextual (20%)
+  ));
+
+  // lowerScore: local muscle fatigue + DOMS + knee + autonomic
+  const lowerScore=Math.max(0,Math.min(100,
+    100
+    - Math.round(avgLowerFat*0.6)   // local fatigue: primary
+    - Math.round((domsLower||0)*4)   // DOMS
+    - (knee>3?25:knee>1?10:0)        // knee
+    - Math.round(autonomic*0.20)     // autonomic contextual
+  ));
+
+  // systemic: DIRECT weighted average of fatigue dimensions (no double-counting)
+  // Fix: was using 100-min(scores) which re-introduced autonomic double-counting
+  const avgMuscleFat=Math.round((avgUpperFat+avgLowerFat)/Math.max(upperMuscles.length+lowerMuscles.length>0?2:1,1));
+  const systemicFatigue=Math.min(100,Math.round(
+    autonomic  * 0.35 +   // autonomic system (HRV/sleep/TSB)
+    mechanical * 0.35 +   // mechanical load (sRPE/DOMS)
+    avgMuscleFat * 0.30   // local muscle residual fatigue
+  ));
+
+  // neuralReadiness: HRV z-score proxy for CNS recovery
+  const neuralReadiness=hrv?.zScore!=null
+    ?Math.min(100,Math.max(0,Math.round(50+hrv.zScore*25)))
+    :Math.max(0,100-autonomic);
+
+  return{
+    autonomic,mechanical,systemic:systemicFatigue,neuralReadiness,
+    cardioScore,neuroScore,upperScore,lowerScore,
+    avgUpperFat,avgLowerFat,srpe48,srpe72,
+    signals,drivers,
+    confidence:hrv?.confidence||0.5,
+    hevyNoRPE:hevyNoRPE.length,
+    _debug:{upperMusclePenalty:Math.round(avgUpperFat*0.6),lowerMusclePenalty:Math.round(avgLowerFat*0.6),neuroFatigue,avgMuscleFat}
+  };
 }
 
 // ══ MUSCLE FATIGUE ENGINE v2 (Phase 2) ══
@@ -1032,19 +1068,24 @@ function MuscleFatigueEngine(logs, hevyRecent){
     });
   });
 
-  // Build result with per-muscle confidence from ConfidenceEngine
+  // ── Single source of truth for confidence ──
+  // ConfidenceEngine runs BEFORE MuscleFatigueEngine
+  // Per-muscle confidence comes from ConfidenceEngine.muscle[m]
+  // Fallback: data-point based estimate
   const confEngine = S._confidence;
-  const dataPoints = logs.slice(0,5).length + hevyRecent.length;
-  const baseConfidence = Math.min(0.85, 0.35 + dataPoints * 0.08);
+  const dataPoints = logs.filter(l=>parseDate(l.date)&&(Date.now()-parseDate(l.date))<28*864e5).length
+                   + hevyRecent.length;
+  const fallbackConf = Math.min(0.75, 0.30 + dataPoints * 0.06);
 
   Object.entries(rawFatigue).forEach(([m, data]) => {
     const local = Math.min(100, Math.round(data.local));
     const neural = Math.min(100, Math.round(data.neural));
     const combined = Math.min(100, Math.round(local * 0.7 + neural * 0.3));
     const avgHL = data.exHL.length ? data.exHL.reduce((a,b)=>a+b,0)/data.exHL.length : 44;
-    // Use per-muscle confidence if available, else base confidence
-    const conf = confEngine?.muscle?.[m] ?? Math.round(Math.min(0.88, baseConfidence)*100)/100;
-    fatigue[m] = {value: combined, local, neural, confidence: conf,
+    // Per-muscle confidence: ConfidenceEngine is source of truth
+    const conf = confEngine?.muscle?.[m] ?? fallbackConf;
+    fatigue[m] = {value: combined, local, neural,
+      confidence: Math.round(conf*100)/100,
       halfLife: Math.round(avgHL), sets: Math.round(data.sets)};
   });
 
@@ -1458,6 +1499,42 @@ function ProgressionEngine(workouts, hevyRecent, muscleFatigue, fatigue, metrics
   };
 }
 
+// ══ SIGNAL PRIORITY HIERARCHY ══
+// When signals conflict, this defines what wins.
+// Evidence: Meeusen 2013 (overtraining), Halson 2014 (fatigue monitoring),
+//           Halperin 2015 (RPE autoregulation)
+//
+// TIER 1 — SAFETY (always override everything)
+//   knee pain >3 → stop lower. No exceptions.
+//   systemic >70% → no intensity work. No exceptions.
+//
+// TIER 2 — ACUTE SIGNALS (high weight, recent data)
+//   HRV suppressed + RHR elevated (coupled) → reduce ALL volume 25%
+//   High interference (running→lower) → block lower strength
+//   Sleep <5.5h → cap intensity, no PR attempts
+//
+// TIER 3 — ACCUMULATION SIGNALS (moderate weight, trend data)
+//   TSB < -20 → deload cardio
+//   Monotony > 2 → vary stimulus
+//   Lower fatigue > 60% → reduce lower sets
+//
+// TIER 4 — OPTIMIZATION SIGNALS (low weight, green light)
+//   HRV rebound + fatigue < 30% → progression opportunity
+//   All systems green → full plan
+//
+// CONFLICT RESOLUTION:
+//   HRV good BUT lower fatigue high → lower fatigue WINS (local > systemic for local decisions)
+//   TSB negative BUT HRV normal → proceed with moderate volume (HRV is more acute)
+//   DOMS high BUT HRV elevated → respect DOMS for local muscle (DOMS > HRV for local)
+//   Performance improving BUT fatigue elevated → PERFORMANCE WINS (adaptation signal)
+
+const SIGNAL_HIERARCHY = {
+  tier1_safety: ['knee_pain_high', 'severe_fatigue'],
+  tier2_acute:  ['hrv_rhr_coupling', 'high_interference', 'hrv_suppressed', 'low_sleep'],
+  tier3_accum:  ['negative_tsb', 'high_doms_lower', 'high_srpe_48h', 'frequent_leg_sessions', 'high_monotony'],
+  tier4_optim:  ['hrv_rebound', 'all_green'],
+};
+
 // ══ RECOMMENDATION ENGINE ══
 const RULES=[
   {id:'knee_pain_high',priority:10,cond:(f,i)=>f.signals.knee?.warn,action:'🦵 Protocolo rodilla activo. Pre-activación obligatoria. Para cualquier ejercicio >3/10.',conf:1.0},
@@ -1473,8 +1550,15 @@ const RULES=[
   {id:'all_green',priority:1,cond:(f,i)=>f.systemic<30&&!f.drivers.includes('knee_pain')&&!i.blockLower,action:'✅ Estado óptimo. Plan completo. Evalúa progresión de carga.',conf:0.8},
 ];
 function RecommendationEngine(fatigue,interference){
-  const active=RULES.filter(r=>r.cond(fatigue,interference)).sort((a,b)=>b.priority-a.priority).slice(0,5);
-  return{actions:active,count:active.length};
+  const hasTier1=RULES.filter(r=>SIGNAL_HIERARCHY.tier1_safety.includes(r.id)&&r.cond(fatigue,interference)).length>0;
+  const hasTier2=RULES.filter(r=>SIGNAL_HIERARCHY.tier2_acute.includes(r.id)&&r.cond(fatigue,interference)).length>0;
+  const active=RULES.filter(r=>{
+    if(!r.cond(fatigue,interference))return false;
+    if(hasTier1&&SIGNAL_HIERARCHY.tier4_optim.includes(r.id))return false;
+    if((hasTier1||hasTier2)&&r.id==='all_green')return false;
+    return true;
+  }).sort((a,b)=>b.priority-a.priority).slice(0,5);
+  return{actions:active,count:active.length,activeTier:hasTier1?1:hasTier2?2:3};
 }
 
 // ══ MAIN ORCHESTRATOR ══
@@ -1482,15 +1566,28 @@ function runEngines(){
   const knee=parseFloat(document.getElementById('kneeToday')?.value)||0;
   const domsUp=parseFloat(document.getElementById('domsUpper')?.value)||0;
   const domsLow=parseFloat(document.getElementById('domsLower')?.value)||0;
+
+  // ── Engine execution order (dependencies matter) ──
+  // 1. HRV first — needed by ConfidenceEngine and FatigueEngine
   S._hrv=HRVEngine(S._wellnessHistory||[]);
-  S._muscleFatigue=MuscleFatigueEngine(S.logs,S._hevyRecent||[]);
+  // 2. Confidence — needed by MuscleFatigueEngine for per-muscle conf
   S._confidence=ConfidenceEngine(S._wellnessHistory||[],S.logs,S._hevyRecent||[],S.metrics);
+  // 3. MuscleFatigue — uses S._hrv and S._confidence
+  S._muscleFatigue=MuscleFatigueEngine(S.logs,S._hevyRecent||[]);
+  // 4. Density — independent, needs hevyRecent only
   S._density=DensityEngine(S._hevyRecent||[]);
+  // 5. Fatigue — uses HRV, muscleFatigue, density
   S._fatigue=FatigueEngine(S.metrics,S.logs,S._hevyRecent||[],domsUp,domsLow,knee);
+  // 6. Interference — needs activities only
   S._interference=InterferenceEngine(S.metrics.activities||[]);
+  // 7. MAV — needs fatigue output
   S._mav=MAVEngine(S._fatigue,S.metrics,knee);
+  // 8. Progression — needs fatigue + muscleFatigue + workouts
   S._progression=ProgressionEngine(S.hevy?.workouts||[],S._hevyRecent||[],S._muscleFatigue,S._fatigue,S.metrics);
+  // 9. Recommendations — needs fatigue + interference
   S._recs=RecommendationEngine(S._fatigue,S._interference);
+
+  // ── Render all panels ──
   renderReadinessGrid();
   renderFatigueHero();
   renderFatigueSignals();
@@ -1498,6 +1595,7 @@ function runEngines(){
   renderMuscleFatigue();
   renderInterferencePanel();
   renderDensityPanel();
+  renderConfidencePanel();
   renderProgressionPanel();
   renderE1RMPanel();
   renderMAV();
