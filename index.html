@@ -8,33 +8,31 @@
 <meta name="apple-mobile-web-app-title" content="ATLAS">
 <meta name="theme-color" content="#08090c">
 <title>ATLAS v6 — Physiology Engine</title>
-<link rel="preconnect" href="https://fonts.googleapis.com">
-<link href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=Geist+Mono:wght@300;400;500;600&family=Geist:wght@300;400;500;600;700&display=swap" rel="stylesheet">
 <style>
 :root{--bg:#08090c;--bg1:#0e0f14;--bg2:#13141a;--bg3:#1a1b23;--bg4:#22232e;--line:rgba(255,255,255,0.055);--line2:rgba(255,255,255,0.09);--fg:#f2f3f7;--fg2:#9899a8;--fg3:#4e4f62;--fg4:#33344a;--g:#22c55e;--y:#eab308;--r:#ef4444;--b:#3b82f6;--c:#06b6d4;--o:#f97316;--p:#a855f7;--g-a:rgba(34,197,94,0.1);--y-a:rgba(234,179,8,0.1);--r-a:rgba(239,68,68,0.1);--b-a:rgba(59,130,246,0.1);--c-a:rgba(6,182,212,0.1);--o-a:rgba(249,115,22,0.1);--p-a:rgba(168,85,247,0.1);--radius:12px;--sb:env(safe-area-inset-bottom,0px);--st:env(safe-area-inset-top,0px);}
 *,*::before,*::after{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent;}
 html{height:100%;overscroll-behavior:none;}
-body{background:var(--bg);color:var(--fg);font-family:'Geist',system-ui,sans-serif;font-size:14px;line-height:1.5;min-height:100%;-webkit-font-smoothing:antialiased;overflow-x:hidden;}
+body{background:var(--bg);color:var(--fg);font-family:-apple-system,system-ui,sans-serif;font-size:14px;line-height:1.5;min-height:100%;-webkit-font-smoothing:antialiased;overflow-x:hidden;}
 body::after{content:'';position:fixed;inset:0;z-index:9999;pointer-events:none;background-image:url("data:image/svg+xml,%3Csvg viewBox='0 0 512 512' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.75' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.04'/%3E%3C/svg%3E");opacity:.45;}
 .app{display:flex;flex-direction:column;min-height:100svh;padding-top:var(--st);}
 .main{flex:1;padding-bottom:calc(72px + var(--sb));overflow-y:auto;}
 .screen{display:none;animation:si .28s ease;}.screen.active{display:block;padding-bottom:calc(80px + var(--sb));}
 @keyframes si{from{opacity:0;transform:translateY(5px);}to{opacity:1;transform:none;}}
 .hdr{position:sticky;top:0;z-index:100;height:52px;padding:0 18px;display:flex;align-items:center;justify-content:space-between;background:rgba(8,9,12,0.88);backdrop-filter:blur(22px);-webkit-backdrop-filter:blur(22px);border-bottom:1px solid var(--line);}
-.wordmark{font-family:'Instrument Serif',serif;font-size:19px;letter-spacing:-.3px;}.wordmark em{font-style:italic;color:var(--c);}
+.wordmark{font-family:Georgia,'Times New Roman',serif,serif;font-size:19px;letter-spacing:-.3px;}.wordmark em{font-style:italic;color:var(--c);}
 .hdr-right{display:flex;align-items:center;gap:10px;}
-.sync-btn{display:flex;align-items:center;gap:6px;padding:5px 11px;background:var(--bg2);border:1px solid var(--line2);border-radius:6px;font-family:'Geist Mono',monospace;font-size:10px;letter-spacing:.5px;color:var(--fg2);cursor:pointer;transition:all .2s;}.sync-btn.active{border-color:var(--c);color:var(--c);}
+.sync-btn{display:flex;align-items:center;gap:6px;padding:5px 11px;background:var(--bg2);border:1px solid var(--line2);border-radius:6px;font-family:'SF Mono',ui-monospace,monospace,monospace;font-size:10px;letter-spacing:.5px;color:var(--fg2);cursor:pointer;transition:all .2s;}.sync-btn.active{border-color:var(--c);color:var(--c);}
 .sdot{width:5px;height:5px;border-radius:50%;background:var(--fg4);}
 @keyframes pd{0%,100%{opacity:1;}50%{opacity:.25;}}
 .nav{position:fixed;bottom:0;left:0;right:0;z-index:100;display:flex;justify-content:space-around;padding:6px 0 calc(6px + var(--sb));background:rgba(8,9,12,0.94);backdrop-filter:blur(22px);-webkit-backdrop-filter:blur(22px);border-top:1px solid var(--line);}
 .ni{display:flex;flex-direction:column;align-items:center;gap:3px;padding:5px 14px;background:none;border:none;cursor:pointer;color:var(--fg3);transition:color .2s;min-width:52px;}.ni.active{color:var(--c);}
 .ni svg{width:21px;height:21px;stroke-width:1.5;}
-.nl{font-family:'Geist Mono',monospace;font-size:9px;letter-spacing:.5px;text-transform:uppercase;}
+.nl{font-family:'SF Mono',ui-monospace,monospace,monospace;font-size:9px;letter-spacing:.5px;text-transform:uppercase;}
 .pad{padding:16px 18px;}
-.over{font-family:'Geist Mono',monospace;font-size:9px;letter-spacing:2.5px;text-transform:uppercase;color:var(--fg3);margin-bottom:5px;}
-.t-xl{font-family:'Instrument Serif',serif;font-size:26px;line-height:1.15;letter-spacing:-.4px;}.t-xl em{font-style:italic;color:var(--c);}
+.over{font-family:'SF Mono',ui-monospace,monospace,monospace;font-size:9px;letter-spacing:2.5px;text-transform:uppercase;color:var(--fg3);margin-bottom:5px;}
+.t-xl{font-family:Georgia,'Times New Roman',serif,serif;font-size:26px;line-height:1.15;letter-spacing:-.4px;}.t-xl em{font-style:italic;color:var(--c);}
 .t-md{font-size:15px;font-weight:600;line-height:1.3;}.t-sm{font-size:13px;color:var(--fg2);line-height:1.6;}
-.mono{font-family:'Geist Mono',monospace;}
+.mono{font-family:'SF Mono',ui-monospace,monospace,monospace;}
 .card{background:var(--bg2);border:1px solid var(--line);border-radius:var(--radius);overflow:hidden;margin-bottom:10px;}
 .card-hdr{padding:12px 15px;border-bottom:1px solid var(--line);display:flex;align-items:center;justify-content:space-between;gap:10px;}
 .card-body{padding:14px 15px;}
@@ -43,19 +41,19 @@ body::after{content:'';position:fixed;inset:0;z-index:9999;pointer-events:none;b
 .st{background:var(--bg2);border:1px solid var(--line);border-radius:var(--radius);padding:13px;position:relative;overflow:hidden;}
 .st::before{content:'';position:absolute;top:0;left:0;right:0;height:2px;}
 .st.c::before{background:var(--c);}.st.g::before{background:var(--g);}.st.y::before{background:var(--y);}.st.r::before{background:var(--r);}.st.b::before{background:var(--b);}.st.o::before{background:var(--o);}.st.p::before{background:var(--p);}
-.st-src{font-family:'Geist Mono',monospace;font-size:9px;letter-spacing:1.5px;text-transform:uppercase;color:var(--fg3);margin-bottom:5px;}
-.st-val{font-family:'Instrument Serif',serif;font-size:34px;line-height:1;color:var(--fg);margin-bottom:2px;}
+.st-src{font-family:'SF Mono',ui-monospace,monospace,monospace;font-size:9px;letter-spacing:1.5px;text-transform:uppercase;color:var(--fg3);margin-bottom:5px;}
+.st-val{font-family:Georgia,'Times New Roman',serif,serif;font-size:34px;line-height:1;color:var(--fg);margin-bottom:2px;}
 .st-val.sm{font-size:22px;color:var(--fg4);}
-.st-unit{font-family:'Geist Mono',monospace;font-size:9px;color:var(--fg3);}.st-label{font-size:11px;color:var(--fg2);margin-top:3px;}
-.st-delta{font-family:'Geist Mono',monospace;font-size:10px;margin-top:3px;}.up{color:var(--g);}.dn{color:var(--r);}.nt{color:var(--fg3);}
+.st-unit{font-family:'SF Mono',ui-monospace,monospace,monospace;font-size:9px;color:var(--fg3);}.st-label{font-size:11px;color:var(--fg2);margin-top:3px;}
+.st-delta{font-family:'SF Mono',ui-monospace,monospace,monospace;font-size:10px;margin-top:3px;}.up{color:var(--g);}.dn{color:var(--r);}.nt{color:var(--fg3);}
 /* READINESS */
 .rsys-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin:8px 18px 0;}
 .rsys-card{background:var(--bg2);border:1px solid var(--line);border-radius:var(--radius);padding:13px;position:relative;overflow:hidden;}
 .rsys-card::before{content:'';position:absolute;top:0;left:0;right:0;height:2px;transition:background .5s;}
 .rsys-card.ok::before{background:var(--g);}.rsys-card.warn::before{background:var(--y);}.rsys-card.bad::before{background:var(--r);}.rsys-card.idle::before{background:var(--fg4);}
 .rsys-card.ok .rsys-val{color:var(--g);}.rsys-card.warn .rsys-val{color:var(--y);}.rsys-card.bad .rsys-val{color:var(--r);}
-.rsys-name{font-family:'Geist Mono',monospace;font-size:9px;letter-spacing:2px;text-transform:uppercase;color:var(--fg3);margin-bottom:5px;}
-.rsys-val{font-family:'Instrument Serif',serif;font-size:26px;line-height:1;margin-bottom:2px;}
+.rsys-name{font-family:'SF Mono',ui-monospace,monospace,monospace;font-size:9px;letter-spacing:2px;text-transform:uppercase;color:var(--fg3);margin-bottom:5px;}
+.rsys-val{font-family:Georgia,'Times New Roman',serif,serif;font-size:26px;line-height:1;margin-bottom:2px;}
 .rsys-lbl{font-size:11px;color:var(--fg2);margin-bottom:5px;}
 .rsys-sigs{list-style:none;padding:0;margin:0;}.rsys-sigs li{font-size:10px;padding:1px 0;}
 /* FATIGUE HERO */
@@ -64,24 +62,24 @@ body::after{content:'';position:fixed;inset:0;z-index:9999;pointer-events:none;b
 .fe-hero.ok::before{background:var(--g);}.fe-hero.warn::before{background:var(--y);}.fe-hero.bad::before{background:var(--r);}
 .fe-grid{display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;margin-bottom:12px;}
 .fe-tile{text-align:center;padding:10px 6px;background:var(--bg3);border-radius:10px;border:1px solid var(--line);}
-.fe-tile-val{font-family:'Instrument Serif',serif;font-size:24px;line-height:1;margin-bottom:2px;}
-.fe-tile-label{font-family:'Geist Mono',monospace;font-size:9px;letter-spacing:1px;text-transform:uppercase;color:var(--fg3);}
+.fe-tile-val{font-family:Georgia,'Times New Roman',serif,serif;font-size:24px;line-height:1;margin-bottom:2px;}
+.fe-tile-label{font-family:'SF Mono',ui-monospace,monospace,monospace;font-size:9px;letter-spacing:1px;text-transform:uppercase;color:var(--fg3);}
 .fe-tile-sub{font-size:10px;color:var(--fg2);margin-top:2px;}
 .fe-verdict{display:flex;align-items:flex-start;gap:12px;padding-top:12px;border-top:1px solid var(--line);}
 .fe-orb{width:44px;height:44px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:20px;flex-shrink:0;}
 .fe-hero.ok .fe-orb{background:var(--g-a);border:1.5px solid var(--g);}.fe-hero.warn .fe-orb{background:var(--y-a);border:1.5px solid var(--y);}.fe-hero.bad .fe-orb{background:var(--r-a);border:1.5px solid var(--r);}.fe-hero.idle .fe-orb{background:var(--bg3);border:1.5px solid var(--fg4);}
-.fe-status{font-family:'Geist Mono',monospace;font-size:9px;letter-spacing:2px;text-transform:uppercase;color:var(--fg3);margin-bottom:3px;}
-.fe-title{font-family:'Instrument Serif',serif;font-size:18px;margin-bottom:4px;}
+.fe-status{font-family:'SF Mono',ui-monospace,monospace,monospace;font-size:9px;letter-spacing:2px;text-transform:uppercase;color:var(--fg3);margin-bottom:3px;}
+.fe-title{font-family:Georgia,'Times New Roman',serif,serif;font-size:18px;margin-bottom:4px;}
 .fe-msg{font-size:12px;color:var(--fg2);line-height:1.55;}
 /* RECS */
 .rec-list{list-style:none;padding:0;margin:0;}
 .rec-item{display:flex;align-items:flex-start;gap:10px;padding:9px 0;border-bottom:1px solid var(--line);}.rec-item:last-child{border-bottom:none;}
 .rec-text{font-size:12px;line-height:1.5;}
-.rec-conf{font-family:'Geist Mono',monospace;font-size:9px;color:var(--fg4);margin-top:2px;}
+.rec-conf{font-family:'SF Mono',ui-monospace,monospace,monospace;font-size:9px;color:var(--fg4);margin-top:2px;}
 /* MAV */
 .mav-row{margin-bottom:12px;}.mav-row:last-child{margin-bottom:0;}
 .mav-header{display:flex;align-items:baseline;justify-content:space-between;margin-bottom:5px;}
-.mav-muscle{font-size:13px;font-weight:500;}.mav-nums{font-family:'Geist Mono',monospace;font-size:10px;color:var(--fg3);}
+.mav-muscle{font-size:13px;font-weight:500;}.mav-nums{font-family:'SF Mono',ui-monospace,monospace,monospace;font-size:10px;color:var(--fg3);}
 .mav-track{height:8px;background:var(--bg4);border-radius:4px;position:relative;overflow:visible;}
 .mav-mev{position:absolute;top:0;bottom:0;left:0;background:var(--b-a);border-right:1.5px dashed var(--b);z-index:1;border-radius:4px 0 0 4px;}
 .mav-fill{position:absolute;top:0;bottom:0;left:0;border-radius:4px;z-index:2;transition:width 1.2s cubic-bezier(.16,1,.3,1);}
@@ -90,12 +88,12 @@ body::after{content:'';position:fixed;inset:0;z-index:9999;pointer-events:none;b
 /* PROG BARS */
 .pb{margin-bottom:10px;}.pb:last-child{margin-bottom:0;}
 .pb-row{display:flex;justify-content:space-between;align-items:baseline;margin-bottom:4px;}
-.pb-label{font-size:12px;color:var(--fg2);}.pb-val{font-family:'Geist Mono',monospace;font-size:10px;color:var(--fg3);}
+.pb-label{font-size:12px;color:var(--fg2);}.pb-val{font-family:'SF Mono',ui-monospace,monospace,monospace;font-size:10px;color:var(--fg3);}
 .pb-track{height:4px;background:var(--bg4);border-radius:2px;overflow:hidden;}
 .pb-fill{height:100%;border-radius:2px;background:var(--c);transition:width 1.1s cubic-bezier(.16,1,.3,1);}
 /* SIGNALS */
 .sig-row{display:flex;align-items:center;gap:8px;padding:6px 0;border-bottom:1px solid var(--line);}.sig-row:last-child{border-bottom:none;}
-.sig-icon{font-family:'Geist Mono',monospace;font-size:11px;width:14px;flex-shrink:0;}
+.sig-icon{font-family:'SF Mono',ui-monospace,monospace,monospace;font-size:11px;width:14px;flex-shrink:0;}
 .sig-text{font-size:12px;line-height:1.4;}
 /* HRV CHART */
 .hrv-chart{display:flex;align-items:flex-end;gap:3px;height:44px;margin-top:8px;}
@@ -107,14 +105,14 @@ body::after{content:'';position:fixed;inset:0;z-index:9999;pointer-events:none;b
 .srpe-track{fill:none;stroke:var(--bg3);stroke-width:10;}
 .srpe-fill{fill:none;stroke-width:10;stroke-linecap:round;transition:stroke-dashoffset 1s cubic-bezier(.16,1,.3,1);}
 .srpe-center{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;}
-.srpe-num{font-family:'Instrument Serif',serif;font-size:22px;line-height:1;}
-.srpe-lbl{font-family:'Geist Mono',monospace;font-size:8px;letter-spacing:1px;color:var(--fg3);}
+.srpe-num{font-family:Georgia,'Times New Roman',serif,serif;font-size:22px;line-height:1;}
+.srpe-lbl{font-family:'SF Mono',ui-monospace,monospace,monospace;font-size:8px;letter-spacing:1px;color:var(--fg3);}
 /* LOG */
 .log-row{display:flex;justify-content:space-between;align-items:flex-start;padding:9px 0;border-bottom:1px solid var(--line);}.log-row:last-child{border-bottom:none;}
 .log-name{font-size:13px;font-weight:500;margin-bottom:2px;}.log-meta{font-size:11px;color:var(--fg3);}
 .log-chips{display:flex;gap:4px;flex-wrap:wrap;justify-content:flex-end;flex-shrink:0;margin-left:8px;}
 /* CHIPS */
-.chip{font-family:'Geist Mono',monospace;font-size:9px;letter-spacing:.3px;padding:3px 7px;border-radius:5px;white-space:nowrap;}
+.chip{font-family:'SF Mono',ui-monospace,monospace,monospace;font-size:9px;letter-spacing:.3px;padding:3px 7px;border-radius:5px;white-space:nowrap;}
 .chip-g{background:var(--g-a);color:var(--g);border:1px solid rgba(34,197,94,.2);}
 .chip-y{background:var(--y-a);color:var(--y);border:1px solid rgba(234,179,8,.2);}
 .chip-r{background:var(--r-a);color:var(--r);border:1px solid rgba(239,68,68,.2);}
@@ -123,12 +121,15 @@ body::after{content:'';position:fixed;inset:0;z-index:9999;pointer-events:none;b
 /* FORMS */
 .fg{display:flex;flex-direction:column;gap:4px;margin-bottom:12px;}
 .fg2{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:12px;}
-.fg-label{font-family:'Geist Mono',monospace;font-size:9px;letter-spacing:1.5px;text-transform:uppercase;color:var(--fg3);}
-.field{background:var(--bg3);border:1px solid var(--line2);border-radius:8px;padding:9px 12px;color:var(--fg);font-size:13px;font-family:'Geist',sans-serif;width:100%;outline:none;transition:border-color .2s;-webkit-appearance:none;}.field:focus{border-color:var(--c);}
+.fg-label{font-family:'SF Mono',ui-monospace,monospace,monospace;font-size:9px;letter-spacing:1.5px;text-transform:uppercase;color:var(--fg3);}
+.field{background:var(--bg3);border:1px solid var(--line2);border-radius:8px;padding:9px 12px;color:var(--fg);font-size:13px;font-family:-apple-system,sans-serif;width:100%;outline:none;transition:border-color .2s;-webkit-appearance:none;}.field:focus{border-color:var(--c);}
 select.field{padding-right:28px;background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6'%3E%3Cpath d='M0 0l5 6 5-6z' fill='%234e4f62'/%3E%3C/svg%3E");background-repeat:no-repeat;background-position:right 10px center;}
+details>summary::-webkit-details-marker{display:none;}
+details summary{user-select:none;}
 textarea.field{resize:vertical;min-height:60px;}
+
 /* BUTTONS */
-.btn{display:inline-flex;align-items:center;justify-content:center;gap:7px;padding:10px 18px;border-radius:9px;font-size:13px;font-weight:500;cursor:pointer;transition:all .2s;border:none;font-family:'Geist',sans-serif;}
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:7px;padding:10px 18px;border-radius:9px;font-size:13px;font-weight:500;cursor:pointer;transition:all .2s;border:none;font-family:-apple-system,sans-serif;}
 .btn-p{background:var(--c);color:#08090c;}.btn-p:hover{background:#08c4e8;}
 .btn-g{background:var(--bg3);color:var(--fg2);border:1px solid var(--line2);}.btn-g:hover{border-color:var(--fg3);}
 .btn-full{width:100%;}.btn-sm{font-size:12px;padding:7px 14px;}
@@ -138,7 +139,7 @@ textarea.field{resize:vertical;min-height:60px;}
 .empty{padding:24px 16px;text-align:center;}.empty-icon{font-size:28px;margin-bottom:8px;}.empty-title{font-size:14px;font-weight:600;margin-bottom:4px;}.empty-msg{font-size:12px;color:var(--fg3);}
 .info{font-size:11px;line-height:1.5;padding:9px 12px;border-radius:8px;margin-bottom:10px;}
 .info.c{background:var(--c-a);color:var(--c);border:1px solid rgba(6,182,212,.15);}.info.y{background:var(--y-a);color:var(--y);border:1px solid rgba(234,179,8,.15);}
-.status-dot{display:flex;align-items:center;gap:5px;font-family:'Geist Mono',monospace;font-size:10px;}
+.status-dot{display:flex;align-items:center;gap:5px;font-family:'SF Mono',ui-monospace,monospace,monospace;font-size:10px;}
 .sdot-sm{width:6px;height:6px;border-radius:50%;flex-shrink:0;}
 .sdot-g{background:var(--g);}.sdot-y{background:var(--y);animation:pd 1.5s infinite;}.sdot-k{background:var(--fg4);}
 .ai-panel{margin:0 18px 14px;background:var(--bg2);border:1px solid var(--line);border-radius:var(--radius);overflow:hidden;}
@@ -153,19 +154,19 @@ textarea.field{resize:vertical;min-height:60px;}
 .wg{display:grid;grid-template-columns:repeat(7,1fr);gap:5px;}
 .wd{background:var(--bg3);border:1px solid var(--line);border-radius:8px;padding:7px 4px;text-align:center;cursor:pointer;transition:all .2s;}
 .wd.done{background:var(--g-a);border-color:var(--g);}.wd.rest{opacity:.5;cursor:default;}
-.wd-n{font-family:'Geist Mono',monospace;font-size:10px;font-weight:600;}.wd-l{font-size:9px;color:var(--fg3);margin-top:2px;}
+.wd-n{font-family:'SF Mono',ui-monospace,monospace,monospace;font-size:10px;font-weight:600;}.wd-l{font-size:9px;color:var(--fg3);margin-top:2px;}
 .mf-row{display:flex;align-items:center;gap:8px;padding:6px 0;border-bottom:1px solid var(--line);}.mf-row:last-child{border-bottom:none;}
 .mf-name{font-size:12px;color:var(--fg2);width:120px;flex-shrink:0;}
 .mf-bar-track{flex:1;height:5px;background:var(--bg4);border-radius:3px;overflow:hidden;}
 .mf-bar-fill{height:100%;border-radius:3px;transition:width .8s ease;}
-.mf-status{font-family:'Geist Mono',monospace;font-size:9px;width:80px;flex-shrink:0;text-align:right;}
+.mf-status{font-family:'SF Mono',ui-monospace,monospace,monospace;font-size:9px;width:80px;flex-shrink:0;text-align:right;}
 .week-sel{display:flex;align-items:center;gap:6px;}
 .week-btn{background:var(--bg3);border:1px solid var(--line);color:var(--fg2);border-radius:6px;padding:3px 8px;font-size:13px;cursor:pointer;}
-.week-lbl{font-family:'Geist Mono',monospace;font-size:10px;color:var(--fg2);min-width:90px;text-align:center;}
+.week-lbl{font-family:'SF Mono',ui-monospace,monospace,monospace;font-size:10px;color:var(--fg2);min-width:90px;text-align:center;}
 .fat-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:12px;}
 .fat-tile{background:var(--bg3);border:1px solid var(--line);border-radius:10px;padding:12px;text-align:center;}
-.fat-val{font-family:'Instrument Serif',serif;font-size:28px;line-height:1;margin-bottom:2px;}
-.fat-label{font-family:'Geist Mono',monospace;font-size:9px;letter-spacing:1px;text-transform:uppercase;color:var(--fg3);}
+.fat-val{font-family:Georgia,'Times New Roman',serif,serif;font-size:28px;line-height:1;margin-bottom:2px;}
+.fat-label{font-family:'SF Mono',ui-monospace,monospace,monospace;font-size:9px;letter-spacing:1px;text-transform:uppercase;color:var(--fg3);}
 .fat-bar{height:3px;background:var(--bg4);border-radius:2px;margin-top:8px;overflow:hidden;}
 .fat-bar-fill{height:100%;border-radius:2px;transition:width .8s ease;}
 </style>
@@ -175,7 +176,7 @@ textarea.field{resize:vertical;min-height:60px;}
 <header class="hdr">
   <div style="display:flex;align-items:center;gap:9px;">
     <svg width="26" height="26" viewBox="0 0 28 28" fill="none"><path d="M14 2l10.39 6v12L14 26 3.61 20V8L14 2z" fill="rgba(6,182,212,0.12)" stroke="var(--c)" stroke-width="1.2"/><path d="M14 8l5.2 3v6L14 20l-5.2-3V11L14 8z" fill="rgba(6,182,212,0.2)"/></svg>
-    <div class="wordmark">ATL<em>A</em>S <span style="font-family:'Geist Mono',monospace;font-size:10px;color:var(--fg3);letter-spacing:1px;">v6</span></div>
+    <div class="wordmark">ATL<em>A</em>S <span style="font-family:'SF Mono',ui-monospace,monospace,monospace;font-size:10px;color:var(--fg3);letter-spacing:1px;">v6</span></div>
   </div>
   <div class="hdr-right">
     <button class="sync-btn active" onclick="syncAll()"><span class="sdot" id="syncDot"></span> Sync</button>
@@ -205,61 +206,23 @@ textarea.field{resize:vertical;min-height:60px;}
   </div>
 
   <div class="pad" style="padding-top:4px;">
+
+    <!-- ══ NIVEL 1: QUÉ HACER HOY ══ -->
+    <!-- Recomendaciones siempre primero -->
     <div class="card" id="recsCard" style="display:none;">
       <div class="card-hdr"><span class="t-md">Recomendaciones</span><span class="mono" style="font-size:10px;color:var(--fg3);" id="recsConf"></span></div>
       <div class="card-body"><ul class="rec-list" id="recsList"></ul></div>
     </div>
 
+    <!-- Métricas clave: solo lo esencial -->
     <div class="sg">
       <div class="st c"><div class="st-src">HRV · Garmin</div><div class="st-val" id="m-hrv">—</div><div class="st-unit">ms</div><div class="st-delta" id="m-hrv-d"></div></div>
-      <div class="st b"><div class="st-src">CTL · ATL · TSB</div><div class="st-val sm" id="m-ctl">—</div><div class="st-delta" id="m-tsb-d"></div><div class="st-label">Forma <span id="m-tsb">—</span></div></div>
       <div class="st g"><div class="st-src">Sueño</div><div class="st-val" id="m-sleep">—</div><div class="st-unit">h · <span id="m-sleep-score"></span></div></div>
       <div class="st y"><div class="st-src">Body Battery</div><div class="st-val" id="m-bb">—</div><div class="st-unit">/100</div></div>
-      <div class="st o"><div class="st-src">FC Reposo</div><div class="st-val" id="m-rhr">—</div><div class="st-unit">ppm <span id="m-rhr-d" style="font-size:10px;"></span></div></div>
-      <div class="st p"><div class="st-src">Pasos</div><div class="st-val" id="m-steps">—</div><div class="st-unit">pasos</div></div>
-      <div class="st b"><div class="st-src">VO2max · Garmin</div><div class="st-val" id="m-vo2max">—</div><div class="st-unit">ml/kg/min</div></div>
-
+      <div class="st b"><div class="st-src">CTL · ATL · TSB</div><div class="st-val sm" id="m-ctl">—</div><div class="st-delta" id="m-tsb-d"></div><div class="st-label">Forma <span id="m-tsb">—</span></div></div>
     </div>
 
-    <div class="card" style="margin-bottom:10px;">
-      <div class="card-hdr"><span class="t-md">Nutrición · Composición</span><span class="mono" style="font-size:10px;color:var(--fg3);" id="nutDate">Intervals</span></div>
-      <div class="card-body">
-        <!-- Macros row: Prot · Carbs · Grasas · Kcal -->
-        <div class="sg4" style="margin-bottom:10px;">
-          <div style="text-align:center;padding:6px 4px;background:var(--bg3);border-radius:8px;"><div style="font-family:'Instrument Serif',serif;font-size:20px;color:var(--o);" id="nut-prot">—</div><div style="font-size:9px;color:var(--fg3);">g prot · 180</div></div>
-          <div style="text-align:center;padding:6px 4px;background:var(--bg3);border-radius:8px;"><div style="font-family:'Instrument Serif',serif;font-size:20px;color:var(--b);" id="nut-carbs">—</div><div style="font-size:9px;color:var(--fg3);">g carbs · 230</div></div>
-          <div style="text-align:center;padding:6px 4px;background:var(--bg3);border-radius:8px;"><div style="font-family:'Instrument Serif',serif;font-size:20px;color:var(--p);" id="nut-fat">—</div><div style="font-size:9px;color:var(--fg3);">g grasa · 65</div></div>
-          <div style="text-align:center;padding:6px 4px;background:var(--bg3);border-radius:8px;"><div style="font-family:'Instrument Serif',serif;font-size:20px;color:var(--y);" id="nut-kcal">—</div><div style="font-size:9px;color:var(--fg3);">kcal · 2300</div></div>
-        </div>
-        <!-- Kcal balance row -->
-        <div style="display:flex;justify-content:space-between;align-items:center;padding:6px 8px;background:var(--bg3);border-radius:8px;margin-bottom:10px;">
-          <div style="font-size:11px;color:var(--fg2);">Ingeridas <span style="color:var(--y);font-family:'Geist Mono',monospace;" id="nut-kcal-ing">—</span> kcal</div>
-          <div style="font-size:10px;color:var(--fg4);">·</div>
-          <div style="font-size:11px;color:var(--fg2);">Quemadas <span style="color:var(--o);font-family:'Geist Mono',monospace;" id="nut-kcal-burned">—</span> kcal</div>
-          <div style="font-size:10px;color:var(--fg4);">·</div>
-          <div style="font-size:11px;color:var(--fg2);">Balance <span id="nut-balance" style="font-family:'Geist Mono',monospace;">—</span></div>
-        </div>
-        <div class="pb"><div class="pb-row"><div class="pb-label">Proteína</div><div class="pb-val" id="nut-prot-lbl">—/180g</div></div><div class="pb-track"><div class="pb-fill" id="nut-prot-bar" style="width:0%;background:var(--o)"></div></div></div>
-        <div class="pb"><div class="pb-row"><div class="pb-label">Carbohidratos</div><div class="pb-val" id="nut-carbs-lbl">—/230g</div></div><div class="pb-track"><div class="pb-fill" id="nut-carbs-bar" style="width:0%;background:var(--b)"></div></div></div>
-        <div class="pb"><div class="pb-row"><div class="pb-label">Grasas</div><div class="pb-val" id="nut-fat-lbl">—/65g</div></div><div class="pb-track"><div class="pb-fill" id="nut-fat-bar" style="width:0%;background:var(--p)"></div></div></div>
-        <div class="pb"><div class="pb-row"><div class="pb-label">Calorías</div><div class="pb-val" id="nut-kcal-lbl">—/2300</div></div><div class="pb-track"><div class="pb-fill" id="nut-kcal-bar" style="width:0%;background:var(--y)"></div></div></div>
-        <div style="border-top:1px solid var(--line);margin-top:12px;padding-top:12px;">
-          <div class="sg4" style="margin-bottom:8px;">
-            <div style="text-align:center;"><div style="font-family:'Instrument Serif',serif;font-size:18px;" id="comp-weight">—</div><div style="font-size:9px;color:var(--fg3);">kg peso</div></div>
-            <div style="text-align:center;"><div style="font-family:'Instrument Serif',serif;font-size:18px;color:var(--o);" id="comp-fat">—</div><div style="font-size:9px;color:var(--fg3);">% grasa</div></div>
-            <div style="text-align:center;"><div style="font-family:'Instrument Serif',serif;font-size:18px;color:var(--g);" id="comp-muscle">—</div><div style="font-size:9px;color:var(--fg3);">% músculo</div></div>
-            <div style="text-align:center;"><div style="font-family:'Instrument Serif',serif;font-size:18px;color:var(--b);" id="comp-water">—</div><div style="font-size:9px;color:var(--fg3);">% agua</div></div>
-          </div>
-          <div id="compKgRow" style="display:none;padding:8px;background:var(--bg3);border-radius:8px;">
-            <div style="display:flex;justify-content:space-between;font-size:11px;margin-bottom:3px;"><span style="color:var(--fg2);">Masa grasa</span><span style="color:var(--o);font-family:'Geist Mono',monospace;" id="comp-fatkg">—</span></div>
-            <div style="display:flex;justify-content:space-between;font-size:11px;margin-bottom:3px;"><span style="color:var(--fg2);">Masa magra</span><span style="color:var(--g);font-family:'Geist Mono',monospace;" id="comp-leankg">—</span></div>
-            <div style="display:flex;justify-content:space-between;font-size:11px;margin-bottom:3px;"><span style="color:var(--fg2);">Para 10% grasa</span><span style="color:var(--c);font-family:'Geist Mono',monospace;" id="comp-target">—</span></div>
-            <div style="font-size:9px;color:var(--fg4);margin-top:4px;" id="fatDateNote"></div>
-          </div>
-        </div>
-      </div>
-    </div>
-
+    <!-- Estado hoy: inputs rápidos -->
     <div class="card" style="margin-bottom:10px;">
       <div class="card-hdr"><span class="t-md">Estado hoy</span></div>
       <div class="card-body">
@@ -286,22 +249,93 @@ textarea.field{resize:vertical;min-height:60px;}
       </div>
     </div>
 
-    <div class="card">
+    <!-- HRV chart -->
+    <div class="card" style="margin-bottom:10px;">
       <div class="card-hdr"><span class="t-md">HRV · 14 días</span><span class="mono" style="font-size:10px;color:var(--fg3);" id="hrvAvgLbl">—</span></div>
       <div class="card-body">
         <div class="hrv-chart" id="hrvChart"></div>
-        <div style="display:flex;justify-content:space-between;margin-top:6px;font-family:'Geist Mono',monospace;font-size:9px;color:var(--fg3);">
+        <div style="display:flex;justify-content:space-between;margin-top:6px;font-family:'SF Mono',ui-monospace,monospace,monospace;font-size:9px;color:var(--fg3);">
           <span>14d atrás</span><span id="hrvBase28Lbl">Base 28d: —</span><span>Hoy</span>
         </div>
       </div>
     </div>
 
-    <div class="card">
-      <div class="card-hdr"><span class="t-md">Actividades recientes</span><span class="mono" style="font-size:10px;color:var(--fg3);">14 días</span></div>
-      <div class="card-body" id="activityList"><div class="empty"><div class="empty-icon">🏃</div><div class="empty-title">Sin actividades</div></div></div>
-    </div>
-  </div>
+    <!-- ══ NIVEL 2: OPERACIONAL ══ -->
+    <!-- Métricas secundarias: colapsables -->
+    <details style="margin-bottom:10px;">
+      <summary style="cursor:pointer;list-style:none;padding:10px 15px;background:var(--bg2);border-radius:var(--radius);border:1px solid var(--line);display:flex;justify-content:space-between;align-items:center;">
+        <span style="font-size:13px;font-weight:500;color:var(--fg2);">Métricas detalladas</span>
+        <span style="font-family:'SF Mono',ui-monospace,monospace,monospace;font-size:10px;color:var(--fg3);">FC · Pasos · VO2max ▾</span>
+      </summary>
+      <div style="margin-top:6px;">
+        <div class="sg">
+          <div class="st o"><div class="st-src">FC Reposo</div><div class="st-val" id="m-rhr">—</div><div class="st-unit">ppm <span id="m-rhr-d" style="font-size:10px;"></span></div></div>
+          <div class="st p"><div class="st-src">Pasos</div><div class="st-val" id="m-steps">—</div><div class="st-unit">pasos</div></div>
+          <div class="st b"><div class="st-src">VO2max · Garmin</div><div class="st-val" id="m-vo2max">—</div><div class="st-unit">ml/kg/min</div></div>
+          <div class="st c"><div class="st-src">Proteína</div><div class="st-val sm" id="nut-prot-lbl2">—</div><div class="st-unit">g consumidos</div></div>
+        </div>
+      </div>
+    </details>
 
+    <!-- Nutrición compacta: solo proteína + balance -->
+    <details style="margin-bottom:10px;">
+      <summary style="cursor:pointer;list-style:none;padding:10px 15px;background:var(--bg2);border-radius:var(--radius);border:1px solid var(--line);display:flex;justify-content:space-between;align-items:center;">
+        <span style="font-size:13px;font-weight:500;color:var(--fg2);">Nutrición · Composición</span>
+        <span style="font-family:'SF Mono',ui-monospace,monospace,monospace;font-size:10px;color:var(--fg3);" id="nutSummary">— ▾</span>
+      </summary>
+      <div style="margin-top:6px;" class="card">
+        <div class="card-body">
+          <div class="pb"><div class="pb-row"><div class="pb-label">Proteína</div><div class="pb-val" id="nut-prot-lbl">—/180g</div></div><div class="pb-track"><div class="pb-fill" id="nut-prot-bar" style="width:0%;background:var(--o)"></div></div></div>
+          <div class="pb"><div class="pb-row"><div class="pb-label">Carbohidratos</div><div class="pb-val" id="nut-carbs-lbl">—/230g</div></div><div class="pb-track"><div class="pb-fill" id="nut-carbs-bar" style="width:0%;background:var(--b)"></div></div></div>
+          <div class="pb"><div class="pb-row"><div class="pb-label">Calorías</div><div class="pb-val" id="nut-kcal-lbl">—/2300</div></div><div class="pb-track"><div class="pb-fill" id="nut-kcal-bar" style="width:0%;background:var(--y)"></div></div></div>
+          <div id="nutBalanceRow" style="display:none;margin-top:6px;padding:5px 8px;background:var(--bg3);border-radius:6px;gap:12px;font-size:11px;align-items:center;">
+            <span style="color:var(--fg3);">Balance</span>
+            <span id="nut-balance" style="font-family:'SF Mono',ui-monospace,monospace,monospace;font-weight:600;">—</span>
+            <span style="color:var(--fg3);">·</span>
+            <span style="color:var(--fg3);">Quemadas</span>
+            <span id="nut-kcal-burned" style="font-family:'SF Mono',ui-monospace,monospace,monospace;color:var(--o);">—</span>
+          </div>
+          <!-- hidden compat -->
+          <span id="nut-prot" style="display:none"></span>
+          <span id="nut-carbs" style="display:none"></span>
+          <span id="nut-fat" style="display:none"></span>
+          <span id="nut-kcal" style="display:none"></span>
+          <span id="nut-kcal-ing" style="display:none"></span>
+          <span id="nut-fat-lbl" style="display:none"></span>
+          <span id="nut-fat-bar" style="display:none"></span>
+          <span id="nutDate" style="display:none"></span>
+          <!-- Composición corporal -->
+          <div style="border-top:1px solid var(--line);margin-top:10px;padding-top:8px;">
+            <div style="font-size:10px;color:var(--fg3);margin-bottom:6px;font-family:'SF Mono',ui-monospace,monospace,monospace;letter-spacing:1px;">COMPOSICIÓN CORPORAL</div>
+            <div style="display:flex;gap:8px;align-items:center;">
+              <div style="flex:1;text-align:center;"><div style="font-family:Georgia,'Times New Roman',serif,serif;font-size:18px;" id="comp-weight">—</div><div style="font-size:9px;color:var(--fg3);">kg</div></div>
+              <div style="flex:1;text-align:center;"><div style="font-family:Georgia,'Times New Roman',serif,serif;font-size:18px;color:var(--o);" id="comp-fat">—</div><div style="font-size:9px;color:var(--fg3);">% grasa</div></div>
+              <div style="flex:1;text-align:center;"><div style="font-family:Georgia,'Times New Roman',serif,serif;font-size:18px;color:var(--g);" id="comp-muscle">—</div><div style="font-size:9px;color:var(--fg3);">% magro</div></div>
+              <div style="flex:1;text-align:center;"><div style="font-family:Georgia,'Times New Roman',serif,serif;font-size:16px;color:var(--c);" id="comp-target">—</div><div style="font-size:9px;color:var(--fg3);">→ 10%</div></div>
+            </div>
+            <div id="compKgRow" style="display:none;">
+              <span id="comp-water" style="display:none"></span>
+              <span id="comp-fatkg" style="display:none"></span>
+              <span id="comp-leankg" style="display:none"></span>
+              <div style="font-size:9px;color:var(--fg4);margin-top:4px;" id="fatDateNote"></div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </details>
+
+    <!-- Actividades recientes -->
+    <details style="margin-bottom:10px;">
+      <summary style="cursor:pointer;list-style:none;padding:10px 15px;background:var(--bg2);border-radius:var(--radius);border:1px solid var(--line);display:flex;justify-content:space-between;align-items:center;">
+        <span style="font-size:13px;font-weight:500;color:var(--fg2);">Actividades recientes</span>
+        <span style="font-family:'SF Mono',ui-monospace,monospace,monospace;font-size:10px;color:var(--fg3);">14 días ▾</span>
+      </summary>
+      <div style="margin-top:6px;" class="card">
+        <div class="card-body" id="activityList"><div class="empty"><div class="empty-icon">🏃</div><div class="empty-title">Sin actividades</div></div></div>
+      </div>
+    </details>
+
+  </div>
   <div class="ai-panel" id="aiDayP" style="display:none;">
     <div class="ai-panel-hdr"><div class="ai-av">⬡</div><div style="flex:1;"><div style="font-size:12px;font-weight:500;">ATLAS · Análisis del día</div><div class="mono" style="font-size:10px;color:var(--fg3);" id="aiDayT"></div></div></div>
     <div class="ai-body"><div class="ai-text" id="aiDayTxt"></div></div>
@@ -339,6 +373,15 @@ textarea.field{resize:vertical;min-height:60px;}
     <div class="card" style="margin-bottom:12px;">
       <div class="card-hdr"><span class="t-md">Confianza por sistema</span></div>
       <div class="card-body" id="confidencePanel"><div style="font-size:12px;color:var(--fg3);">Sin datos</div></div>
+    </div>
+    <div class="card" style="margin-bottom:12px;">
+      <div class="card-hdr">
+        <span class="t-md">🏃 Running · Rendimiento</span>
+        <span class="mono" style="font-size:10px;color:var(--fg3);" id="runConfBadge">—</span>
+      </div>
+      <div class="card-body" id="runningPanel">
+        <div style="font-size:12px;color:var(--fg3);">Sin actividades de running recientes</div>
+      </div>
     </div>
     <div class="card" style="margin-bottom:12px;">
       <div class="card-hdr"><span class="t-md">Validación · Predicción vs Resultado</span><span class="mono" style="font-size:10px;color:var(--fg3);" id="rvlConf">—</span></div>
@@ -534,7 +577,7 @@ textarea.field{resize:vertical;min-height:60px;}
     <div id="debugPanel" style="display:none;margin-top:10px;">
       <div class="card">
         <div class="card-hdr"><span class="t-md">Debug</span><button class="btn btn-g btn-sm" onclick="document.getElementById('debugPanel').style.display='none'">Cerrar</button></div>
-        <div class="card-body"><pre id="debugContent" style="font-family:'Geist Mono',monospace;font-size:9px;color:var(--fg3);overflow-x:auto;white-space:pre-wrap;max-height:400px;overflow-y:auto;"></pre></div>
+        <div class="card-body"><pre id="debugContent" style="font-family:'SF Mono',ui-monospace,monospace,monospace;font-size:9px;color:var(--fg3);overflow-x:auto;white-space:pre-wrap;max-height:400px;overflow-y:auto;"></pre></div>
       </div>
     </div>
 
@@ -561,13 +604,13 @@ textarea.field{resize:vertical;min-height:60px;}
       <div class="card-hdr"><span class="t-md">Distribución semanal</span></div>
       <div class="card-body">
         <div style="display:flex;flex-direction:column;gap:7px;">
-          <div style="display:flex;gap:8px;padding:6px 0;border-bottom:1px solid var(--line);"><span style="font-family:'Geist Mono',monospace;font-size:10px;color:var(--c);width:28px;flex-shrink:0;">D1</span><span style="font-size:12px;color:var(--fg2);">Torso Empuje + Core — Press banca, inclinado, aperturas, militar, laterales, fondos</span></div>
-          <div style="display:flex;gap:8px;padding:6px 0;border-bottom:1px solid var(--line);"><span style="font-family:'Geist Mono',monospace;font-size:10px;color:var(--c);width:28px;flex-shrink:0;">D2</span><span style="font-size:12px;color:var(--fg2);">Pierna A · Cuád/Glúteo + Gemelos — Pre-activación obligatoria</span></div>
-          <div style="display:flex;gap:8px;padding:6px 0;border-bottom:1px solid var(--line);"><span style="font-family:'Geist Mono',monospace;font-size:10px;color:var(--g);width:28px;flex-shrink:0;">D3</span><span style="font-size:12px;color:var(--fg2);">Cardio Z2 · 115-135ppm · 35-45min</span></div>
-          <div style="display:flex;gap:8px;padding:6px 0;border-bottom:1px solid var(--line);"><span style="font-family:'Geist Mono',monospace;font-size:10px;color:var(--c);width:28px;flex-shrink:0;">D4</span><span style="font-size:12px;color:var(--fg2);">Torso Tirón + Core — Remo, pullover, face pull, bíceps</span></div>
-          <div style="display:flex;gap:8px;padding:6px 0;border-bottom:1px solid var(--line);"><span style="font-family:'Geist Mono',monospace;font-size:10px;color:var(--c);width:28px;flex-shrink:0;">D5</span><span style="font-size:12px;color:var(--fg2);">Pierna B · Isquio/Glúteo + Gemelos — Pre-activación obligatoria</span></div>
-          <div style="display:flex;gap:8px;padding:6px 0;border-bottom:1px solid var(--line);"><span style="font-family:'Geist Mono',monospace;font-size:10px;color:var(--g);width:28px;flex-shrink:0;">D6</span><span style="font-size:12px;color:var(--fg2);">Z2 + Movilidad · 30min + 20min</span></div>
-          <div style="display:flex;gap:8px;padding:6px 0;"><span style="font-family:'Geist Mono',monospace;font-size:10px;color:var(--fg4);width:28px;flex-shrink:0;">D7</span><span style="font-size:12px;color:var(--fg3);">Descanso completo</span></div>
+          <div style="display:flex;gap:8px;padding:6px 0;border-bottom:1px solid var(--line);"><span style="font-family:'SF Mono',ui-monospace,monospace,monospace;font-size:10px;color:var(--c);width:28px;flex-shrink:0;">D1</span><span style="font-size:12px;color:var(--fg2);">Torso Empuje + Core — Press banca, inclinado, aperturas, militar, laterales, fondos</span></div>
+          <div style="display:flex;gap:8px;padding:6px 0;border-bottom:1px solid var(--line);"><span style="font-family:'SF Mono',ui-monospace,monospace,monospace;font-size:10px;color:var(--c);width:28px;flex-shrink:0;">D2</span><span style="font-size:12px;color:var(--fg2);">Pierna A · Cuád/Glúteo + Gemelos — Pre-activación obligatoria</span></div>
+          <div style="display:flex;gap:8px;padding:6px 0;border-bottom:1px solid var(--line);"><span style="font-family:'SF Mono',ui-monospace,monospace,monospace;font-size:10px;color:var(--g);width:28px;flex-shrink:0;">D3</span><span style="font-size:12px;color:var(--fg2);">Cardio Z2 · 115-135ppm · 35-45min</span></div>
+          <div style="display:flex;gap:8px;padding:6px 0;border-bottom:1px solid var(--line);"><span style="font-family:'SF Mono',ui-monospace,monospace,monospace;font-size:10px;color:var(--c);width:28px;flex-shrink:0;">D4</span><span style="font-size:12px;color:var(--fg2);">Torso Tirón + Core — Remo, pullover, face pull, bíceps</span></div>
+          <div style="display:flex;gap:8px;padding:6px 0;border-bottom:1px solid var(--line);"><span style="font-family:'SF Mono',ui-monospace,monospace,monospace;font-size:10px;color:var(--c);width:28px;flex-shrink:0;">D5</span><span style="font-size:12px;color:var(--fg2);">Pierna B · Isquio/Glúteo + Gemelos — Pre-activación obligatoria</span></div>
+          <div style="display:flex;gap:8px;padding:6px 0;border-bottom:1px solid var(--line);"><span style="font-family:'SF Mono',ui-monospace,monospace,monospace;font-size:10px;color:var(--g);width:28px;flex-shrink:0;">D6</span><span style="font-size:12px;color:var(--fg2);">Z2 + Movilidad · 30min + 20min</span></div>
+          <div style="display:flex;gap:8px;padding:6px 0;"><span style="font-family:'SF Mono',ui-monospace,monospace,monospace;font-size:10px;color:var(--fg4);width:28px;flex-shrink:0;">D7</span><span style="font-size:12px;color:var(--fg3);">Descanso completo</span></div>
         </div>
       </div>
     </div>
@@ -590,6 +633,15 @@ textarea.field{resize:vertical;min-height:60px;}
 </div>
 
 <script>
+// Error handler — catch parse/runtime errors for debugging
+window.onerror = function(msg, src, line, col, err){
+  const d = document.createElement('div');
+  d.style.cssText = 'position:fixed;top:0;left:0;right:0;background:#ef4444;color:#fff;padding:10px;font-size:11px;z-index:99999;font-family:monospace;word-break:break-all;';
+  d.textContent = 'JS ERROR: ' + msg + ' | Line: ' + line + ':' + col + ' | ' + (err && err.stack ? err.stack.slice(0,200) : '');
+  document.body && document.body.appendChild(d);
+  return false;
+};
+try {
 'use strict';
 
 // ══ STATE ══
@@ -630,13 +682,13 @@ function save(){
   try{
     if(S.int.aid)localStorage.setItem('atlas_int_aid',S.int.aid);
     if(S.int.key)localStorage.setItem('atlas_int_key',S.int.key);
-    if(S.hevy?.key)localStorage.setItem('atlas_hevy_key',S.hevy.key);
+    if(S.(hevy&&hevy.key))localStorage.setItem('atlas_hevy_key',S.hevy.key);
     if(S.claude.key)localStorage.setItem('atlas_anthropic_key',S.claude.key);
   }catch(e){}
   // Cookie backup
   if(S.int.aid)setCookie('atlas_aid',S.int.aid);
   if(S.int.key)setCookie('atlas_ikey',S.int.key);
-  if(S.hevy?.key){setCookie('atlas_hkey',S.hevy.key);}
+  if(S.(hevy&&hevy.key)){setCookie('atlas_hkey',S.hevy.key);}
   if(S.claude.key)setCookie('atlas_ckey',S.claude.key);
 }
 
@@ -658,7 +710,7 @@ function loadPersisted(){
   // Restore individual keys (v5 compatible + cookie fallback)
   if(!S.int.aid) S.int.aid=localStorage.getItem('atlas_int_aid')||getCookie('atlas_aid')||'';
   if(!S.int.key) S.int.key=localStorage.getItem('atlas_int_key')||getCookie('atlas_ikey')||'';
-  if(!S.hevy?.key){const k=localStorage.getItem('atlas_hevy_key')||getCookie('atlas_hkey');if(k)S.hevy={...(S.hevy||{}),key:k};}
+  if(!S.(hevy&&hevy.key)){const k=localStorage.getItem('atlas_hevy_key')||getCookie('atlas_hkey');if(k)S.hevy={...(S.hevy||{}),key:k};}
   if(!S.claude.key) S.claude.key=localStorage.getItem('atlas_anthropic_key')||getCookie('atlas_ckey')||'';
 }
 
@@ -849,7 +901,7 @@ function FatigueEngine(metrics,logs,hevyRecent,domsUpper,domsLower,knee){
     if(p<-15){autonomic+=40;drivers.push('hrv_suppressed');}
     else if(p<-8)autonomic+=20;
     else if(p>8)autonomic-=10;
-    signals.hrv={label:hrv.signals[0]?.label||`HRV ${metrics.hrv}ms`,ok:p>-5,warn:p<-10};
+    signals.hrv={label:(hrv.signals[0]&&hrv.signals[0].label)||`HRV ${metrics.hrv}ms`,ok:p>-5,warn:p<-10};
     if(hrv.coupling==='suppressed_strong'){autonomic+=15;drivers.push('hrv_rhr_coupling');signals.coupling={label:'HRV↓+FCr↑ doble supresión',ok:false,warn:true};}
   }
   const sl=metrics.sleep?parseFloat(metrics.sleep):null;
@@ -911,8 +963,8 @@ function FatigueEngine(metrics,logs,hevyRecent,domsUpper,domsLower,knee){
   }
 
   const mf=S._muscleFatigue||{};
-  const getMFVal=m=>(mf[m]?.value??mf[m]??0);
-  const getMFConf=m=>(mf[m]?.confidence??0.5);
+  const getMFVal=m=>((mf[m]&&typeof mf[m]==='object'?mf[m].value||mf[m]||0);
+  const getMFConf=m=>((mf[m]&&mf[m].confidence)||0.5);
   const upperMuscles=UPPER_M.filter(m=>getMFVal(m)>0);
   const lowerMuscles=LOWER_M.filter(m=>getMFVal(m)>0);
   const avgUpperFat=upperMuscles.length?Math.round(upperMuscles.reduce((s,m)=>s+getMFVal(m),0)/upperMuscles.length):0;
@@ -977,7 +1029,7 @@ function FatigueEngine(metrics,logs,hevyRecent,domsUpper,domsLower,knee){
   ));
 
   // neuralReadiness: HRV z-score proxy for CNS recovery
-  const neuralReadiness=hrv?.zScore!=null
+  const neuralReadiness=(hrv&&hrv.zScore)!=null
     ?Math.min(100,Math.max(0,Math.round(50+hrv.zScore*25)))
     :Math.max(0,100-autonomic);
 
@@ -986,7 +1038,7 @@ function FatigueEngine(metrics,logs,hevyRecent,domsUpper,domsLower,knee){
     cardioScore,neuroScore,upperScore,lowerScore,
     avgUpperFat,avgLowerFat,srpe48,srpe72,
     signals,drivers,
-    confidence:hrv?.confidence||0.5,
+    confidence:(hrv&&hrv.confidence)||0.5,
     hevyNoRPE:hevyNoRPE.length,
     _debug:{upperMusclePenalty:Math.round(avgUpperFat*0.6),lowerMusclePenalty:Math.round(avgLowerFat*0.6),neuroFatigue,avgMuscleFat}
   };
@@ -1020,8 +1072,8 @@ function MuscleFatigueEngine(logs, hevyRecent){
   const hrv = S._hrv;
   const sl = S.metrics.sleep ? parseFloat(S.metrics.sleep) : null;
   let recovMod = 1.0;
-  if(hrv?.pctVsBase < -10) recovMod = 1.25; // suppressed HRV = slower recovery
-  else if(hrv?.pctVsBase > 8) recovMod = 0.9; // elevated HRV = faster recovery
+  if((hrv&&hrv.pctVsBase) < -10) recovMod = 1.25; // suppressed HRV = slower recovery
+  else if((hrv&&hrv.pctVsBase) > 8) recovMod = 0.9; // elevated HRV = faster recovery
   if(sl && sl < 6) recovMod *= 1.2;
   else if(sl && sl > 8) recovMod *= 0.92;
 
@@ -1096,7 +1148,7 @@ function MuscleFatigueEngine(logs, hevyRecent){
 
     Object.entries(muscleSets).forEach(([m, sets]) => {
       const isPrimary = sets/totalSets > 0.15;
-      const exName = muscleExName[m]?.name || '';
+      const exName = (muscleExName[m]&&muscleExName[m].name) || '';
       addFatigue(m, sets, localRPE, exName, ageMs, isPrimary);
     });
   });
@@ -1116,7 +1168,7 @@ function MuscleFatigueEngine(logs, hevyRecent){
     const combined = Math.min(100, Math.round(local * 0.7 + neural * 0.3));
     const avgHL = data.exHL.length ? data.exHL.reduce((a,b)=>a+b,0)/data.exHL.length : 44;
     // Per-muscle confidence: ConfidenceEngine is source of truth
-    const conf = confEngine?.muscle?.[m] ?? fallbackConf;
+    const conf = (confEngine&&confEngine.muscle)?confEngine.muscle[m] || fallbackConf;
     fatigue[m] = {value: combined, local, neural,
       confidence: Math.round(conf*100)/100,
       halfLife: Math.round(avgHL), sets: Math.round(data.sets)};
@@ -1144,7 +1196,7 @@ function InterferenceEngine(activities){
     const ageH=Math.round((now-new Date(a.start_date_local||0))/3600000);
     signals.push({label:`${a.name||'Running'} hace ${ageH}h — carga ${Math.round(load)}, ${Math.round(highPct*100)}% Z3+`,ok:load<30&&highPct<0.2,warn:load>50||highPct>0.4});
   });
-  const domsLow=parseFloat(document.getElementById('domsLower')?.value)||0;
+  const domsLow=parseFloat((document.getElementById('domsLower')&&document.getElementById('domsLower')&&document.getElementById('domsLower').value)||0)||0;
   if(domsLow>4){score*=1.3;signals.push({label:`DOMS inf ${domsLow}/10 amplifica interferencia`,ok:false,warn:true});}
   const s=Math.min(100,Math.round(score/2));
   let level,recommendation,blockLower=false;
@@ -1168,17 +1220,30 @@ function MAVEngine(fatigue,metrics,knee){
   if(fat>65){mult.fatigue=0.70;reasons.push(`Fatiga sistémica ${fat}% → ×0.70`);}else if(fat>45){mult.fatigue=0.85;reasons.push(`Fatiga ${fat}% → ×0.85`);}else if(fat<20)mult.fatigue=1.03;else mult.fatigue=1.0;
   const kv=parseFloat(knee||0);
   if(kv>3){mult.knee=0.65;reasons.push(`Rodilla ${kv}/10 → MRV pierna ×0.65`);}else if(kv>1)mult.knee=0.88;else mult.knee=1.0;
+
+  // Global multiplier for readiness (fast-moving — daily)
   const global=Math.round(mult.hrv*mult.sleep*mult.nutrition*mult.fatigue*100)/100;
+
+  // Asymmetric decay per ChatGPT recommendation:
+  // MAV: moves at full speed (readiness-driven, session-to-session)
+  // MRV: moves at half speed (structural capacity, changes slowly)
+  // This prevents MRV from dropping too aggressively on bad days
+  const mavMult = global;  // full speed
+  const mrvMult = 1 + (global - 1) * 0.5;  // half the deviation from 1.0
+
   const LOWER_M=['Cuádriceps','Isquiotibiales','Glúteo','Gemelos/Sóleo','Aductores'];
   const muscles={};
   for(const [muscle,{mev,mav,mrv}] of Object.entries(S.mavRanges)){
     const isLower=LOWER_M.includes(muscle);
-    const m=isLower?global*mult.knee:global;
-    const effectiveMRV=Math.max(mev+1,Math.round(mrv*m));
-    const effectiveMAV=Math.max(mev,Math.round(mav*m));
-    muscles[muscle]={mev,mav,mrv,effectiveMAV,effectiveMRV,mult:Math.round(m*100)/100,isReduced:effectiveMRV<mrv};
+    const kneeFactor=isLower?mult.knee:1.0;
+    const effectiveMAV=Math.max(mev, Math.round(mav * mavMult * kneeFactor));
+    const effectiveMRV=Math.max(mev+1, Math.round(mrv * mrvMult * kneeFactor));
+    const displayMult=Math.round(mavMult*kneeFactor*100)/100;
+    muscles[muscle]={mev,mav,mrv,effectiveMAV,effectiveMRV,
+      mult:displayMult, mavMult:Math.round(mavMult*100)/100, mrvMult:Math.round(mrvMult*100)/100,
+      isReduced:effectiveMRV<mrv};
   }
-  return{mult,global,reasons,muscles};
+  return{mult,global,reasons,muscles,mavMult,mrvMult:Math.round(mrvMult*100)/100};
 }
 
 // ══ CONFIDENCE ENGINE v2 ══
@@ -1224,7 +1289,7 @@ function ConfidenceEngine(wellnessHistory, logs, hevyRecent, metrics){
   // Strength: last Hevy session
   const lastHevy = hevyRecent.length
     ? Math.min(...hevyRecent.map(s=>s.age)) / 864e5
-    : (logs.length ? Math.max(0,(now - (parseDate(logs[0]?.date)||now))/864e5) : 30);
+    : (logs.length ? Math.max(0,(now - (parseDate((logs[0]&&logs[0].date))||now))/864e5) : 30);
   const daysSinceStrength = Math.max(0, lastHevy);
 
   // Interference: last running activity
@@ -1232,7 +1297,7 @@ function ConfidenceEngine(wellnessHistory, logs, hevyRecent, metrics){
     ['Run','VirtualRun','TrailRun'].includes(a.type||a.sport_type)
   );
   const lastRun = runActs.length
-    ? Math.max(0,(now - new Date(runActs[0]?.start_date_local||0))/864e5)
+    ? Math.max(0,(now - new Date((runActs[0]&&runActs[0].start_date_local)||0))/864e5)
     : 30;
 
   // ── Base confidence from data volume ──
@@ -1637,7 +1702,7 @@ function ProgressionEngine(workouts, hevyRecent, muscleFatigue, fatigue, metrics
   const patternTrends = {};
   Object.entries(exTrends).forEach(([name, trend]) => {
     const exData = getExDB(name);
-    const pat = exData?.pat || 'other';
+    const pat = (exData&&exData.pat) || 'other';
     if(!patternTrends[pat]) patternTrends[pat] = {slopes:[], trends:[], exercises:[]};
     patternTrends[pat].slopes.push(trend.slope);
     patternTrends[pat].trends.push(trend.trend);
@@ -1694,7 +1759,7 @@ function ProgressionEngine(workouts, hevyRecent, muscleFatigue, fatigue, metrics
     const avgFat = muscles.length
       ? muscles.reduce((s,m)=>s+getMFVal(m),0)/muscles.length
       : 0;
-    const autonomic = fatigue?.autonomic || 50;
+    const autonomic = (fatigue&&fatigue.autonomic) || 50;
     const hrv = S._hrv;
 
     // Readiness factors (evidence-based weights)
@@ -1707,10 +1772,10 @@ function ProgressionEngine(workouts, hevyRecent, muscleFatigue, fatigue, metrics
 
     // Progression type recommendation (Haff & Triplett 2016)
     let progressionType, progressionNote;
-    const neuralHigh = (fatigue?.neuralReadiness||50) < 40;
+    const neuralHigh = ((fatigue&&fatigue.neuralReadiness)||50) < 40;
     const volumeNearMRV = muscles.some(m => {
       const vol = currentWeekVol[m]||0;
-      const mrv = S.mavRanges?.[m]?.mrv||20;
+      const mrv = (S.mavRanges&&S.mavRanges[m])?S.mavRanges[m].mrv:20;
       return vol >= mrv * 0.85;
     });
 
@@ -1808,12 +1873,12 @@ function buildSnapshot(type, data){
   dataQuality.rpe = hevyRPECoverage >= 0.8 ? 'complete' : hevyRPECoverage >= 0.4 ? 'partial' : 'missing';
 
   // Contradictory: HRV good but TSB very negative, or vice versa
-  const hrvGood = S._hrv?.pctVsBase > 5;
+  const hrvGood = (S._hrv&&S._hrv.pctVsBase) > 5;
   const tsbBad = (S.metrics.tsb||0) < -20;
   dataQuality.contradiction = (hrvGood && tsbBad) ? 'hrv_tsb_conflict' : 'none';
 
   // Sync quality: all 3 sources present?
-  const sourcesConnected = [S.int.ok, !!(S.hevy?.key), !!(S.claude?.key)].filter(Boolean).length;
+  const sourcesConnected = [S.int.ok, !!(S.(hevy&&hevy.key)), !!(S.(claude&&claude.key))].filter(Boolean).length;
   dataQuality.sources = sourcesConnected === 3 ? 'complete' : sourcesConnected === 2 ? 'partial' : 'minimal';
 
   return {
@@ -1837,12 +1902,12 @@ function buildSnapshot(type, data){
     prediction: {
       readiness: f ? {cardio:f.cardioScore, upper:f.upperScore, lower:f.lowerScore, systemic:f.systemic} : null,
       hrvState: hrv ? {state:hrv.state, pctVsBase:hrv.pctVsBase} : null,
-      activeRules: (S._recs?.actions||[]).map(a=>a.id),
+      activeRules: ((S._recs&&S._recs.actions)||[]).map(a=>a.id),
       muscleFatigue: Object.fromEntries(
         Object.entries(S._muscleFatigue||{}).map(([m,d])=>[m, typeof d==='object'?d.value:d])
       ),
       progressionTypes: Object.fromEntries(
-        Object.entries(S._progression?.progressionReadiness||{}).map(([p,d])=>[p,d.progressionType])
+        Object.entries((S._progression&&S._progression.progressionReadiness)||{}).map(([p,d])=>[p,d.progressionType])
       ),
     },
     outcome: data.type === 'outcome' ? {
@@ -1857,7 +1922,7 @@ function buildSnapshot(type, data){
     confidence: conf ? {hrv:conf.hrv, sleep:conf.sleep, strength:conf.strength, overall:conf.overall} : {},
     context: {
       session: data.session||data.sess||'',
-      decayFlags: conf?.decayFlags||[],
+      decayFlags: (conf&&conf.decayFlags)||[],
     }
   };
 }
@@ -1938,12 +2003,12 @@ function AdaptationEngine(snapshots){
 
   // Filter: only count mismatches OUTSIDE variability band
   const realMismatches = pairs.filter(p=>
-    p.out.outcome?.mismatchSignal && p.out.outcome.mismatchSignal !== 'within_band'
+    p.out.(outcome&&outcome.mismatchSignal) && p.out.outcome.mismatchSignal !== 'within_band'
   );
-  const overPred = realMismatches.filter(p=>p.out.outcome?.mismatchSignal==='over_predicted_fatigue').length;
-  const underPred = realMismatches.filter(p=>p.out.outcome?.mismatchSignal==='under_predicted_fatigue').length;
-  const withinBand = pairs.filter(p=>p.out.outcome?.mismatchSignal==='within_band').length;
-  const calibrated = pairs.filter(p=>p.out.outcome?.mismatchSignal==='calibrated').length;
+  const overPred = realMismatches.filter(p=>p.out.(outcome&&outcome.mismatchSignal)==='over_predicted_fatigue').length;
+  const underPred = realMismatches.filter(p=>p.out.(outcome&&outcome.mismatchSignal)==='under_predicted_fatigue').length;
+  const withinBand = pairs.filter(p=>p.out.(outcome&&outcome.mismatchSignal)==='within_band').length;
+  const calibrated = pairs.filter(p=>p.out.(outcome&&outcome.mismatchSignal)==='calibrated').length;
   const total = pairs.length;
 
   const signals = [];
@@ -1977,19 +2042,19 @@ function AdaptationEngine(snapshots){
     message:`${calRate}% predicciones dentro de rango (${calibrated} calibradas + ${withinBand} en banda normal)`});
 
   // e1RM accuracy (only count deltas outside ±6% variability band)
-  const e1rmPairs = pairs.filter(p=>Object.keys(p.out.outcome?.e1rmDeltas||{}).length>0);
+  const e1rmPairs = pairs.filter(p=>Object.keys(p.out.(outcome&&outcome.e1rmDeltas)||{}).length>0);
   if(e1rmPairs.length >= 3){
     const significantGains = e1rmPairs.filter(p=>{
-      const deltas = Object.values(p.out.outcome?.e1rmDeltas||{});
+      const deltas = Object.values(p.out.(outcome&&outcome.e1rmDeltas)||{});
       return deltas.some(d=>d.pctDelta && d.pctDelta > 6); // >6% = outside noise band
     });
     const predictedGood = e1rmPairs.filter(p=>{
-      const r = p.pred.prediction?.readiness;
+      const r = p.pred.(prediction&&prediction.readiness);
       return r && (r.upper > 75 || r.lower > 75);
     });
     if(predictedGood.length >= 2){
       const hitRate = Math.round(predictedGood.filter(p=>
-        Object.values(p.out.outcome?.e1rmDeltas||{}).some(d=>d.pctDelta&&d.pctDelta>0)
+        Object.values(p.out.(outcome&&outcome.e1rmDeltas)||{}).some(d=>d.pctDelta&&d.pctDelta>0)
       ).length/predictedGood.length*100);
       signals.push({type:'e1rm_accuracy', value:hitRate,
         message:`Readiness alta → mejora e1RM real: ${hitRate}% (${predictedGood.length} sesiones)`});
@@ -2001,6 +2066,179 @@ function AdaptationEngine(snapshots){
     confidence: pairs.length >= 8 ? 'moderada' : pairs.length >= 4 ? 'baja' : 'insuficiente',
     totalPairs:total, overPred, underPred, withinBand, calibrated,
     note:`${total} pares analizados · ${withinBand} dentro de banda normal · Calibración ${calRate}%`
+  };
+}
+
+// ══ RUNNING PERFORMANCE LAYER ══
+// Purpose: Integrate running physiology with strength fatigue
+// Evidence:
+// - Buchheit & Laursen 2013: aerobic decoupling as aerobic fitness marker
+// - Jones 2002: running economy and VO2max relationship
+// - Millet 2002: neuromuscular fatigue effects on running economy
+// - Dempsey 2010: respiratory limitations and HR drift
+// - Blagrove 2018: strength training improves running economy
+//
+// Key design: No fantasy metrics. Only signals derivable from available data.
+// Confidence clearly flagged per output.
+
+function RunningPerformanceEngine(activities, metrics, muscleFatigue, hrv){
+  const RUN_TYPES = ['Run','VirtualRun','TrailRun'];
+  const now = Date.now();
+
+  const runActs = (activities||[])
+    .filter(a => RUN_TYPES.includes(a.type||a.sport_type))
+    .map(a => ({...a, ageMs: now - new Date(a.start_date_local||0).getTime()}))
+    .sort((a,b) => a.ageMs - b.ageMs); // chronological
+
+  if(!runActs.length) return {available:false, note:'Sin actividades de running recientes'};
+
+  const recent = runActs.filter(a => a.ageMs < 14*864e5); // last 14 days
+  const last = recent[recent.length-1]; // most recent run
+  const vo2max = metrics.vo2max;
+
+  // ── 1. Aerobic Decoupling ──
+  // Decoupling = (HR/pace ratio in 2nd half) / (HR/pace ratio in 1st half) - 1
+  // From Intervals: icu_aerobic_decoupling field (if available)
+  // Or estimate from HR efficiency factor trend
+  let decoupling = null;
+  let decouplingConf = 'no_data';
+
+  if((last&&last.icu_aerobic_decoupling) != null){
+    decoupling = Math.round(last.icu_aerobic_decoupling * 10) / 10;
+    decouplingConf = 'direct'; // from Intervals field
+  } else if((last&&last.icu_efficiency_factor) != null && recent.length >= 3){
+    // Estimate from efficiency factor trend (less accurate)
+    const efVals = recent.filter(r=>r.icu_efficiency_factor>0).map(r=>r.icu_efficiency_factor);
+    if(efVals.length >= 2){
+      const efTrend = (efVals[efVals.length-1] - efVals[0]) / efVals[0] * 100;
+      decoupling = null; // can't compute decoupling, but can infer trend
+      decouplingConf = 'inferred';
+    }
+  }
+
+  // Decoupling interpretation (Buchheit 2013)
+  let decouplingState = null;
+  if(decoupling != null){
+    decouplingState = decoupling < 5 ? 'bajo' :     // good aerobic fitness
+                      decoupling < 10 ? 'moderado' : // acceptable
+                      decoupling < 15 ? 'elevado' :  // needs attention
+                      'alto';                         // overpaced or underfueled
+  }
+
+  // ── 2. Efficiency Factor Trend ──
+  // EF = pace / HR (higher = better running economy for same HR)
+  // Trend over last 14d vs previous 14d
+  const efRecent = recent.filter(r=>r.icu_efficiency_factor>0).map(r=>r.icu_efficiency_factor);
+  const efOlder = runActs.filter(a=>a.ageMs>=14*864e5&&a.ageMs<28*864e5&&a.icu_efficiency_factor>0)
+    .map(a=>a.icu_efficiency_factor);
+  let efTrend = null;
+  let efTrendConf = 'insufficient';
+  if(efRecent.length >= 2 && efOlder.length >= 2){
+    const efRecentMean = efRecent.reduce((a,b)=>a+b,0)/efRecent.length;
+    const efOlderMean = efOlder.reduce((a,b)=>a+b,0)/efOlder.length;
+    efTrend = Math.round((efRecentMean - efOlderMean) / efOlderMean * 100 * 10) / 10;
+    efTrendConf = efRecent.length >= 3 ? 'moderate' : 'low';
+  }
+
+  // ── 3. Fatigue-adjusted pace zones ──
+  // Adjust Z2 and threshold pace based on current physiological state
+  // Sources: muscle fatigue lower, HRV, sleep, TSB
+  // Method: conservative heuristic, NOT precise prediction
+  const getMFVal = m => {
+    const mf = muscleFatigue||{};
+    return typeof mf[m]==='object' ? mf[m].value : (mf[m]||0);
+  };
+
+  // Lower muscle fatigue impact on running
+  const quadFat = getMFVal('Cuádriceps');
+  const hamFat = getMFVal('Isquiotibiales');
+  const glutFat = getMFVal('Glúteo');
+  const calfFat = getMFVal('Gemelos/Sóleo');
+  const avgLowerFat = Math.round((quadFat + hamFat + glutFat + calfFat) / 4);
+
+  // Neuromuscular fatigue penalty on running (Millet 2002)
+  // High lower fatigue → worse running economy → higher HR at same pace
+  // Conservative estimate: each 10% local fatigue ≈ 0.5% HR increase
+  const neuroFatigueAdj = Math.min(8, Math.round(avgLowerFat * 0.05)); // max 8% HR penalty
+
+  // HRV adjustment (autonomic readiness)
+  const hrvAdj = (hrv&&hrv.pctVsBase) < -10 ? 4 :   // suppressed HRV → +4% HR
+                 (hrv&&hrv.pctVsBase) > 8   ? -2 : 0; // elevated → -2% HR
+
+  const totalHRAdjPct = neuroFatigueAdj + hrvAdj; // total HR % adjustment
+
+  // ── 4. Z2 zone calibration ──
+  // Based on VO2max if available, otherwise use HRmax estimate
+  const age = 35; // Carlos approximate age
+  const hrMax = vo2max ? Math.round(208 - 0.7 * age) : 185; // Tanaka formula
+  const z2Low = Math.round(hrMax * 0.62);
+  const z2High = Math.round(hrMax * 0.72);
+
+  // Fatigue-adjusted Z2 range
+  const z2LowAdj = Math.max(z2Low - 5, Math.round(z2Low * (1 - totalHRAdjPct/100)));
+  const z2HighAdj = Math.min(z2High + 2, Math.round(z2High * (1 - totalHRAdjPct/100)));
+
+  // ── 5. Interference: strength→running impact ──
+  // Quantify how current lower muscle fatigue affects running capacity
+  let interferenceLevel = 'none';
+  let interferenceNote = '';
+  if(avgLowerFat >= 50){
+    interferenceLevel = 'high';
+    interferenceNote = `Fatiga pierna ${avgLowerFat}% — economía reducida estimada, evita intensidad`;
+  } else if(avgLowerFat >= 30){
+    interferenceLevel = 'moderate';
+    interferenceNote = `Fatiga pierna ${avgLowerFat}% — ritmos Z2 tolerables, evita umbral`;
+  } else if(avgLowerFat >= 15){
+    interferenceLevel = 'low';
+    interferenceNote = `Fatiga pierna ${avgLowerFat}% — interferencia mínima`;
+  }
+
+  // ── 6. Recent running load summary ──
+  const totalKm14d = Math.round(recent.reduce((s,a)=>s+(a.distance||0)/1000,0)*10)/10;
+  const z3PlusSecs = recent.reduce((s,a)=>{
+    const zt = a.icu_zone_times||a.icu_hr_zone_times||[];
+    return s + (zt.slice(2).reduce((ss,t)=>ss+(t||0),0));
+  },0);
+  const totalSecs14d = recent.reduce((s,a)=>s+(a.moving_time||0),0);
+  const z3PlusPct = totalSecs14d > 0 ? Math.round(z3PlusSecs/totalSecs14d*100) : 0;
+
+  // ── 7. Running readiness (composite) ──
+  // Conservative: based on HRV + lower fatigue + recent load
+  const runReadiness = Math.max(0, Math.min(100, Math.round(
+    100
+    - Math.round(avgLowerFat * 0.4)  // lower fatigue (primary)
+    - Math.abs(hrvAdj) * 4           // autonomic state
+    - (z3PlusPct > 40 ? 10 : 0)      // high-intensity overload
+  )));
+
+  // Confidence based on data available
+  const confScore = (last&&last.icu_aerobic_decoupling) != null ? 0.75 :
+                    (last&&last.icu_efficiency_factor) != null ? 0.60 :
+                    recent.length >= 3 ? 0.45 : 0.30;
+  const confLabel = confScore >= 0.70 ? 'Moderada' : confScore >= 0.50 ? 'Baja' : 'Muy baja';
+
+  return {
+    available: true,
+    recent: recent.length,
+    totalKm14d,
+    z3PlusPct,
+    decoupling,
+    decouplingState,
+    decouplingConf,
+    efTrend,
+    efTrendConf,
+    avgLowerFat,
+    neuroFatigueAdj,
+    hrvAdj,
+    totalHRAdjPct,
+    z2Zone: {low:z2Low, high:z2High},
+    z2Adjusted: {low:z2LowAdj, high:z2HighAdj, adjusted:totalHRAdjPct!==0},
+    interferenceLevel,
+    interferenceNote,
+    runReadiness,
+    confidence: confScore,
+    confidenceLabel: confLabel,
+    hrMax
   };
 }
 
@@ -2042,16 +2280,16 @@ const SIGNAL_HIERARCHY = {
 
 // ══ RECOMMENDATION ENGINE ══
 const RULES=[
-  {id:'knee_pain_high',priority:10,cond:(f,i)=>f.signals.knee?.warn,action:'🦵 Protocolo rodilla activo. Pre-activación obligatoria. Para cualquier ejercicio >3/10.',conf:1.0},
+  {id:'knee_pain_high',priority:10,cond:(f,i)=>f.signals.(knee&&knee.warn),action:'🦵 Protocolo rodilla activo. Pre-activación obligatoria. Para cualquier ejercicio >3/10.',conf:1.0},
   {id:'severe_fatigue',priority:9,cond:(f,i)=>f.systemic>70,action:'🔴 Fatiga sistémica alta. Descanso activo o Z1 máx 30min.',conf:0.9},
   {id:'high_interference',priority:8,cond:(f,i)=>i.blockLower,action:'⚠ Alta interferencia running→pierna. Evita fuerza inferior hoy.',conf:0.85},
-  {id:'hrv_suppressed',priority:7,cond:(f,i)=>S._hrv?.state==='suppressed',action:'📉 HRV suprimida. Reduce volumen 25-35%. Evita axiales pesados.',conf:0.85},
-  {id:'hrv_rhr_coupling',priority:7,cond:(f,i)=>S._hrv?.coupling==='suppressed_strong',action:'⚠ HRV↓+FCr↑ simultáneos. Señal doble supresión autonómica.',conf:0.9},
+  {id:'hrv_suppressed',priority:7,cond:(f,i)=>(S._hrv&&S._hrv.state)==='suppressed',action:'📉 HRV suprimida. Reduce volumen 25-35%. Evita axiales pesados.',conf:0.85},
+  {id:'hrv_rhr_coupling',priority:7,cond:(f,i)=>(S._hrv&&S._hrv.coupling)==='suppressed_strong',action:'⚠ HRV↓+FCr↑ simultáneos. Señal doble supresión autonómica.',conf:0.9},
   {id:'high_doms_lower',priority:6,cond:(f,i)=>f.drivers.includes('high_doms_lower'),action:'🦵 DOMS inferior alto. Reduce pierna 20-25%. Evita fallo en quad.',conf:0.8},
   {id:'low_sleep',priority:6,cond:(f,i)=>f.drivers.includes('low_sleep'),action:'😴 Sueño insuficiente. MAV reducido. Evita fallo muscular.',conf:0.85},
   {id:'neg_tsb',priority:5,cond:(f,i)=>f.drivers.includes('negative_tsb'),action:'📊 TSB negativo. Acumulación cardiovascular. Considera deload cardio.',conf:0.75},
   {id:'high_srpe',priority:5,cond:(f,i)=>f.drivers.includes('high_srpe_48h'),action:'💪 sRPE 48h elevado. Evita segunda sesión de la misma zona.',conf:0.8},
-  {id:'hrv_rebound',priority:3,cond:(f,i)=>S._hrv?.state==='rebound'&&f.systemic<30,action:'✅ HRV en rebote y fatiga baja. Buen momento para progresar.',conf:0.75},
+  {id:'hrv_rebound',priority:3,cond:(f,i)=>(S._hrv&&S._hrv.state)==='rebound'&&f.systemic<30,action:'✅ HRV en rebote y fatiga baja. Buen momento para progresar.',conf:0.75},
   {id:'all_green',priority:1,cond:(f,i)=>f.systemic<30&&!f.drivers.includes('knee_pain')&&!i.blockLower,action:'✅ Estado óptimo. Plan completo. Evalúa progresión de carga.',conf:0.8},
 ];
 function RecommendationEngine(fatigue,interference){
@@ -2068,9 +2306,9 @@ function RecommendationEngine(fatigue,interference){
 
 // ══ MAIN ORCHESTRATOR ══
 function runEngines(){
-  const knee=parseFloat(document.getElementById('kneeToday')?.value)||0;
-  const domsUp=parseFloat(document.getElementById('domsUpper')?.value)||0;
-  const domsLow=parseFloat(document.getElementById('domsLower')?.value)||0;
+  const knee=parseFloat(document.getElementById('kneeToday')?document.getElementById('kneeToday')&&document.getElementById('kneeToday').value:null)||0;
+  const domsUp=parseFloat((document.getElementById('domsUpper')&&document.getElementById('domsUpper')&&document.getElementById('domsUpper').value)||0)||0;
+  const domsLow=parseFloat((document.getElementById('domsLower')&&document.getElementById('domsLower')&&document.getElementById('domsLower').value)||0)||0;
 
   // ── Engine execution order (dependencies matter) ──
   // 1. HRV first — needed by ConfidenceEngine and FatigueEngine
@@ -2088,10 +2326,12 @@ function runEngines(){
   // 7. MAV — needs fatigue output
   S._mav=MAVEngine(S._fatigue,S.metrics,knee);
   // 8. Progression — needs fatigue + muscleFatigue + workouts
-  S._progression=ProgressionEngine(S.hevy?.workouts||[],S._hevyRecent||[],S._muscleFatigue,S._fatigue,S.metrics);
+  S._progression=ProgressionEngine(S.(hevy&&hevy.workouts)||[],S._hevyRecent||[],S._muscleFatigue,S._fatigue,S.metrics);
   // 9. Effective Sets — needs workouts + weekOffset
-  S._effectiveSets=EffectiveSetsEngine(S.hevy?.workouts||[],S.weekOffset||0);
-  // 10. Recommendations — needs fatigue + interference
+  S._effectiveSets=EffectiveSetsEngine(S.(hevy&&hevy.workouts)||[],S.weekOffset||0);
+  // 10. Running Performance — needs activities + muscle fatigue + hrv
+  S._running=RunningPerformanceEngine(S.metrics.activities||[],S.metrics,S._muscleFatigue,S._hrv);
+  // 11. Recommendations
   S._recs=RecommendationEngine(S._fatigue,S._interference);
   // 11. Adaptation Engine — analyzes prediction vs outcome history
   S._adaptation=AdaptationEngine(getValidationSnapshots());
@@ -2108,6 +2348,7 @@ function runEngines(){
   renderDensityPanel();
   renderConfidencePanel();
   renderValidationPanel();
+  renderRunningPanel();
   renderValidationDashboard();
   renderProgressionPanel();
   renderE1RMPanel();
@@ -2119,58 +2360,76 @@ function runEngines(){
 // ══ UI RENDERERS ══
 function renderReadinessGrid(){
   const f=S._fatigue;const hrv=S._hrv;if(!f)return;
-  const confE = S._confidence || {};
-  const overallConf = confE.overall || 0.5;
-  const overallConfLabel = confE.label || 'Moderada';
-  const confColor = overallConf>=0.75?'var(--g)':overallConf>=0.5?'var(--y)':'var(--r)';
-  const dataWeeks = confE.weeks || 0;
+  const confE=S._confidence||{};
+  const overallConf=confE.overall||0.5;
+  const overallConfLabel=confE.label||'Moderada';
+  const confColor=overallConf>=0.75?'var(--g)':overallConf>=0.5?'var(--y)':'var(--r)';
+  const dataWeeks=confE.weeks||0;
 
-  // Honest state labels — no absolutes
   function stateLabel(score){
-    if(score>=85) return 'Carga tolerable';
-    if(score>=70) return 'Fatiga baja';
-    if(score>=50) return 'Acumulación moderada';
-    if(score>=30) return 'Fatiga elevada';
-    return 'Carga alta';
+    if(score>=85)return'Carga tolerable';
+    if(score>=70)return'Fatiga baja';
+    if(score>=50)return'Acumulación moderada';
+    if(score>=30)return'Fatiga elevada';
+    return'Carga alta';
   }
 
-  function confBadge(conf){
-    const col=conf>=0.75?'var(--g)':conf>=0.5?'var(--y)':'var(--r)';
-    const lbl=conf>=0.75?'ALTA':conf>=0.5?'MOD':'BAJA';
-    return `<div style="position:absolute;bottom:6px;right:8px;font-family:'Geist Mono',monospace;font-size:8px;color:${col};">● ${lbl}</div>`;
+  // WHY layer — build human-readable drivers per system
+  function buildWHY(sigKeys){
+    const drivers=[];
+    const sigs=f.signals||{};
+    sigKeys.forEach(k=>{
+      if(!sigs[k])return;
+      const s=sigs[k];
+      if(s.warn)drivers.push({text:s.label,level:'bad'});
+      else if(!s.ok)drivers.push({text:s.label,level:'mid'});
+      else drivers.push({text:s.label,level:'ok'});
+    });
+    // Sort: bad first, then mid, then ok
+    drivers.sort((a,b)=>({bad:0,mid:1,ok:2}[a.level]-{bad:0,mid:1,ok:2}[b.level]));
+    return drivers.slice(0,3); // max 3 drivers
   }
 
   function setCard(id,score,sigKeys,sysConf){
     const card=document.getElementById(id);if(!card)return;
-    const vEl=document.getElementById(id+'-val'),lEl=document.getElementById(id+'-lbl'),sEl=document.getElementById(id+'-sigs');
+    const vEl=document.getElementById(id+'-val');
+    const lEl=document.getElementById(id+'-lbl');
+    const sEl=document.getElementById(id+'-sigs');
     const st=score>=70?'ok':score>=45?'warn':'bad';
     card.className='rsys-card '+st;
     if(vEl)vEl.textContent=score+'%';
     if(lEl)lEl.textContent=stateLabel(score);
-    if(sEl)sEl.innerHTML=sigKeys.filter(k=>f.signals[k]).map(k=>{
-      const s=f.signals[k];const c=s.warn?'var(--r)':s.ok?'var(--g)':'var(--y)';
-      return`<li style="color:${c};">${s.warn?'↓':s.ok?'✓':'~'} ${s.label}</li>`;
-    }).join('');
-    // Per-system confidence badge
+
+    // WHY layer: show top drivers instead of raw signal list
+    if(sEl){
+      const why=buildWHY(sigKeys);
+      sEl.innerHTML=why.map(d=>{
+        const col=d.level==='bad'?'var(--r)':d.level==='ok'?'var(--g)':'var(--y)';
+        const icon=d.level==='bad'?'↓':d.level==='ok'?'✓':'~';
+        return`<li style="color:${col};">${icon} ${d.text}</li>`;
+      }).join('');
+    }
+
+    // Confidence badge — per system, with data quality flag
     let badge=card.querySelector('.conf-badge');
     if(!badge){badge=document.createElement('div');badge.className='conf-badge';card.appendChild(badge);}
     const cc=sysConf>=0.75?'var(--g)':sysConf>=0.5?'var(--y)':'var(--r)';
     const cl=sysConf>=0.75?'ALTA':sysConf>=0.5?'MOD':'BAJA';
-    badge.innerHTML=`<span style="font-family:'Geist Mono',monospace;font-size:8px;color:${cc};">● ${cl}</span>`;
+    badge.innerHTML=`<span style="font-family:'SF Mono',ui-monospace,monospace,monospace;font-size:8px;color:${cc};">● ${cl}</span>`;
     badge.style.cssText='position:absolute;bottom:6px;right:8px;';
   }
 
-  setCard('rsys-cardio',f.cardioScore,['hrv','sleep','bb','tsb','coupling'],confE.hrv||0.5);
-  setCard('rsys-neuro', f.neuroScore, ['srpe48','srpe72'],confE.strength||0.5);
-  setCard('rsys-upper', f.upperScore, ['upperSess','domsUpper','hrv','sleep'],(confE.strength+confE.hrv)/2||0.5);
-  setCard('rsys-lower', f.lowerScore, ['lowerSess','domsLower','knee','srpe72'],(confE.strength+confE.hrv)/2||0.5);
+  setCard('rsys-cardio',f.cardioScore,['hrv','sleep','bb','tsb','coupling','monotony'],confE.hrv||0.5);
+  setCard('rsys-neuro',f.neuroScore,['srpe48','srpe72','mismatch_0'],confE.strength||0.5);
+  setCard('rsys-upper',f.upperScore,['upperSess','domsUpper','hrv','sleep'],(confE.strength||0.5+confE.hrv||0.5)/2);
+  setCard('rsys-lower',f.lowerScore,['lowerSess','domsLower','knee','srpe72'],(confE.strength||0.5+confE.hrv||0.5)/2);
 
-  // Confidence badge on cardio card (HRV-driven)
+  // Overall confidence badge on cardio card
   const cardioCard=document.getElementById('rsys-cardio');
   if(cardioCard){
     let badge=cardioCard.querySelector('.conf-badge');
     if(!badge){badge=document.createElement('div');badge.className='conf-badge';cardioCard.appendChild(badge);}
-    badge.innerHTML=`<span style="font-family:'Geist Mono',monospace;font-size:8px;color:${confColor};letter-spacing:1px;">CONF ${overallConfLabel.toUpperCase()} · ${Math.round(dataWeeks)}sem datos</span>`;
+    badge.innerHTML=`<span style="font-family:'SF Mono',ui-monospace,monospace,monospace;font-size:8px;color:${confColor};letter-spacing:1px;">CONF ${overallConfLabel.toUpperCase()} · ${Math.round(dataWeeks)}sem</span>`;
     badge.style.cssText='position:absolute;bottom:8px;right:10px;';
   }
 }
@@ -2181,12 +2440,12 @@ function renderFatigueHero(){
   const sb=(id,p,c)=>{const e=document.getElementById(id);if(e){e.style.width=p+'%';if(c)e.style.background=c;}};
   sv('fe-cardio',f.autonomic+'%');sv('fe-neuro',f.mechanical+'%');sv('fe-sys',f.systemic+'%');
   sb('fat-cv-b',f.autonomic,'var(--b)');sb('fat-nm-b',f.mechanical,'var(--o)');sb('fat-sy-b',f.systemic,'var(--p)');
-  const itf=S._interference?.score||0;sb('fat-itf-b',itf,'var(--r)');sv('fat-itf',itf+'%');
+  const itf=S.(_interference&&_interference.score)||0;sb('fat-itf-b',itf,'var(--r)');sv('fat-itf',itf+'%');
   sv('fat-cv',f.autonomic+'%');sv('fat-nm',f.mechanical+'%');sv('fat-sy',f.systemic+'%');
   const hero=document.getElementById('feHero'),orb=document.getElementById('feOrb'),title=document.getElementById('feTitle'),msg=document.getElementById('feMsg'),status=document.getElementById('feStatus');
   if(!hero)return;
-  const topRec=r?.actions[0];
-  if(f.signals.knee?.warn){
+  const topRec=(r&&r.actions)[0];
+  if(f.signals.(knee&&knee.warn)){
     hero.className='fe-hero bad';orb.textContent='⚠️';
     title.textContent='Protocolo rodilla activo';
     status.textContent='DOLOR >3/10';
@@ -2195,22 +2454,22 @@ function renderFatigueHero(){
     hero.className='fe-hero ok';orb.textContent='✓';
     title.textContent='Disposición favorable';
     status.textContent='CARGA SISTÉMICA '+f.systemic+'%';
-    msg.textContent=topRec?.action||'Señales favorables. Plan completo tolerable.';
+    msg.textContent=(topRec&&topRec.action)||'Señales favorables. Plan completo tolerable.';
   } else if(f.systemic<50){
     hero.className='fe-hero warn';orb.textContent='!';
     title.textContent='Acumulación moderada';
     status.textContent='CARGA SISTÉMICA '+f.systemic+'%';
-    msg.textContent=topRec?.action||'Reduce volumen 20-30%. Monitorea sensaciones.';
+    msg.textContent=(topRec&&topRec.action)||'Reduce volumen 20-30%. Monitorea sensaciones.';
   } else if(f.systemic<70){
     hero.className='fe-hero warn';orb.textContent='!';
     title.textContent='Fatiga elevada';
     status.textContent='CARGA SISTÉMICA '+f.systemic+'%';
-    msg.textContent=topRec?.action||'Reduce volumen 35-50%. Evita fallo muscular.';
+    msg.textContent=(topRec&&topRec.action)||'Reduce volumen 35-50%. Evita fallo muscular.';
   } else{
     hero.className='fe-hero bad';orb.textContent='✕';
     title.textContent='Carga alta — recuperación prioritaria';
     status.textContent='CARGA SISTÉMICA '+f.systemic+'%';
-    msg.textContent=topRec?.action||'Descanso activo o Z1 ≤30min. Sin fuerza.';
+    msg.textContent=(topRec&&topRec.action)||'Descanso activo o Z1 ≤30min. Sin fuerza.';
   }
 }
 
@@ -2225,7 +2484,7 @@ function renderDensityPanel(){
     return`<div style="padding:7px 0;border-bottom:1px solid var(--line);">
       <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:3px;">
         <span style="font-size:12px;font-weight:500;">${d.name}</span>
-        <span style="font-family:'Geist Mono',monospace;font-size:10px;color:${col};">${d.setsPerMin} s/min · ${d.densityLevel}</span>
+        <span style="font-family:'SF Mono',ui-monospace,monospace,monospace;font-size:10px;color:${col};">${d.setsPerMin} s/min · ${d.densityLevel}</span>
       </div>
       <div style="font-size:10px;color:var(--fg3);">${ageH}h · ${d.durMins}min · ${d.totalSets} sets totales</div>
       ${d.densityLevel==='alta'?`<div style="font-size:10px;color:var(--y);margin-top:2px;">⚠ Alta densidad → fatiga metabólica elevada</div>`:''}
@@ -2237,10 +2496,10 @@ function renderConfidencePanel(){
   const el=document.getElementById('confidencePanel');if(!el)return;
   const conf=S._confidence;if(!conf){el.innerHTML='<div style="font-size:12px;color:var(--fg3);">Sin datos</div>';return;}
   const systems=[
-    {label:'HRV · Autonómico',val:conf.hrv,note:`${conf.daysSince?.hrv||0}d sin datos`},
-    {label:'Sueño',val:conf.sleep,note:`${conf.daysSince?.sleep||0}d sin datos`},
-    {label:'Fuerza · Hevy',val:conf.strength,note:`${conf.daysSince?.strength||0}d sin sesión`},
-    {label:'Interferencia',val:conf.interference,note:`${conf.daysSince?.run||0}d sin running`},
+    {label:'HRV · Autonómico',val:conf.hrv,note:`${conf.(daysSince&&daysSince.hrv)||0}d sin datos`},
+    {label:'Sueño',val:conf.sleep,note:`${conf.(daysSince&&daysSince.sleep)||0}d sin datos`},
+    {label:'Fuerza · Hevy',val:conf.strength,note:`${conf.(daysSince&&daysSince.strength)||0}d sin sesión`},
+    {label:'Interferencia',val:conf.interference,note:`${conf.(daysSince&&daysSince.run)||0}d sin running`},
     {label:'Recuperación',val:conf.recovery,note:'Índice cruzado'},
   ];
   let html=systems.map(s=>{
@@ -2255,14 +2514,14 @@ function renderConfidencePanel(){
       <div style="width:80px;height:4px;background:var(--bg4);border-radius:2px;overflow:hidden;">
         <div style="height:100%;width:${pct}%;background:${col};border-radius:2px;transition:width .8s;"></div>
       </div>
-      <div style="font-family:'Geist Mono',monospace;font-size:10px;color:${col};width:55px;text-align:right;">${pct}% ${lbl}</div>
+      <div style="font-family:'SF Mono',ui-monospace,monospace,monospace;font-size:10px;color:${col};width:55px;text-align:right;">${pct}% ${lbl}</div>
     </div>`;
   }).join('');
 
   // Decay flags
-  if(conf.decayFlags?.length){
+  if(conf.(decayFlags&&decayFlags.length)){
     html+=`<div style="margin-top:8px;padding:6px 8px;background:var(--y-a);border-radius:6px;border:1px solid rgba(234,179,8,.15);">
-      <div style="font-family:'Geist Mono',monospace;font-size:8px;color:var(--y);letter-spacing:1px;margin-bottom:3px;">DECAY ACTIVO</div>
+      <div style="font-family:'SF Mono',ui-monospace,monospace,monospace;font-size:8px;color:var(--y);letter-spacing:1px;margin-bottom:3px;">DECAY ACTIVO</div>
       ${conf.decayFlags.map(f=>`<div style="font-size:10px;color:var(--y);">↓ ${f}</div>`).join('')}
     </div>`;
   }
@@ -2303,8 +2562,8 @@ function renderProgressionPanel(){
       <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:5px;">
         <span style="font-size:13px;font-weight:500;">${patLabels[pat]||pat}</span>
         <div style="display:flex;align-items:center;gap:6px;">
-          <span style="font-family:'Geist Mono',monospace;font-size:10px;color:${trendCol};">${trendIcon} e1RM</span>
-          <span style="font-family:'Geist Mono',monospace;font-size:10px;color:${readCol};">${readPct}% listo</span>
+          <span style="font-family:'SF Mono',ui-monospace,monospace,monospace;font-size:10px;color:${trendCol};">${trendIcon} e1RM</span>
+          <span style="font-family:'SF Mono',ui-monospace,monospace,monospace;font-size:10px;color:${readCol};">${readPct}% listo</span>
         </div>
       </div>
       <div style="display:flex;align-items:center;gap:8px;margin-bottom:4px;">
@@ -2315,13 +2574,20 @@ function renderProgressionPanel(){
     </div>`;
   }).join('');
 
-  // Junk volume warnings
+  // Junk volume warnings — only show if sufficient data (ChatGPT: high false positive risk early)
   if(junkCard&&junkPanel){
-    if(prog.junkVolumeWarnings.length){
+    const dataWeeks=(S._confidence&&S._confidence.weeks)||0;
+    const confOk=((S._confidence&&S._confidence.strength)||0)>=0.65;
+    const enoughData=dataWeeks>=3&&confOk;
+    if(enoughData&&prog.junkVolumeWarnings.length){
       junkCard.style.display='block';
       junkPanel.innerHTML=prog.junkVolumeWarnings.map(w=>`
         <div style="font-size:12px;color:var(--y);padding:4px 0;border-bottom:1px solid var(--line);">⚠ ${w.message}</div>
       `).join('');
+    } else if(!enoughData&&prog.junkVolumeWarnings.length){
+      // Show suppressed warning to avoid confusion
+      junkCard.style.display='block';
+      junkPanel.innerHTML=`<div style="font-size:11px;color:var(--fg3);">Detección de volumen improductivo suprimida · Necesita ${Math.max(0,Math.ceil(3-dataWeeks))} semanas más de datos</div>`;
     } else {
       junkCard.style.display='none';
     }
@@ -2336,6 +2602,40 @@ function renderE1RMPanel(){
     el.innerHTML='<div style="font-size:12px;color:var(--fg3);">Sin historial de Hevy</div>';
     return;
   }
+  const dataWeeks=(S._confidence&&S._confidence.weeks)||0;
+  // Reliability: < 3 sessions OR < 3 weeks = low confidence on trend
+  const trendReliability=(sessions)=>{
+    if(sessions>=6&&dataWeeks>=4)return{label:'Conf. moderada',col:'var(--y)'};
+    if(sessions>=4&&dataWeeks>=3)return{label:'Conf. baja',col:'var(--o)'};
+    return{label:'Datos insuficientes',col:'var(--fg3)'};
+  };
+  const trends=Object.entries(prog.exTrends)
+    .sort((a,b)=>b[1].sessions-a[1].sessions)
+    .slice(0,8);
+  el.innerHTML=trends.map(([name,t])=>{
+    const rel=trendReliability(t.sessions);
+    const trendIcon=t.trend==='improving'?'↑':t.trend==='declining'?'↓':'→';
+    const trendCol=t.trend==='improving'?'var(--g)':t.trend==='declining'?'var(--r)':'var(--fg3)';
+    const stagnantNote=t.isStagnant?`<span style="color:var(--y);font-size:9px;"> · MESETA</span>`:'';
+    return`<div style="padding:7px 0;border-bottom:1px solid var(--line);">
+      <div style="display:flex;align-items:center;justify-content:space-between;font-size:11px;">
+        <div>
+          <span style="font-weight:500;">${name.split(' ').slice(0,3).join(' ')}</span>${stagnantNote}
+          <div style="color:var(--fg3);font-size:10px;margin-top:1px;">${t.sessions} ses · ${t.lastKg}kg×${t.lastReps}</div>
+        </div>
+        <div style="text-align:right;flex-shrink:0;">
+          <div style="font-family:'SF Mono',ui-monospace,monospace,monospace;color:var(--fg);">${t.latest}kg e1RM</div>
+          <div style="font-family:'SF Mono',ui-monospace,monospace,monospace;font-size:10px;color:${trendCol};">${trendIcon} ${t.pctChange>=0?'+':''}${t.pctChange}%</div>
+          <div style="font-size:9px;color:${rel.col};">● ${rel.label}</div>
+        </div>
+      </div>
+    </div>`;
+  }).join('');
+  if(dataWeeks<3){
+    el.innerHTML+=`<div style="margin-top:8px;padding:6px 8px;background:var(--y-a);border-radius:6px;font-size:10px;color:var(--y);">⚠ Tendencias e1RM con baja fiabilidad — necesita 3+ semanas</div>`;
+  }
+}
+
 
   const trends=Object.entries(prog.exTrends)
     .sort((a,b)=>b[1].sessions-a[1].sessions)
@@ -2352,12 +2652,11 @@ function renderE1RMPanel(){
         <div style="color:var(--fg3);font-size:10px;margin-top:1px;">${t.sessions} sesiones · ${t.lastKg}kg×${t.lastReps}</div>
       </div>
       <div style="text-align:right;flex-shrink:0;">
-        <div style="font-family:'Geist Mono',monospace;color:var(--fg);">${t.latest}kg e1RM</div>
-        <div style="font-family:'Geist Mono',monospace;font-size:10px;color:${trendCol};">${trendIcon} ${t.pctChange>=0?'+':''}${t.pctChange}% · ${t.slope>=0?'+':''}${t.slope}kg/ses</div>
+        <div style="font-family:'SF Mono',ui-monospace,monospace,monospace;color:var(--fg);">${t.latest}kg e1RM</div>
+        <div style="font-family:'SF Mono',ui-monospace,monospace,monospace;font-size:10px;color:${trendCol};">${trendIcon} ${t.pctChange>=0?'+':''}${t.pctChange}% · ${t.slope>=0?'+':''}${t.slope}kg/ses</div>
       </div>
     </div>`;
   }).join('');
-}
 
 function renderEffectiveSets(){
   const eff=S._effectiveSets;
@@ -2382,18 +2681,18 @@ function renderEffectiveSets(){
   el.innerHTML=muscles.map(([m,data])=>{
     const effRatio=data.efficiencyRatio;
     const col=effRatio>=0.85?'var(--g)':effRatio>=0.70?'var(--c)':effRatio>=0.55?'var(--y)':'var(--r)';
-    const rawMRV=S.mavRanges[m]?.mrv||20;
-    const effMRV=S._mav?.muscles[m]?.effectiveMRV||rawMRV;
+    const rawMRV=(S.mavRanges[m]?S.mavRanges[m].mrv:20);
+    const effMRV=((S._mav&&S._mav.muscles&&S._mav.muscles[m])?S._mav.muscles[m].effectiveMRV:rawMRV);
     // How many raw sets needed to get to effective MAV
-    const mav=S.mavRanges[m]?.mav||14;
+    const mav=(S.mavRanges[m]?S.mavRanges[m].mav:14);
     const rawNeededForMav=effRatio>0?Math.ceil(mav/effRatio):mav;
 
     return`<div style="padding:7px 0;border-bottom:1px solid var(--line);">
       <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:3px;">
         <span style="font-size:13px;font-weight:500;">${m}</span>
         <div style="text-align:right;">
-          <span style="font-family:'Geist Mono',monospace;font-size:11px;color:${col};">${data.effectiveSets.toFixed(1)} ef-sets / ${data.rawSets} raw</span>
-          <span style="font-family:'Geist Mono',monospace;font-size:10px;color:var(--fg4);margin-left:6px;">${Math.round(effRatio*100)}% efic</span>
+          <span style="font-family:'SF Mono',ui-monospace,monospace,monospace;font-size:11px;color:${col};">${data.effectiveSets.toFixed(1)} ef-sets / ${data.rawSets} raw</span>
+          <span style="font-family:'SF Mono',ui-monospace,monospace,monospace;font-size:10px;color:var(--fg4);margin-left:6px;">${Math.round(effRatio*100)}% efic</span>
         </div>
       </div>
       <div style="height:4px;background:var(--bg4);border-radius:2px;overflow:hidden;margin-bottom:3px;">
@@ -2428,15 +2727,15 @@ function renderValidationPanel(){
   const calCol=calRate>=75?'var(--g)':calRate>=55?'var(--y)':'var(--r)';
   let html=`<div style="display:flex;gap:8px;margin-bottom:10px;">
     <div style="flex:1;text-align:center;padding:8px;background:var(--bg3);border-radius:8px;">
-      <div style="font-family:'Instrument Serif',serif;font-size:22px;color:${calCol};">${calRate}%</div>
+      <div style="font-family:Georgia,'Times New Roman',serif,serif;font-size:22px;color:${calCol};">${calRate}%</div>
       <div style="font-size:9px;color:var(--fg3);">En rango</div>
     </div>
     <div style="flex:1;text-align:center;padding:8px;background:var(--bg3);border-radius:8px;">
-      <div style="font-family:'Instrument Serif',serif;font-size:22px;color:var(--fg2);">${adapt.withinBand||0}</div>
+      <div style="font-family:Georgia,'Times New Roman',serif,serif;font-size:22px;color:var(--fg2);">${adapt.withinBand||0}</div>
       <div style="font-size:9px;color:var(--fg3);">Dentro banda</div>
     </div>
     <div style="flex:1;text-align:center;padding:8px;background:var(--bg3);border-radius:8px;">
-      <div style="font-family:'Instrument Serif',serif;font-size:22px;color:var(--r);">${(adapt.overPred||0)+(adapt.underPred||0)}</div>
+      <div style="font-family:Georgia,'Times New Roman',serif,serif;font-size:22px;color:var(--r);">${(adapt.overPred||0)+(adapt.underPred||0)}</div>
       <div style="font-size:9px;color:var(--fg3);">Fuera de banda</div>
     </div>
   </div>
@@ -2447,7 +2746,7 @@ function renderValidationPanel(){
   });
   if(Object.keys(adapt.calibrations||{}).length){
     html+=`<div style="margin-top:8px;padding:8px;background:var(--y-a);border-radius:8px;border:1px solid rgba(234,179,8,.2);">
-      <div style="font-family:'Geist Mono',monospace;font-size:9px;color:var(--y);letter-spacing:1px;margin-bottom:4px;">RECALIBRACIÓN SUGERIDA (requiere confirmación)</div>`;
+      <div style="font-family:'SF Mono',ui-monospace,monospace,monospace;font-size:9px;color:var(--y);letter-spacing:1px;margin-bottom:4px;">RECALIBRACIÓN SUGERIDA (requiere confirmación)</div>`;
     Object.entries(adapt.calibrations).forEach(([k,cal])=>{
       html+=`<div style="font-size:11px;color:var(--y);">${cal.direction==='reduce'?'↓':'↑'} ${k}: ×${cal.factor} — ${cal.reason}</div>`;
     });
@@ -2476,27 +2775,27 @@ function renderValidationDashboard(){
 
   // ── Section 2: Data quality distribution ──
   const recentSnaps=snapshots.filter(s=>Date.now()-s.timestamp<30*864e5);
-  const freshCount=recentSnaps.filter(s=>s.dataQuality?.hrv==='fresh').length;
-  const staleCount=recentSnaps.filter(s=>s.dataQuality?.hrv==='stale_data').length;
-  const noDataCount=recentSnaps.filter(s=>s.dataQuality?.hrv==='no_data').length;
-  const contradictCount=recentSnaps.filter(s=>s.dataQuality?.contradiction&&s.dataQuality.contradiction!=='none').length;
+  const freshCount=recentSnaps.filter(s=>s.(dataQuality&&dataQuality.hrv)==='fresh').length;
+  const staleCount=recentSnaps.filter(s=>s.(dataQuality&&dataQuality.hrv)==='stale_data').length;
+  const noDataCount=recentSnaps.filter(s=>s.(dataQuality&&dataQuality.hrv)==='no_data').length;
+  const contradictCount=recentSnaps.filter(s=>s.(dataQuality&&dataQuality.contradiction)&&s.dataQuality.contradiction!=='none').length;
 
   // ── Section 3: Prediction accuracy (30d rolling) ──
   const pairs30d=snapshots.filter(s=>s.type==='outcome'&&Date.now()-s.timestamp<30*864e5&&s.outcome);
-  const calibrated30=pairs30d.filter(s=>s.outcome?.mismatchSignal==='calibrated'||s.outcome?.mismatchSignal==='within_band').length;
-  const overPred30=pairs30d.filter(s=>s.outcome?.mismatchSignal==='over_predicted_fatigue').length;
-  const underPred30=pairs30d.filter(s=>s.outcome?.mismatchSignal==='under_predicted_fatigue').length;
+  const calibrated30=pairs30d.filter(s=>s.(outcome&&outcome.mismatchSignal)==='calibrated'||s.(outcome&&outcome.mismatchSignal)==='within_band').length;
+  const overPred30=pairs30d.filter(s=>s.(outcome&&outcome.mismatchSignal)==='over_predicted_fatigue').length;
+  const underPred30=pairs30d.filter(s=>s.(outcome&&outcome.mismatchSignal)==='under_predicted_fatigue').length;
   const calRate30=pairs30d.length?Math.round(calibrated30/pairs30d.length*100):null;
 
   // ── Section 4: Confidence stability ──
-  const confSnaps=snapshots.filter(s=>s.confidence?.overall&&Date.now()-s.timestamp<14*864e5);
+  const confSnaps=snapshots.filter(s=>s.(confidence&&confidence.overall)&&Date.now()-s.timestamp<14*864e5);
   const confVals=confSnaps.map(s=>s.confidence.overall).filter(v=>v>0);
   const confMean=confVals.length?Math.round(confVals.reduce((a,b)=>a+b,0)/confVals.length*100):null;
   const confSD=confVals.length>1?Math.round(Math.sqrt(confVals.map(v=>(v-confMean/100)**2).reduce((a,b)=>a+b,0)/confVals.length)*100):null;
 
   // ── Section 5: Active decay systems ──
-  const decays=conf?.decayFlags||[];
-  const dataFlags=conf?.dataFlags||{};
+  const decays=(conf&&conf.decayFlags)||[];
+  const dataFlags=(conf&&conf.dataFlags)||{};
 
   // ── Section 6: Variance trends ──
   const hrvVals=(S._wellnessHistory||[]).slice(-14).map(d=>d.hrv).filter(v=>v>0);
@@ -2506,13 +2805,13 @@ function renderValidationDashboard(){
     const col=status==='ok'?'var(--g)':status==='warn'?'var(--y)':status==='bad'?'var(--r)':'var(--fg2)';
     return`<div style="display:flex;justify-content:space-between;padding:4px 0;border-bottom:1px solid var(--line);font-size:11px;">
       <span style="color:var(--fg2);">${label}</span>
-      <span style="font-family:'Geist Mono',monospace;color:${col};">${value}</span>
+      <span style="font-family:'SF Mono',ui-monospace,monospace,monospace;color:${col};">${value}</span>
     </div>`;
   };
 
   const section=(title,rows)=>`
     <div style="margin-bottom:12px;">
-      <div style="font-family:'Geist Mono',monospace;font-size:9px;letter-spacing:2px;color:var(--fg3);text-transform:uppercase;margin-bottom:6px;">${title}</div>
+      <div style="font-family:'SF Mono',ui-monospace,monospace,monospace;font-size:9px;letter-spacing:2px;color:var(--fg3);text-transform:uppercase;margin-bottom:6px;">${title}</div>
       ${rows.join('')}
     </div>`;
 
@@ -2524,10 +2823,10 @@ function renderValidationDashboard(){
   ])+section('Calidad de datos (30d)',[
     row('HRV fresh / stale / sin datos',`${freshCount} / ${staleCount} / ${noDataCount}`,freshCount>staleCount?'ok':'warn'),
     row('Contradicciones HRV↔TSB',contradictCount>0?`${contradictCount} detectadas`:'Ninguna',contradictCount>0?'warn':'ok'),
-    row('RPE Hevy coverage',conf?.rpeQuality?`${conf.rpeQuality.hevyCoverage}% Hevy · ${conf.rpeQuality.garminCoverage}% Garmin`:'—',
-      conf?.rpeQuality?.hevyCoverage>=80?'ok':conf?.rpeQuality?.hevyCoverage>=40?'warn':'bad'),
-    row('Fuentes conectadas',`Intervals:${S.int.ok?'✓':'✗'} Hevy:${S.hevy?.key?'✓':'✗'} Claude:${S.claude?.key?'✓':'✗'}`,
-      S.int.ok&&S.hevy?.key?'ok':'warn'),
+    row('RPE Hevy coverage',(conf&&conf.rpeQuality)?`${conf.rpeQuality.hevyCoverage}% Hevy · ${conf.rpeQuality.garminCoverage}% Garmin`:'—',
+      (conf&&conf.rpeQuality&&conf.rpeQuality.hevyCoverage>=80)?'ok':(conf&&conf.rpeQuality&&conf.rpeQuality.hevyCoverage>=40)?'warn':'bad'),
+    row('Fuentes conectadas',`Intervals:${S.int.ok?'✓':'✗'} Hevy:${S.(hevy&&hevy.key)?'✓':'✗'} Claude:${S.(claude&&claude.key)?'✓':'✗'}`,
+      S.int.ok&&S.(hevy&&hevy.key)?'ok':'warn'),
   ])+section('Precisión predicción (30d)',[
     row('Tasa calibración',calRate30!=null?`${calRate30}%`:'Sin datos',calRate30>=75?'ok':calRate30>=55?'warn':'bad'),
     row('Sobreestimación fatiga',`${overPred30} sesiones`,overPred30<=1?'ok':overPred30<=3?'warn':'bad'),
@@ -2548,13 +2847,100 @@ function renderValidationDashboard(){
   ]);
 }
 
+function renderRunningPanel(){
+  const el=document.getElementById('runningPanel');
+  const confEl=document.getElementById('runConfBadge');
+  if(!el)return;
+  const r=S._running;
+
+  if(!r||!r.available){
+    el.innerHTML='<div style="font-size:12px;color:var(--fg3);">Sin actividades de running recientes · Sincroniza Intervals</div>';
+    if(confEl)confEl.textContent='Sin datos';
+    return;
+  }
+
+  const confCol=r.confidence>=0.70?'var(--y)':r.confidence>=0.50?'var(--o)':'var(--fg3)';
+  if(confEl)confEl.innerHTML=`<span style="color:${confCol};">● Conf ${r.confidenceLabel}</span>`;
+
+  const row=(label,value,note,col)=>`
+    <div style="display:flex;justify-content:space-between;align-items:flex-start;padding:6px 0;border-bottom:1px solid var(--line);">
+      <div>
+        <div style="font-size:12px;">${label}</div>
+        ${note?`<div style="font-size:10px;color:var(--fg3);margin-top:1px;">${note}</div>`:''}
+      </div>
+      <div style="font-family:'SF Mono',ui-monospace,monospace,monospace;font-size:12px;color:${col||'var(--fg)'};">${value}</div>
+    </div>`;
+
+  // ── Running readiness ──
+  const readCol=r.runReadiness>=75?'var(--g)':r.runReadiness>=50?'var(--y)':'var(--r)';
+  const readLabel=r.runReadiness>=75?'Favorable':r.runReadiness>=50?'Moderada':'Reducida';
+
+  // ── Z2 zone ──
+  const z2Adj=r.z2Adjusted;
+  const z2Str=z2Adj.adjusted
+    ?`${z2Adj.low}–${z2Adj.high} ppm (ajustado ${r.totalHRAdjPct>0?'+':''}${r.totalHRAdjPct}%)`
+    :`${r.z2Zone.low}–${r.z2Zone.high} ppm`;
+  const z2Col=z2Adj.adjusted?'var(--y)':'var(--g)';
+
+  // ── Decoupling ──
+  let decStr='Sin datos';let decCol='var(--fg3)';let decNote='';
+  if(r.decoupling!=null){
+    decStr=`${r.decoupling}% (${r.decouplingState})`;
+    decCol=r.decoupling<5?'var(--g)':r.decoupling<10?'var(--y)':'var(--r)';
+    decNote=r.decoupling<5?'Buena eficiencia aeróbica':r.decoupling<10?'Aceptable':r.decoupling<15?'Posible sobrepace o glucógeno bajo':'Ritmo excesivo o fatiga elevada';
+  } else if(r.decouplingConf==='inferred'){
+    decStr='Estimado'; decCol='var(--fg3)'; decNote='Campo directo no disponible en Intervals';
+  }
+
+  // ── EF trend ──
+  let efStr='Sin datos suficientes';let efCol='var(--fg3)';
+  if(r.efTrend!=null){
+    efStr=`${r.efTrend>0?'+':''}${r.efTrend}% vs semana anterior`;
+    efCol=r.efTrend>1?'var(--g)':r.efTrend<-2?'var(--r)':'var(--fg3)';
+  }
+
+  // ── Interference ──
+  const intCol=r.interferenceLevel==='high'?'var(--r)':r.interferenceLevel==='moderate'?'var(--y)':r.interferenceLevel==='low'?'var(--c)':'var(--g)';
+
+  // ── Neuro fatigue adjustment explanation ──
+  const neuroNote=r.totalHRAdjPct>0
+    ?`Fatiga pierna ${r.avgLowerFat}% → FC estimada +${r.totalHRAdjPct}% · Baja Z2 correspondientemente`
+    :r.totalHRAdjPct<0?`HRV elevada → FC estimada ${r.totalHRAdjPct}% · Puedes correr en Z2 alta`
+    :'Sin ajuste necesario';
+
+  el.innerHTML=`
+    <div style="display:flex;gap:8px;margin-bottom:10px;">
+      <div style="flex:1;text-align:center;padding:8px;background:var(--bg3);border-radius:8px;">
+        <div style="font-family:Georgia,'Times New Roman',serif,serif;font-size:20px;color:${readCol};">${r.runReadiness}%</div>
+        <div style="font-size:9px;color:var(--fg3);">Disposición running</div>
+        <div style="font-size:9px;color:${readCol};">${readLabel}</div>
+      </div>
+      <div style="flex:1;text-align:center;padding:8px;background:var(--bg3);border-radius:8px;">
+        <div style="font-family:Georgia,'Times New Roman',serif,serif;font-size:20px;color:var(--c);">${r.totalKm14d}</div>
+        <div style="font-size:9px;color:var(--fg3);">km últimos 14d</div>
+        <div style="font-size:9px;color:${r.z3PlusPct>40?'var(--r)':r.z3PlusPct>25?'var(--y)':'var(--g)'};">${r.z3PlusPct}% Z3+</div>
+      </div>
+      <div style="flex:1;text-align:center;padding:8px;background:var(--bg3);border-radius:8px;">
+        <div style="font-family:Georgia,'Times New Roman',serif,serif;font-size:20px;color:var(--fg);">${r.recent}</div>
+        <div style="font-size:9px;color:var(--fg3);">sesiones 14d</div>
+      </div>
+    </div>
+    ${row('Z2 ajustada hoy',z2Str,neuroNote,z2Col)}
+    ${row('Desacople aeróbico',decStr,decNote,decCol)}
+    ${row('Factor eficiencia',efStr,r.efTrendConf==='low'?'Pocas sesiones — baja fiabilidad':'',efCol)}
+    ${r.interferenceNote?row('Interferencia fuerza→running',r.interferenceNote,'',intCol):''}
+    ${r.totalHRAdjPct>2?`<div style="margin-top:8px;padding:7px 9px;background:var(--y-a);border-radius:6px;font-size:11px;color:var(--y);">⚠ FC elevada esperada por fatiga pierna — reduce ritmo o usa FC como guía, no paso</div>`:''}
+    <div style="margin-top:8px;font-size:10px;color:var(--fg4);font-style:italic;">Confianza ${r.confidenceLabel} · ${r.available?r.recent+' actividades recientes':'—'} · No usar como predicción precisa</div>
+  `;
+}
+
 function renderFatigueSignals(){
   const f=S._fatigue;const hrv=S._hrv;const el=document.getElementById('fatigueSignals');if(!f||!el)return;
   const conf=f.confidence||0.5;
   const confLabel=conf>=0.8?'Alta':conf>=0.5?'Moderada':'Baja';
   const confColor=conf>=0.8?'var(--g)':conf>=0.5?'var(--y)':'var(--r)';
   const confEl=document.getElementById('sigConf');
-  if(confEl)confEl.innerHTML=`<span style="color:${confColor};font-family:'Geist Mono',monospace;font-size:10px;">● Confianza ${confLabel}</span>`;
+  if(confEl)confEl.innerHTML=`<span style="color:${confColor};font-family:'SF Mono',ui-monospace,monospace,monospace;font-size:10px;">● Confianza ${confLabel}</span>`;
   el.innerHTML=Object.entries(f.signals||{}).map(([k,s])=>{
     const c=s.warn?'var(--r)':s.ok?'var(--g)':'var(--y)';
     return`<div class="sig-row"><span class="sig-icon" style="color:${c};">${s.warn?'↓':s.ok?'✓':'~'}</span><span class="sig-text" style="color:${s.warn?'var(--fg)':'var(--fg2)'};">${s.label}</span></div>`;
@@ -2585,7 +2971,7 @@ function renderRecommendations(){
       if(hrv.sleepDebt>1) chain.push({text:`Deuda sueño ${hrv.sleepDebt}h — modula recuperación HRV`,level:'mid'});
     }
     if(ruleId==='neg_tsb'||ruleId==='severe_fatigue'){
-      if(signals.tsb?.warn) chain.push({text:signals.tsb.label,level:'warn'});
+      if(signals.(tsb&&tsb.warn)) chain.push({text:signals.tsb.label,level:'warn'});
       if(signals.srpe72) chain.push({text:signals.srpe72.label,level:signals.srpe72.warn?'warn':'ok'});
       if(fat.autonomic>40) chain.push({text:`Fatiga autonómica ${fat.autonomic}%`,level:fat.autonomic>60?'warn':'mid'});
     }
@@ -2631,7 +3017,7 @@ function renderRecommendations(){
     const priorityCol=a.priority>=8?'var(--r)':a.priority>=5?'var(--y)':'var(--g)';
     const chainHTML=chain.length?`
       <div style="background:var(--bg3);border-radius:6px;padding:7px 9px;width:100%;border-left:2px solid var(--line2);margin-top:4px;">
-        <div style="font-family:'Geist Mono',monospace;font-size:8px;color:var(--fg4);letter-spacing:1.5px;margin-bottom:4px;">POR QUÉ</div>
+        <div style="font-family:'SF Mono',ui-monospace,monospace,monospace;font-size:8px;color:var(--fg4);letter-spacing:1.5px;margin-bottom:4px;">POR QUÉ</div>
         ${chain.map(e=>{
           const col=e.level==='warn'?'var(--r)':e.level==='ok'?'var(--g)':'var(--fg3)';
           const icon=e.level==='warn'?'↓':e.level==='ok'?'✓':'·';
@@ -2643,7 +3029,7 @@ function renderRecommendations(){
     return`<li class="rec-item" style="flex-direction:column;align-items:flex-start;gap:2px;padding:10px 0;">
       <div style="display:flex;align-items:flex-start;justify-content:space-between;width:100%;gap:8px;">
         <div class="rec-text" style="flex:1;">${a.action}</div>
-        <span style="font-family:'Geist Mono',monospace;font-size:9px;color:${priorityCol};flex-shrink:0;margin-top:2px;">P${a.priority}</span>
+        <span style="font-family:'SF Mono',ui-monospace,monospace,monospace;font-size:9px;color:${priorityCol};flex-shrink:0;margin-top:2px;">P${a.priority}</span>
       </div>
       ${chainHTML}
     </li>`;
@@ -2654,7 +3040,7 @@ function renderInterferencePanel(){
   const i=S._interference;const el=document.getElementById('interferencePanel');if(!i||!el)return;
   const lc={none:'var(--g)',minimal:'var(--g)',low:'var(--c)',moderate:'var(--y)',high:'var(--r)'}[i.level]||'var(--fg3)';
   const ll={none:'Sin interferencia',minimal:'Mínima',low:'Baja',moderate:'Moderada',high:'Alta'}[i.level];
-  el.innerHTML=`<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;"><span style="font-family:'Geist Mono',monospace;font-size:11px;font-weight:600;color:${lc};">${ll} (${i.score}%)</span>${i.blockLower?'<span class="chip chip-r">Pierna bloqueada</span>':''}</div><div style="font-size:12px;color:var(--fg2);margin-bottom:10px;">${i.recommendation}</div>${(i.signals||[]).map(s=>`<div class="sig-row"><span class="sig-icon" style="color:${s.warn?'var(--r)':'var(--y)'};">${s.warn?'↓':'~'}</span><span class="sig-text" style="font-size:11px;">${s.label}</span></div>`).join('')}`;
+  el.innerHTML=`<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;"><span style="font-family:'SF Mono',ui-monospace,monospace,monospace;font-size:11px;font-weight:600;color:${lc};">${ll} (${i.score}%)</span>${i.blockLower?'<span class="chip chip-r">Pierna bloqueada</span>':''}</div><div style="font-size:12px;color:var(--fg2);margin-bottom:10px;">${i.recommendation}</div>${(i.signals||[]).map(s=>`<div class="sig-row"><span class="sig-icon" style="color:${s.warn?'var(--r)':'var(--y)'};">${s.warn?'↓':'~'}</span><span class="sig-text" style="font-size:11px;">${s.label}</span></div>`).join('')}`;
 }
 
 function renderMuscleFatigue(){
@@ -2691,7 +3077,7 @@ function renderMuscleFatigue(){
     const col=fat<25?'var(--g)':fat<50?'var(--y)':'var(--r)';
     const confCol=conf>=0.75?'var(--g)':conf>=0.5?'var(--y)':'var(--fg4)';
     const label=fatigueLabel(fat);
-    const mav=S._mav?.muscles[m];
+    const mav=(S._mav&&S._mav.muscles)[m];
     const effMRV=mav?`MRV${mav.effectiveMRV}`:'';
     // Recovery time estimate
     const hrsToFresh=fat>5?Math.round((-Math.log(5/fat)/0.693)*(hl||44)):0;
@@ -2705,7 +3091,7 @@ function renderMuscleFatigue(){
         <div class="mf-bar-fill" style="width:${fat}%;background:${col};"></div>
       </div>
       <div style="text-align:right;flex-shrink:0;min-width:140px;">
-        <div style="font-family:'Geist Mono',monospace;font-size:9px;color:${col};">${fat}% · ${label}</div>
+        <div style="font-family:'SF Mono',ui-monospace,monospace,monospace;font-size:9px;color:${col};">${fat}% · ${label}</div>
         <div style="font-size:9px;color:var(--fg4);">
           ${[effMRV, recovNote, neuralNote].filter(Boolean).join(' · ')}
           <span style="color:${confCol};margin-left:3px;">●${Math.round(conf*100)}%</span>
@@ -2723,14 +3109,26 @@ function updateMetrics(){
   sv('m-steps',m.steps?(m.steps>=1000?(Math.round(m.steps/1000)+'k'):m.steps):null);
   sv('m-vo2max',m.vo2max?m.vo2max+'':null);
 
+  // Protein tile in collapsed metrics section
+  const protEl=document.getElementById('nut-prot-lbl2');
+  if(protEl)protEl.textContent=m.protein?Math.round(m.protein)+'g':'—';
+
+  // Nutrition summary label in collapsible header
+  const nutSum=document.getElementById('nutSummary');
+  if(nutSum&&m.protein){
+    const prot=Math.round(m.protein);
+    const kcal=m.kcal?Math.round(m.kcal):null;
+    nutSum.textContent=kcal?`${prot}g prot · ${kcal} kcal ▾`:`${prot}g proteína ▾`;
+  }
+
   sv('m-ctl',m.ctl!=null&&m.atl!=null?`CTL ${Math.round(m.ctl)} · ATL ${Math.round(m.atl)}`:m.ctl?Math.round(m.ctl):null);
   const hEl=document.getElementById('m-hrv-d');
-  if(hEl&&S._hrv?.pctVsBase!=null){const p=S._hrv.pctVsBase;hEl.textContent=`${p>=0?'+':''}${p}% vs base ${Math.round(S._hrv.baseline28||0)}ms`;hEl.className='st-delta '+(p>=-5?'up':p<-10?'dn':'nt');}
+  if(hEl&&(S._hrv&&S._hrv.pctVsBase)!=null){const p=S._hrv.pctVsBase;hEl.textContent=`${p>=0?'+':''}${p}% vs base ${Math.round(S._hrv.baseline28||0)}ms`;hEl.className='st-delta '+(p>=-5?'up':p<-10?'dn':'nt');}
   const tEl=document.getElementById('m-tsb'),tdEl=document.getElementById('m-tsb-d');
   if(tEl&&m.tsb!=null){tEl.textContent=(m.tsb>0?'+':'')+m.tsb;tEl.style.color=m.tsb>5?'var(--g)':m.tsb<-10?'var(--r)':'';}
   if(tdEl&&m.tsb!=null){tdEl.textContent=m.tsb>5?'Fresco ✓':m.tsb<-10?'Fatigado ⚠':'Neutro';tdEl.className='st-delta '+(m.tsb>5?'up':m.tsb<-10?'dn':'nt');}
   const rEl=document.getElementById('m-rhr-d');
-  if(rEl&&S._hrv?.rhrDelta!=null){const d=S._hrv.rhrDelta;rEl.textContent=`(${d>0?'+':''}${d})`;rEl.style.color=d>3?'var(--r)':d<-2?'var(--g)':'var(--fg3)';}
+  if(rEl&&(S._hrv&&S._hrv.rhrDelta)!=null){const d=S._hrv.rhrDelta;rEl.textContent=`(${d>0?'+':''}${d})`;rEl.style.color=d>3?'var(--r)':d<-2?'var(--g)':'var(--fg3)';}
   const sb=(id,pct,col)=>{const e=document.getElementById(id);if(e){e.style.width=pct+'%';if(col)e.style.background=col;}};
   const sl=(id,t)=>{const e=document.getElementById(id);if(e)e.textContent=t;};
   sv('nut-kcal',m.kcal?Math.round(m.kcal):null);sv('nut-prot',m.protein?Math.round(m.protein):null);sv('nut-carbs',m.carbs?Math.round(m.carbs):null);sv('nut-fat',m.fat?Math.round(m.fat):null);
@@ -2749,6 +3147,9 @@ function updateMetrics(){
   sb('nut-carbs-bar',carbPct,'var(--b)');sl('nut-carbs-lbl',(m.carbs?Math.round(m.carbs):'—')+'/230g');
   sb('nut-fat-bar',fatPct,'var(--p)');sl('nut-fat-lbl',(m.fat?Math.round(m.fat):'—')+'/65g');
   const nutD=document.getElementById('nutDate');if(nutD&&m._nutDate)nutD.textContent='Intervals · '+m._nutDate;
+  // Show balance row as flex (not block) when data exists
+  const bRow=document.getElementById('nutBalanceRow');
+  if(bRow)bRow.style.display=(m.kcal||m.kcalBurned)?'flex':'none';
   sv('comp-weight',m.weight?m.weight+'kg':null);sv('comp-fat',m.fatPct?parseFloat(m.fatPct).toFixed(1)+'%':null);sv('comp-muscle',m.musclePct?parseFloat(m.musclePct).toFixed(1)+'%':null);sv('comp-water',m.waterPct?parseFloat(m.waterPct).toFixed(1)+'%':null);
   const kr=document.getElementById('compKgRow');
   if(m.weight&&m.fatPct){const fg=+(m.weight*parseFloat(m.fatPct)/100).toFixed(1),lg=+(m.weight-fg).toFixed(1),tw=+(lg/0.9).toFixed(1),tl=+(m.weight-tw).toFixed(1);sv('comp-fatkg',fg+'kg');sv('comp-leankg',lg+'kg');sv('comp-target',tl>0?'-'+tl+'kg grasa':'En objetivo ✓');if(kr)kr.style.display='block';const fnEl=document.getElementById('fatDateNote');if(fnEl)fnEl.textContent=m._fatDate?`% grasa del ${m._fatDate}`:'';}else{if(kr)kr.style.display='none';}
@@ -2761,9 +3162,9 @@ function renderHRV(){
   if(!data.length){el.innerHTML='<div style="color:var(--fg4);font-size:11px;">Sin datos HRV</div>';return;}
   const vals=data.map(d=>d.v).filter(v=>v>0);
   const max=Math.max(...vals,1);
-  const base=S._hrv?.baseline28||Math.round(vals.reduce((a,b)=>a+b,0)/(vals.length||1));
-  if(avgEl)avgEl.textContent=`Base 7d: ${S._hrv?.baseline7||base}ms`;
-  if(b28El)b28El.textContent=`Base 28d: ${S._hrv?.baseline28||base}ms`;
+  const base=(S._hrv&&S._hrv.baseline28)||Math.round(vals.reduce((a,b)=>a+b,0)/(vals.length||1));
+  if(avgEl)avgEl.textContent=`Base 7d: ${(S._hrv&&S._hrv.baseline7)||base}ms`;
+  if(b28El)b28El.textContent=`Base 28d: ${(S._hrv&&S._hrv.baseline28)||base}ms`;
   el.innerHTML=data.map((d,i)=>{const v=d.v||0;const h=v>0?Math.round((v/max)*100):4;const isToday=i===data.length-1;let cls=isToday?'today':v>=base*1.05?'hi':v>=base*0.92?'mid':'lo';return`<div class="hrv-bar ${cls}" style="height:${h}%" title="${d.date||''}: ${v}ms"></div>`;}).join('');
 }
 
@@ -2776,7 +3177,7 @@ function renderMAV(){
   updateWeekSelector();
   container.innerHTML=Object.entries(S.mavRanges).map(([muscle,{mev,mav:mavBase,mrv}])=>{
     const current=vol[muscle]||0;
-    const eff=mav?.muscles[muscle];
+    const eff=(mav&&mav.muscles)[muscle];
     const eMRV=eff?eff.effectiveMRV:mrv;
     const isReduced=eff?eff.isReduced:false;
     const maxD=Math.max(mrv,eMRV)+5;
@@ -2789,10 +3190,10 @@ function renderMAV(){
     else if(current<=mavBase){col='var(--g)';zone='Rango óptimo ✓';}
     else if(current<=eMRV){col='var(--y)';zone='MAV→MRV';}
     else{col='var(--r)';zone=`Sobre MRV (+${current-eMRV}s)`;}
-    const dyn=isReduced?`<div style="font-size:10px;color:var(--y);margin-top:2px;">⚠ MRV dinámico: ${mrv}→${eMRV} (×${eff.mult})</div>`:'';
+    const dyn=isReduced?`<div style="font-size:10px;color:var(--y);margin-top:2px;">⚠ MAV ×${S._mav.mavMult||eff.mult} · MRV ×${S._mav.mrvMult||eff.mrvMult||eff.mult} (asimétrico)</div>`:'';
     return`<div class="mav-row"><div class="mav-header"><div class="mav-muscle">${muscle}</div><div class="mav-nums"><span style="color:${col};font-weight:600;">${current}s</span> · MEV${mev} MAV${mavBase} MRV<span style="color:${isReduced?'var(--y)':'inherit'}">${eMRV}</span></div></div><div class="mav-track"><div class="mav-mev" style="width:${mevPct}%"></div><div class="mav-fill" style="width:${fillPct}%;background:${col};"></div><div class="mav-mrv" style="left:${mrvPct}%"></div></div><div class="mav-zone" style="color:${col};">${zone}</div>${dyn}</div>`;
   }).join('');
-  if(mav&&mav.reasons.length&&multCard&&multList){multCard.style.display='block';multList.innerHTML=mav.reasons.map(r=>`<div style="font-size:12px;color:var(--fg2);padding:4px 0;border-bottom:1px solid var(--line);">${r}</div>`).join('')+`<div style="font-family:'Geist Mono',monospace;font-size:11px;color:var(--c);padding:6px 0 0;">Global ×${mav.global}</div>`;}
+  if(mav&&mav.reasons.length&&multCard&&multList){multCard.style.display='block';multList.innerHTML=mav.reasons.map(r=>`<div style="font-size:12px;color:var(--fg2);padding:4px 0;border-bottom:1px solid var(--line);">${r}</div>`).join('')+`<div style="font-family:'SF Mono',ui-monospace,monospace,monospace;font-size:11px;color:var(--c);padding:6px 0 0;">Global ×${mav.global}</div>`;}
   else if(multCard)multCard.style.display='none';
 }
 
@@ -2809,7 +3210,7 @@ function renderActivities(){
     const rpe=a.icu_rpe?`RPE ${a.icu_rpe}`:'';
     const srpe=(a.icu_rpe&&a.moving_time)?`sRPE ${Math.round(a.icu_rpe*a.moving_time/60)}`:'';
     const load=a.icu_training_load?`Load ${Math.round(a.icu_training_load)}`:'';
-    return`<div style="display:flex;justify-content:space-between;align-items:center;padding:7px 0;border-bottom:1px solid var(--line);font-size:11px;"><div><div style="display:flex;align-items:center;gap:5px;"><span>${icon}</span><span style="font-weight:500;">${a.name||a.type}</span></div><div style="color:var(--fg3);margin-top:1px;">${d} · ${dur}</div></div><div style="text-align:right;flex-shrink:0;">${rpe?`<div style="font-family:'Geist Mono',monospace;font-size:10px;color:var(--y);">${rpe}</div>`:''}${srpe?`<div style="font-family:'Geist Mono',monospace;font-size:10px;color:var(--c);">${srpe}</div>`:''}${load?`<div style="color:var(--fg3);">${load}</div>`:''}</div></div>`;
+    return`<div style="display:flex;justify-content:space-between;align-items:center;padding:7px 0;border-bottom:1px solid var(--line);font-size:11px;"><div><div style="display:flex;align-items:center;gap:5px;"><span>${icon}</span><span style="font-weight:500;">${a.name||a.type}</span></div><div style="color:var(--fg3);margin-top:1px;">${d} · ${dur}</div></div><div style="text-align:right;flex-shrink:0;">${rpe?`<div style="font-family:'SF Mono',ui-monospace,monospace,monospace;font-size:10px;color:var(--y);">${rpe}</div>`:''}${srpe?`<div style="font-family:'SF Mono',ui-monospace,monospace,monospace;font-size:10px;color:var(--c);">${srpe}</div>`:''}${load?`<div style="color:var(--fg3);">${load}</div>`:''}</div></div>`;
   }).join('');
 }
 
@@ -2835,7 +3236,7 @@ function renderSportZones(elId,analysisId,labelId,acts,offset){
   if(total===0){el.innerHTML='<div style="color:var(--fg4);font-size:11px;">Sin datos de zonas</div>';return;}
   const colors=['var(--g)','var(--c)','var(--y)','var(--o)','var(--r)'];
   const pcts=zones.map(z=>Math.round(z/total*100));
-  el.style.display='flex';el.innerHTML=pcts.map((p,i)=>{const mins=Math.round(zones[i]/60);return`<div style="text-align:center;flex:1;"><div style="font-family:'Geist Mono',monospace;font-size:14px;color:${colors[i]};font-weight:600;">${p}%</div><div style="font-size:9px;color:var(--fg3);margin-top:2px;">Z${i+1}</div><div style="font-size:9px;color:var(--fg4);">${mins>0?mins+'min':'—'}</div><div style="height:4px;background:var(--bg4);border-radius:2px;margin-top:4px;overflow:hidden;"><div style="height:100%;width:${Math.min(p*2,100)}%;background:${colors[i]};border-radius:2px;"></div></div></div>`;}).join('');
+  el.style.display='flex';el.innerHTML=pcts.map((p,i)=>{const mins=Math.round(zones[i]/60);return`<div style="text-align:center;flex:1;"><div style="font-family:'SF Mono',ui-monospace,monospace,monospace;font-size:14px;color:${colors[i]};font-weight:600;">${p}%</div><div style="font-size:9px;color:var(--fg3);margin-top:2px;">Z${i+1}</div><div style="font-size:9px;color:var(--fg4);">${mins>0?mins+'min':'—'}</div><div style="height:4px;background:var(--bg4);border-radius:2px;margin-top:4px;overflow:hidden;"><div style="height:100%;width:${Math.min(p*2,100)}%;background:${colors[i]};border-radius:2px;"></div></div></div>`;}).join('');
   if(analysis){const z1z2=pcts[0]+pcts[1],z3=pcts[2],z4z5=pcts[3]+pcts[4],tot=Math.round(total/60);let msg='';if(z3>25)msg=`<span style="color:var(--y);">⚠ Exceso Z3 (${z3}%) — zona gris</span>`;else if(z1z2>=80)msg=`<span style="color:var(--g);">✓ Distribución polarizada · ${tot}min</span>`;else if(z4z5>40)msg=`<span style="color:var(--o);">⚠ Alta intensidad Z4+Z5 ${z4z5}%</span>`;else msg=`<span style="color:var(--fg2);">Z1+Z2: ${z1z2}% · Z3: ${z3}% · Z4+Z5: ${z4z5}% · ${tot}min</span>`;analysis.innerHTML=msg;analysis.style.display='block';}
 }
 
@@ -2855,15 +3256,15 @@ function renderStrengthLoad(elId,labelId,acts,offset){
       const diff=Math.abs(new Date(a.start_date_local||0).getTime()-s.date.getTime());
       return diff<8*3600000;
     });
-    const hevyRPEStr=hevySess?.hevyRPE?`RPE ${hevySess.hevyRPE} (Hevy)`:'';
-    const mismatch=hevySess?.mismatchNote?`<div style="font-size:9px;color:var(--y);margin-top:1px;">${hevySess.mismatchNote}</div>`:'';
+    const hevyRPEStr=(hevySess&&hevySess.hevyRPE)?`RPE ${hevySess.hevyRPE} (Hevy)`:'';
+    const mismatch=(hevySess&&hevySess.mismatchNote)?`<div style="font-size:9px;color:var(--y);margin-top:1px;">${hevySess.mismatchNote}</div>`:'';
     return`<div style="padding:7px 0;border-bottom:1px solid var(--line);font-size:11px;">
       <div style="display:flex;justify-content:space-between;align-items:flex-start;">
         <div><div style="font-weight:500;">${a.name||a.type}</div><div style="color:var(--fg3);font-size:10px;">${date} · ${dur?dur+'min':''}</div></div>
         <div style="text-align:right;">
-          <div style="font-family:'Geist Mono',monospace;color:${rpeCol};">${garminRPEStr}</div>
-          ${hevyRPEStr?`<div style="font-family:'Geist Mono',monospace;font-size:10px;color:var(--p);">${hevyRPEStr}</div>`:''}
-          ${srpe?`<div style="font-family:'Geist Mono',monospace;font-size:10px;color:var(--c);">${srpe}</div>`:''}
+          <div style="font-family:'SF Mono',ui-monospace,monospace,monospace;color:${rpeCol};">${garminRPEStr}</div>
+          ${hevyRPEStr?`<div style="font-family:'SF Mono',ui-monospace,monospace,monospace;font-size:10px;color:var(--p);">${hevyRPEStr}</div>`:''}
+          ${srpe?`<div style="font-family:'SF Mono',ui-monospace,monospace,monospace;font-size:10px;color:var(--c);">${srpe}</div>`:''}
           ${load?`<div style="color:var(--fg3);">${load}</div>`:''}
         </div>
       </div>
@@ -2874,8 +3275,8 @@ function renderStrengthLoad(elId,labelId,acts,offset){
 
 // ══ LOG ══
 function calcSRPE(){
-  const dur=parseFloat(document.getElementById('logDur')?.value)||0;
-  const rpe=parseFloat(document.getElementById('logRPE')?.value)||0;
+  const dur=parseFloat((document.getElementById('logDur')&&document.getElementById('logDur')&&document.getElementById('logDur').value)||0)||0;
+  const rpe=parseFloat((document.getElementById('logRPE')&&document.getElementById('logRPE')&&document.getElementById('logRPE').value)||0)||0;
   const srpe=dur>0&&rpe>0?Math.round(rpe*dur):0;
   const nEl=document.getElementById('srpeNum'),rEl=document.getElementById('srpeRing'),zEl=document.getElementById('srpeZone');
   if(nEl)nEl.textContent=srpe>0?srpe:'—';
@@ -2884,7 +3285,7 @@ function calcSRPE(){
 }
 
 function saveLog(){
-  const sess=document.getElementById('logSess')?.value;const dur=document.getElementById('logDur')?.value;const rpe=document.getElementById('logRPE')?.value;const knee=document.getElementById('logKnee')?.value;const notes=document.getElementById('logNotes')?.value;
+  const sess=document.(document.getElementById('logSess')||{value:''}).value;const dur=document.(document.getElementById('logDur')||{value:''}).value;const rpe=document.(document.getElementById('logRPE')||{value:''}).value;const knee=document.(document.getElementById('logKnee')||{value:''}).value;const notes=document.(document.getElementById('logNotes')||{value:''}).value;
   if(!sess){toast('Sin sesión','Selecciona una sesión','⚠️');return;}
   const srpe=dur&&rpe?Math.round(parseFloat(rpe)*parseFloat(dur)):0;
   const today=new Date();const ds=`${String(today.getDate()).padStart(2,'0')}/${String(today.getMonth()+1).padStart(2,'0')}/${today.getFullYear()}`;
@@ -2894,13 +3295,13 @@ function saveLog(){
   if(k)Object.entries(sm[k]).forEach(([m,s])=>{S.weeklyVol[m]=(S.weeklyVol[m]||0)+s;});
   S.weekDays.add(sess.split('—')[0].trim());
   const sc=document.getElementById('wkScore');if(sc)sc.textContent=S.weekDays.size+'/6';
-  document.querySelectorAll('.wd').forEach(el=>{if(el.querySelector('.wd-n')?.textContent===sess.split('—')[0].trim())el.classList.add('done');});
+  document.querySelectorAll('.wd').forEach(el=>{if((el.querySelector('.wd-n')&&el.querySelector('.wd-n').textContent===sess).split('—')[0].trim())el.classList.add('done');});
   save();renderLog();renderMAV();runEngines();
 
   // ── Record performance outcome for Response Validation ──
   // Compute e1RM deltas: current session vs previous best
   const e1rmDeltas = {};
-  if(S._progression?.exTrends){
+  if((S._progression&&S._progression.exTrends)){
     Object.entries(S._progression.exTrends).forEach(([name, trend])=>{
       if(trend.sessions >= 2 && trend.slope !== 0){
         e1rmDeltas[name] = {
@@ -2918,7 +3319,7 @@ function saveLog(){
   });
   toast('Sesión guardada',`${sess} · sRPE ${srpe}`,'✅');
   ['logDur','logRPE','logKnee','logNotes'].forEach(id=>{const e=document.getElementById(id);if(e)e.value='';});
-  document.getElementById('logSess').value='';calcSRPE();
+  document.getElementById('logSess')&&document.getElementById('logSess').value='';calcSRPE();
 }
 
 function changeLogWeek(dir){S.logWeekOffset=(S.logWeekOffset||0)+dir;if(S.logWeekOffset>0)S.logWeekOffset=0;renderLog();}
@@ -2945,7 +3346,7 @@ async function fetchIntervals(){
     const [wR,fR,aR]=await Promise.all([
       fetch(`https://intervals.icu/api/v1/athlete/${aid}/wellness?oldest=${from30}&newest=${today}`,{headers:H,mode:'cors'}),
       fetch(`https://intervals.icu/api/v1/athlete/${aid}/ctl-history?oldest=${from14}&newest=${today}`,{headers:H,mode:'cors'}),
-      fetch(`https://intervals.icu/api/v1/athlete/${aid}/activities?oldest=${from14}&newest=${today}&fields=id,name,type,sport_type,start_date_local,distance,moving_time,icu_training_load,icu_zone_times,icu_hr_zone_times,average_heartrate,max_heartrate,icu_rpe,pace`,{headers:H,mode:'cors'})
+      fetch(`https://intervals.icu/api/v1/athlete/${aid}/activities?oldest=${from14}&newest=${today}&fields=id,name,type,sport_type,start_date_local,distance,moving_time,icu_training_load,icu_zone_times,icu_hr_zone_times,average_heartrate,max_heartrate,icu_rpe,pace,average_speed,total_elevation_gain,icu_efficiency_factor,icu_aerobic_decoupling,average_cadence,icu_hrss,suffer_score`,{headers:H,mode:'cors'})
     ]);
     if(!wR.ok)throw new Error(wR.status===401||wR.status===403?'API Key incorrecta':'Error '+wR.status);
     const wellness=await wR.json();let fitnessHistory=[];if(fR.ok)fitnessHistory=await fR.json();let activities=[];if(aR.ok)activities=await aR.json();
@@ -2992,13 +3393,13 @@ async function fetchIntervals(){
     S.metrics.weightHistory=wSorted.filter(d=>d.weight||(d.fieldValues||{})['BodyFatPercent']).map(d=>({date:d.id,w:d.weight?parseFloat(d.weight.toFixed(1)):null,fat:d.fatPercent||(d.fieldValues||{})['BodyFatPercent']||null}));
     S.int.ok=true;save();setIntStatus('ok');
     runEngines();renderHRV();renderActivities();renderWeekZones();
-    toast('Intervals sincronizado',[S.metrics.hrv?`HRV ${S.metrics.hrv}ms`:'',S._hrv?.baseline28?`base28 ${Math.round(S._hrv.baseline28)}ms`:'',S.metrics.ctl?`CTL ${Math.round(S.metrics.ctl)}`:'',S.metrics.weight?`${S.metrics.weight}kg`:'',S.metrics.protein?`Prot ${Math.round(S.metrics.protein)}g`:''].filter(Boolean).join(' · ')||'OK','✅');
+    toast('Intervals sincronizado',[S.metrics.hrv?`HRV ${S.metrics.hrv}ms`:'',(S._hrv&&S._hrv.baseline28)?`base28 ${Math.round(S._hrv.baseline28)}ms`:'',S.metrics.ctl?`CTL ${Math.round(S.metrics.ctl)}`:'',S.metrics.weight?`${S.metrics.weight}kg`:'',S.metrics.protein?`Prot ${Math.round(S.metrics.protein)}g`:''].filter(Boolean).join(' · ')||'OK','✅');
   }catch(err){setIntStatus('error');toast('Error Intervals',err.message,'❌');console.error(err);}
 }
 
 // ══ HEVY FETCH ══
 async function fetchHevy(){
-  const key=S.hevy?.key||document.getElementById('hevyKey')?.value?.trim();
+  const key=S.(hevy&&hevy.key)||document.getElementById('hevyKey')?.(value&&value.trim)();
   if(!key){toast('Sin API Key','Añade tu API Key de Hevy','⚠️');return;}
   const sp=document.getElementById('hevySpin');if(sp)sp.style.display='block';
   try{
@@ -3068,9 +3469,9 @@ async function fetchHevy(){
           .filter(Boolean)
           .sort((a,b) => b.score - a.score);
 
-        const bestMatch = scoredActs[0]?.a || null;
-        const garminRPE = bestMatch?.icu_rpe || null;
-        const durSecs = bestMatch?.moving_time ||
+        const bestMatch = (scoredActs[0]&&scoredActs[0].a)||null;
+        const garminRPE = (bestMatch&&bestMatch.icu_rpe) || null;
+        const durSecs = (bestMatch&&bestMatch.moving_time) ||
           ((w.end_time&&w.start_time)?(new Date(w.end_time)-new Date(w.start_time))/1000:null);
         const durMins = durSecs ? Math.round(durSecs/60) : null;
         const sRPE = garminRPE&&durMins ? Math.round(garminRPE*durMins) : null;
@@ -3135,19 +3536,19 @@ async function fetchHevy(){
 }
 
 // ══ CONNECTIONS ══
-async function connectIntervals(){const aid=document.getElementById('intAid')?.value?.trim();const key=document.getElementById('intKey')?.value?.trim();if(!aid||!key){toast('Faltan datos','Introduce Athlete ID y API Key','⚠️');return;}S.int={aid,key,ok:false};save();setIntStatus('loading');await fetchIntervals();}
-function disconnectIntervals(){S.int={aid:'',key:'',ok:false};S._wellnessHistory=[];S._hrv=null;S._fatigue=null;save();setIntStatus('idle');document.getElementById('intAid').value='';document.getElementById('intKey').value='';toast('Intervals desconectado','','🔌');}
-async function connectHevy(){const key=document.getElementById('hevyKey')?.value?.trim();if(!key)return;S.hevy={...(S.hevy||{}),key};await fetchHevy();}
-function disconnectHevy(){S.hevy=null;S.weeklyVol={};S._hevyRecent=[];save();renderMAV();document.getElementById('hevyKey').value='';const st=document.getElementById('hevyStatus');if(st)st.innerHTML='<span class="sdot-sm sdot-k"></span><span style="color:var(--fg3);">Sin conectar</span>';toast('Hevy desconectado','','🔌');}
-function saveClaudeKey(){const key=document.getElementById('claudeKey')?.value?.trim();if(!key||!key.startsWith('sk-ant')){toast('API Key inválida','Debe comenzar con sk-ant-...','⚠️');return;}S.claude.key=key;save();document.getElementById('claudeKey').value='sk-ant-...guardada';toast('API Key guardada','IA lista','✅');}
+async function connectIntervals(){const aid=document.getElementById('intAid')?.(value&&value.trim)();const key=document.getElementById('intKey')?.(value&&value.trim)();if(!aid||!key){toast('Faltan datos','Introduce Athlete ID y API Key','⚠️');return;}S.int={aid,key,ok:false};save();setIntStatus('loading');await fetchIntervals();}
+function disconnectIntervals(){S.int={aid:'',key:'',ok:false};S._wellnessHistory=[];S._hrv=null;S._fatigue=null;save();setIntStatus('idle');document.getElementById('intAid')&&document.getElementById('intAid').value='';document.getElementById('intKey')&&document.getElementById('intKey').value='';toast('Intervals desconectado','','🔌');}
+async function connectHevy(){const key=document.getElementById('hevyKey')?.(value&&value.trim)();if(!key)return;S.hevy={...(S.hevy||{}),key};await fetchHevy();}
+function disconnectHevy(){S.hevy=null;S.weeklyVol={};S._hevyRecent=[];save();renderMAV();document.getElementById('hevyKey')&&document.getElementById('hevyKey').value='';const st=document.getElementById('hevyStatus');if(st)st.innerHTML='<span class="sdot-sm sdot-k"></span><span style="color:var(--fg3);">Sin conectar</span>';toast('Hevy desconectado','','🔌');}
+function saveClaudeKey(){const key=document.getElementById('claudeKey')?.(value&&value.trim)();if(!key||!key.startsWith('sk-ant')){toast('API Key inválida','Debe comenzar con sk-ant-...','⚠️');return;}S.claude.key=key;save();document.getElementById('claudeKey')&&document.getElementById('claudeKey').value='sk-ant-...guardada';toast('API Key guardada','IA lista','✅');}
 function setIntStatus(state){const el=document.getElementById('intStatus');const sp=document.getElementById('intSpin');const dot=document.getElementById('syncDot');if(sp)sp.style.display=state==='loading'?'block':'none';if(!el)return;if(state==='loading')el.innerHTML='<span class="sdot-sm sdot-y" style="animation:pd 1.5s infinite;"></span><span style="color:var(--y);">Conectando...</span>';else if(state==='ok'){el.innerHTML='<span class="sdot-sm sdot-g"></span><span style="color:var(--g);">Conectado</span>';if(dot){dot.style.background='var(--g)';dot.style.animation='pd 2s ease-in-out infinite';}}else if(state==='error')el.innerHTML='<span class="sdot-sm sdot-r"></span><span style="color:var(--r);">Error</span>';else el.innerHTML='<span class="sdot-sm sdot-k"></span><span style="color:var(--fg3);">Sin conectar</span>';}
 function manualUpdate(){
-  const h=parseFloat(document.getElementById('manHRV')?.value);
-  const bb=parseFloat(document.getElementById('manBB')?.value);
-  const sl=parseFloat(document.getElementById('manSleep')?.value);
-  const rhr=parseFloat(document.getElementById('manRHR')?.value);
-  const domsUp=parseFloat(document.getElementById('manDomsUpper')?.value);
-  const domsLo=parseFloat(document.getElementById('manDomsLower')?.value);
+  const h=parseFloat((document.getElementById('manHRV')&&document.getElementById('manHRV')&&document.getElementById('manHRV').value)||0);
+  const bb=parseFloat((document.getElementById('manBB')&&document.getElementById('manBB')&&document.getElementById('manBB').value)||0);
+  const sl=parseFloat((document.getElementById('manSleep')&&document.getElementById('manSleep')&&document.getElementById('manSleep').value)||0);
+  const rhr=parseFloat((document.getElementById('manRHR')&&document.getElementById('manRHR')&&document.getElementById('manRHR').value)||0);
+  const domsUp=parseFloat((document.getElementById('manDomsUpper')&&document.getElementById('manDomsUpper')&&document.getElementById('manDomsUpper').value)||0);
+  const domsLo=parseFloat((document.getElementById('manDomsLower')&&document.getElementById('manDomsLower')&&document.getElementById('manDomsLower').value)||0);
   if(!isNaN(h)&&h>0)S.metrics.hrv=h;
   if(!isNaN(bb))S.metrics.bb=bb;
   if(!isNaN(sl)&&sl>0)S.metrics.sleep=sl;
@@ -3155,18 +3556,18 @@ function manualUpdate(){
   // Sync manual DOMS to the HOY screen fields
   if(!isNaN(domsUp)){const e=document.getElementById('domsUpper');if(e)e.value=domsUp;}
   if(!isNaN(domsLo)){const e=document.getElementById('domsLower');if(e)e.value=domsLo;}
-  const pain=document.getElementById('manPain')?.value;
+  const pain=document.(document.getElementById('manPain')||{value:''}).value;
   if(pain){const e=document.getElementById('painToday');if(e)e.value=pain;}
   runEngines();updateMetrics();
 }
-function showDebug(){const el=document.getElementById('debugPanel'),c=document.getElementById('debugContent');if(!el||!c)return;el.style.display='block';c.textContent=JSON.stringify({raw_wellness:S._rawWellness,hrv_engine:S._hrv,fatigue:{...S._fatigue,signals:Object.fromEntries(Object.entries(S._fatigue?.signals||{}).slice(0,8))},muscle_fatigue:S._muscleFatigue,interference:S._interference,mav:S._mav?{global:S._mav.global,reasons:S._mav.reasons}:null,recs:S._recs?.actions?.map(a=>a.id),hevy_recent:S._hevyRecent?.map(s=>({name:s.name,muscles:s.muscles,hasUpper:s.hasUpper,hasLower:s.hasLower,muscleSets:s.muscleSets,sRPE:s.sRPE,rpe:s.rpe}))},null,2);}
+function showDebug(){const el=document.getElementById('debugPanel'),c=document.getElementById('debugContent');if(!el||!c)return;el.style.display='block';c.textContent=JSON.stringify({raw_wellness:S._rawWellness,hrv_engine:S._hrv,fatigue:{...S._fatigue,signals:Object.fromEntries(Object.entries((S._fatigue&&S._fatigue.signals)||{}).slice(0,8))},muscle_fatigue:S._muscleFatigue,interference:S._interference,mav:S._mav?{global:S._mav.global,reasons:S._mav.reasons}:null,recs:((S._recs&&S._recs.actions)||[]).map(function(a){return a.id;}),hevy_recent:(S._hevyRecent&&S._hevyRecent.map)(s=>({name:s.name,muscles:s.muscles,hasUpper:s.hasUpper,hasLower:s.hasLower,muscleSets:s.muscleSets,sRPE:s.sRPE,rpe:s.rpe}))},null,2);}
 
 // ══ WEEK UTILITIES ══
 function getWeekBounds(offset){const now=new Date();const monday=new Date(now);monday.setHours(0,0,0,0);monday.setDate(now.getDate()-(now.getDay()===0?6:now.getDay()-1)+(offset*7));const sunday=new Date(monday);sunday.setDate(monday.getDate()+6);return{start:monday,end:sunday};}
 function checkWeekReset(){const now=new Date();const monday=new Date(now);monday.setHours(0,0,0,0);monday.setDate(now.getDate()-(now.getDay()===0?6:now.getDay()-1));const ms=monday.toISOString().split('T')[0];if(S.weekStart!==ms){S.weekStart=ms;S.weeklyVol={};S.weekDays=new Set();document.querySelectorAll('.wd').forEach(el=>el.classList.remove('done'));const sc=document.getElementById('wkScore');if(sc)sc.textContent='0/6';save();}}
 function getWeeklyVolForOffset(offset){
   if(offset===0)return S.weeklyVol||{};
-  if(!S.hevy?.workouts)return{};
+  if(!S.(hevy&&hevy.workouts))return{};
   const {start,end}=getWeekBounds(offset);
   const endFull=new Date(end);endFull.setHours(23,59,59,999);
   const vol={};
@@ -3214,7 +3615,7 @@ function buildCtx(){
   const progCtx=prog?Object.entries(prog.progressionReadiness).map(([pat,d])=>
     `${getPatternLabel(pat)}: ${d.score}% listo → ${d.progressionType} (${d.trend})`
   ).join(', '):'sin datos';
-  const junkCtx=prog?.junkVolumeWarnings?.length?prog.junkVolumeWarnings.map(w=>w.message).join('; '):'ninguno';
+  const junkCtx=(prog&&prog.junkVolumeWarnings&&prog.junkVolumeWarnings.length)?prog.junkVolumeWarnings.map(w=>w.message).join('; '):'ninguno';
 
   const effCtx=S._effectiveSets?Object.entries(S._effectiveSets.muscles||{})
     .map(([m,d])=>`${m}:${d.effectiveSets.toFixed(1)}ef/${d.rawSets}raw(${Math.round(d.efficiencyRatio*100)}%)`)
@@ -3222,25 +3623,33 @@ function buildCtx(){
 
   const adapt=S._adaptation;
   const adaptCtx=adapt&&adapt.confidence!=='insufficient_data'
-    ?`Calibración: ${adapt.note} · Señales: ${adapt.signals?.map(s=>s.message).slice(0,2).join(' · ')||'ninguna'}`
+    ?`Calibración: ${adapt.note} · Señales: ${adapt.(signals&&signals.map)(s=>s.message).slice(0,2).join(' · ')||'ninguna'}`
     :'Datos insuficientes para validación (acumula más sesiones)';
 
-  return`SISTEMA: ${dataWeeks} semanas datos · Confianza global ${Math.round(overallConf*100)}%
-HRV: estado=${h?.state||'—'} z=${h?.zScore||'—'} vs-base=${h?.pctVsBase||0}% conf=${Math.round((h?.confidence||0)*100)}%
-  Drivers HRV: ${h?.drivers?.join(',')||'ninguno'}
-  Señales: ${h?.signals?.map(s=>s.label).slice(0,3).join(' · ')||'—'}
+  const run=S._running;
+  const runCtx=(run&&run.available)
+    ?`Km14d=${run.totalKm14d} Z3+=${run.z3PlusPct}% Readiness=${run.runReadiness}% Interferencia=${run.interferenceLevel} FatigaPierna=${run.avgLowerFat}% Z2hoy=${run.(z2Adjusted&&z2Adjusted.low)}-${run.(z2Adjusted&&z2Adjusted.high)}ppm${run.decoupling!=null?' Decoupling='+run.decoupling+'%':''}`
+    :'Sin datos running';
 
-FATIGA: auto=${f?.autonomic||0}% mecánica=${f?.mechanical||0}% sistémica=${f?.systemic||0}%
-  Cardio=${f?.cardioScore||'—'}% Upper=${f?.upperScore||'—'}% Lower=${f?.lowerScore||'—'}%
-  sRPE48=${f?.srpe48||0} sRPE72=${f?.srpe72||0}
-  Drivers: ${f?.drivers?.join(', ')||'ninguno'}
+  return`SISTEMA: ${dataWeeks} semanas datos · Confianza global ${Math.round(overallConf*100)}%
+HRV: estado=${(h&&h.state)||'—'} z=${(h&&h.zScore)||'—'} vs-base=${(h&&h.pctVsBase)||0}% conf=${Math.round(((h&&h.confidence)||0)*100)}%
+  Drivers HRV: ${((h&&h.drivers)||[]).join(',')||'ninguno'}
+  Señales: ${((h&&h.signals)||[]).map(function(s){return s.label;}).slice(0,3).join(' · ')||'—'}
+
+FATIGA: auto=${(f&&f.autonomic)||0}% mecánica=${(f&&f.mechanical)||0}% sistémica=${(f&&f.systemic)||0}%
+  Cardio=${(f&&f.cardioScore)||'—'}% Upper=${(f&&f.upperScore)||'—'}% Lower=${(f&&f.lowerScore)||'—'}%
+  sRPE48=${(f&&f.srpe48)||0} sRPE72=${(f&&f.srpe72)||0}
+  Drivers: ${((f&&f.drivers)||[]).join(', ')||'ninguno'}
 
 FATIGA MUSCULAR (residual, con confianza):
   ${muscleCtx||'sin datos'}
 
-INTERFERENCIA: ${i?.level||'none'} (${i?.score||0}%) blockLower=${i?.blockLower}
-MAV: ×${m?.global||1} — ${m?.reasons?.join(' · ')||'sin modificadores'}
-RECOMENDACIONES ACTIVAS: ${r?.actions?.map(a=>a.id).join(', ')||'ninguna'}
+INTERFERENCIA: ${(i&&i.level)||'none'} (${(i&&i.score)||0}%) blockLower=${(i&&i.blockLower)}
+MAV: ×${(m&&m.global)||1} — ${((m&&m.reasons)||[]).join(' · ')||'sin modificadores'}
+RECOMENDACIONES ACTIVAS: ${((r&&r.actions)||[]).map(function(a){return a.id;}).join(', ')||'ninguna'}
+
+RUNNING (Rendimiento + Interferencia):
+  ${runCtx}
 
 VALIDACIÓN PREDICCIÓN→RESULTADO:
   ${adaptCtx}
@@ -3259,18 +3668,18 @@ async function callAI(prompt,panelId,txtId,timeId){
   if(!panel||!txt)return;panel.style.display='block';txt.className='ai-text loading';txt.textContent='';
   if(tEl)tEl.textContent=new Date().toLocaleTimeString('es-ES',{hour:'2-digit',minute:'2-digit'});
   try{const r=await fetch('https://api.anthropic.com/v1/messages',{method:'POST',headers:{'Content-Type':'application/json','x-api-key':key,'anthropic-version':'2023-06-01','anthropic-dangerous-direct-browser-access':'true'},body:JSON.stringify({model:'claude-sonnet-4-5',max_tokens:1000,system:SYS,messages:[{role:'user',content:prompt}]})});
-  if(!r.ok){const e=await r.json().catch(()=>({}));throw new Error(e.error?.message||'Error '+r.status);}
+  if(!r.ok){const e=await r.json().catch(()=>({}));throw new Error(e.(error&&error.message)||'Error '+r.status);}
   const data=await r.json();txt.className='ai-text';txt.textContent=data.content.map(b=>b.text||'').join('');}
   catch(err){txt.className='ai-text';txt.textContent='Error: '+err.message;toast('Error IA',err.message,'❌');}
 }
-async function analyzeDay(){const sess=document.getElementById('todaySess')?.value;const knee=document.getElementById('kneeToday')?.value||'0';const domsUp=document.getElementById('domsUpper')?.value||'0';const domsLo=document.getElementById('domsLower')?.value||'0';const pain=document.getElementById('painToday')?.value||'';const notes=document.getElementById('notesToday')?.value||'';const mf=S._muscleFatigue?Object.entries(S._muscleFatigue).map(([m,v])=>`${m}:${v}%`).join(', '):'sin datos';await callAI(`ANÁLISIS DEL DÍA — ${new Date().toLocaleDateString('es-ES',{weekday:'long',day:'numeric',month:'long'})}\n\n${buildCtx()}\n\nFATIGA MUSCULAR: ${mf}\nSESIÓN: ${sess||'no especificada'}\nRODILLA: ${knee}/10 · DOMS SUP: ${domsUp}/10 · DOMS INF: ${domsLo}/10\n${pain?'DOLOR: '+pain:''}\nNOTAS: "${notes||'ninguna'}"\n\n1) ¿Qué indican los motores sobre el estado de hoy? 2) ¿La sesión planificada es adecuada? 3) Una recomendación accionable principal.`,'aiDayP','aiDayTxt','aiDayT');}
+async function analyzeDay(){const sess=document.(document.getElementById('todaySess')||{value:''}).value;const knee=document.(document.getElementById('kneeToday')||{value:''}).value||'0';const domsUp=document.(document.getElementById('domsUpper')||{value:''}).value||'0';const domsLo=document.(document.getElementById('domsLower')||{value:''}).value||'0';const pain=document.(document.getElementById('painToday')||{value:''}).value||'';const notes=document.(document.getElementById('notesToday')||{value:''}).value||'';const mf=S._muscleFatigue?Object.entries(S._muscleFatigue).map(([m,v])=>`${m}:${v}%`).join(', '):'sin datos';await callAI(`ANÁLISIS DEL DÍA — ${new Date().toLocaleDateString('es-ES',{weekday:'long',day:'numeric',month:'long'})}\n\n${buildCtx()}\n\nFATIGA MUSCULAR: ${mf}\nSESIÓN: ${sess||'no especificada'}\nRODILLA: ${knee}/10 · DOMS SUP: ${domsUp}/10 · DOMS INF: ${domsLo}/10\n${pain?'DOLOR: '+pain:''}\nNOTAS: "${notes||'ninguna'}"\n\n1) ¿Qué indican los motores sobre el estado de hoy? 2) ¿La sesión planificada es adecuada? 3) Una recomendación accionable principal.`,'aiDayP','aiDayTxt','aiDayT');}
 async function analyzeFatigue(){const mf=S._muscleFatigue?Object.entries(S._muscleFatigue).sort((a,b)=>b[1]-a[1]).map(([m,v])=>`${m}:${v}%`).join(', '):'sin datos';await callAI(`ANÁLISIS DE FATIGA HÍBRIDA\n\n${buildCtx()}\n\nFATIGA MUSCULAR por grupo (decay exponencial):\n${mf}\n\n1) ¿Qué tipo de fatiga domina y por qué? 2) ¿Hay interferencia cardio-fuerza? 3) ¿Hay acumulación preocupante? 4) Recomendación próximas 48h.`,'aiFatP','aiFatTxt','aiFatT');}
 async function analyzeMav(){const vol=Object.entries(S.weeklyVol||{}).map(([k,v])=>`${k}:${v}s`).join(', ')||'sin datos';const mavCtx=S._mav?Object.entries(S._mav.muscles).map(([m,d])=>`${m}: actual ${S.weeklyVol[m]||0}/${d.effectiveMRV} (×${d.mult})`).join('\n'):'sin MAV';await callAI(`ANÁLISIS DE VOLUMEN\n\n${buildCtx()}\n\nVOLUMEN REAL:\n${vol}\n\nMAV DINÁMICO:\n${mavCtx}\n\n1) Grupos bajo MEV, en óptimo, sobre MRV. 2) ¿Multiplicadores apropiados? 3) Desequilibrios. 4) Ajuste concreto.`,'aiMavP','aiMavTxt','aiMavT');}
 async function analyzeSession(){const last=S.logs[0];if(!last){toast('Sin sesión','Registra una sesión primero','⚠️');return;}await callAI(`ANÁLISIS DE SESIÓN\n${last.sess} · ${last.dur}min · RPE ${last.rpe} · sRPE ${last.srpe} · Rodilla ${last.knee||0}/10\nNotas: "${last.notes||'ninguna'}"\n\n${buildCtx()}\n\n1) ¿sRPE apropiado para el estado de fatiga? 2) Señales de infra/sobreestimulación. 3) Impacto en readiness mañana.`,'aiSessP','aiSessTxt','aiSessT');}
 
 // ══ NAV & SYNC ══
-function showS(id){document.querySelectorAll('.screen').forEach(s=>s.classList.remove('active'));const t=document.getElementById(id);if(t)t.classList.add('active');document.querySelectorAll('.ni').forEach(n=>n.classList.remove('active'));const map={'s-hoy':'ni-hoy','s-fatiga':'ni-fatiga','s-mav':'ni-mav','s-log':'ni-log','s-datos':'ni-datos','s-plan':'ni-plan'};const btn=document.getElementById(map[id]);if(btn)btn.classList.add('active');window.scrollTo(0,0);if(id==='s-mav'){renderWeekZones();renderMAV();renderProgressionPanel();renderE1RMPanel();renderEffectiveSets();}if(id==='s-log')renderLog();if(id==='s-fatiga'){renderFatigueSignals();renderMuscleFatigue();renderInterferencePanel();renderDensityPanel();renderConfidencePanel();renderValidationPanel();}if(id==='s-datos')renderValidationDashboard();}
-async function syncAll(){if(S.int.aid&&S.int.key)await fetchIntervals();if(S.hevy?.key)await fetchHevy();}
+function showS(id){document.querySelectorAll('.screen').forEach(s=>s.classList.remove('active'));const t=document.getElementById(id);if(t)t.classList.add('active');document.querySelectorAll('.ni').forEach(n=>n.classList.remove('active'));const map={'s-hoy':'ni-hoy','s-fatiga':'ni-fatiga','s-mav':'ni-mav','s-log':'ni-log','s-datos':'ni-datos','s-plan':'ni-plan'};const btn=document.getElementById(map[id]);if(btn)btn.classList.add('active');window.scrollTo(0,0);if(id==='s-mav'){renderWeekZones();renderMAV();renderProgressionPanel();renderE1RMPanel();renderEffectiveSets();}if(id==='s-log')renderLog();if(id==='s-fatiga'){renderFatigueSignals();renderMuscleFatigue();renderInterferencePanel();renderDensityPanel();renderConfidencePanel();renderValidationPanel();renderRunningPanel();}if(id==='s-datos')renderValidationDashboard();}
+async function syncAll(){if(S.int.aid&&S.int.key)await fetchIntervals();if(S.(hevy&&hevy.key))await fetchHevy();}
 function toast(title,msg,icon,ms=3500){const el=document.createElement('div');el.className='toast';el.innerHTML=`<div class="toast-t">${icon||'ℹ️'} ${title}</div>${msg?`<div class="toast-m">${msg}</div>`:''}`;document.body.appendChild(el);setTimeout(()=>el.remove(),ms);}
 
 // ══ INIT ══
@@ -3279,17 +3688,19 @@ function init(){
   if(S.int.aid){const e=document.getElementById('intAid');if(e)e.value=S.int.aid;}
   if(S.int.key){const e=document.getElementById('intKey');if(e)e.value='••••••••••••••••';}
   if(S.int.ok)setIntStatus('ok');
-  if(S.hevy?.key){const e=document.getElementById('hevyKey');if(e)e.value='••••••••••••••••';const st=document.getElementById('hevyStatus');if(st)st.innerHTML='<span class="sdot-sm sdot-g"></span><span style="color:var(--g);">Conectado</span>';}
+  if(S.(hevy&&hevy.key)){const e=document.getElementById('hevyKey');if(e)e.value='••••••••••••••••';const st=document.getElementById('hevyStatus');if(st)st.innerHTML='<span class="sdot-sm sdot-g"></span><span style="color:var(--g);">Conectado</span>';}
   if(S.claude.key){const e=document.getElementById('claudeKey');if(e)e.value='sk-ant-...guardada';}
-  S.weekDays.forEach(day=>{document.querySelectorAll('.wd').forEach(el=>{if(el.querySelector('.wd-n')?.textContent===day)el.classList.add('done');});});
+  S.weekDays.forEach(day=>{document.querySelectorAll('.wd').forEach(el=>{if((el.querySelector('.wd-n')&&el.querySelector('.wd-n').textContent===day))el.classList.add('done');});});
   const sc=document.getElementById('wkScore');if(sc)sc.textContent=S.weekDays.size+'/6';
-  if(S.metrics.hrv7?.length){S._wellnessHistory=S.metrics.hrv7.map(d=>({id:d.date,hrv:d.v,restingHR:d.rhr,sleepSecs:d.sleep?parseFloat(d.sleep)*3600:null}));}
+  if(S.metrics.(hrv7&&hrv7.length)){S._wellnessHistory=S.metrics.hrv7.map(d=>({id:d.date,hrv:d.v,restingHR:d.rhr,sleepSecs:d.sleep?parseFloat(d.sleep)*3600:null}));}
   runEngines();updateMetrics();renderHRV();renderMAV();renderLog();renderActivities();renderWeekZones();
   // Auto-sync if keys saved — restore session without re-entering keys
   if(S.int.aid&&S.int.key){setTimeout(()=>fetchIntervals(),800);}
-  if(S.hevy?.key){setTimeout(()=>fetchHevy(),1200);}
+  if(S.(hevy&&hevy.key)){setTimeout(()=>fetchHevy(),1200);}
 }
 window.addEventListener('DOMContentLoaded',init);
+
+} catch(e){ window.onerror(e.message,"",0,0,e); }
 </script>
 
 </body>
