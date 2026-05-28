@@ -203,6 +203,14 @@ textarea.field{resize:vertical;min-height:60px;}
     </div>
   </div>
 
+  <!-- QUÉ HACER HOY — síntesis ejecutiva -->
+  <div id="todaySummary" style="margin:8px 18px 0;padding:12px 14px;background:var(--bg2);border:1px solid var(--line);border-radius:14px;">
+    <div style="font-family:'Geist Mono',monospace;font-size:9px;color:var(--fg3);letter-spacing:2px;margin-bottom:8px;">HOY</div>
+    <div id="todaySummaryItems" style="display:flex;flex-direction:column;gap:5px;">
+      <div style="font-size:12px;color:var(--fg3);">Sincroniza para ver recomendaciones</div>
+    </div>
+  </div>
+
   <div class="pad" style="padding-top:4px;">
 
     <!-- NIVEL 1: siempre visible -->
@@ -2714,17 +2722,18 @@ function renderMuscleFatigue(){
     // Neural note
     const neuralNote=neural&&neural>30?`SNC ${neural}%`:'';
 
-    return`<div class="mf-row">
+    // Compact: tap to expand detail (progressive disclosure)
+    return`<div class="mf-row" onclick="this.querySelector('.mf-detail').style.display=this.querySelector('.mf-detail').style.display==='none'?'block':'none'" style="cursor:pointer;">
       <div class="mf-name">${m}</div>
       <div class="mf-bar-track">
         <div class="mf-bar-fill" style="width:${fat}%;background:${col};"></div>
       </div>
-      <div style="text-align:right;flex-shrink:0;min-width:140px;">
-        <div style="font-family:'Geist Mono',monospace;font-size:9px;color:${col};">${fat}% · ${label}</div>
-        <div style="font-size:9px;color:var(--fg4);">
-          ${[effMRV, recovNote, neuralNote].filter(Boolean).join(' · ')}
-          <span style="color:${confCol};margin-left:3px;">●${Math.round(conf*100)}%</span>
-        </div>
+      <div style="text-align:right;flex-shrink:0;min-width:110px;">
+        <div style="font-family:'Geist Mono',monospace;font-size:10px;color:${col};">${fat}% · ${label}</div>
+        <div style="font-size:9px;color:var(--fg4);">${recovNote||''}</div>
+      </div>
+      <div class="mf-detail" style="display:none;width:100%;padding:4px 0 2px;font-size:9px;color:var(--fg4);">
+        ${[effMRV,neuralNote].filter(Boolean).join(' · ')} <span style="color:${confCol};">● conf ${Math.round(conf*100)}%</span>
       </div>
     </div>`;
   }).join('');
@@ -2805,7 +2814,7 @@ function renderMAV(){
     const fillPct=Math.min((current/maxD)*100,100);
     let col,zone;
     if(current===0){col='var(--fg4)';zone='Sin series';}
-    else if(current<mev){col='var(--r)';zone=`Bajo MEV (faltan ${mev-current}s)`;}
+    else if(current<mev){col='var(--fg3)';zone=`MEV ${current}/${mev}s`;}
     else if(current<=mavBase){col='var(--g)';zone='Rango óptimo ✓';}
     else if(current<=eMRV){col='var(--y)';zone='MAV→MRV';}
     else{col='var(--r)';zone=`Sobre MRV (+${current-eMRV}s)`;}
@@ -3294,6 +3303,53 @@ function toggleSection(id){
   var el=document.getElementById(id);
   if(el)el.style.display=el.style.display==='none'?'block':'none';
 }
+function renderTodaySummary(){
+  const el=document.getElementById('todaySummaryItems');
+  if(!el)return;
+  const f=S._fatigue;
+  const mf=S._muscleFatigue||{};
+  const intf=S._interference;
+  if(!f){el.innerHTML='<div style="font-size:12px;color:var(--fg3);">Sincroniza para ver estado</div>';return;}
+
+  const getMFVal=m=>(mf[m]&&typeof mf[m]==='object'?mf[m].value:(mf[m]||0));
+  const items=[];
+
+  // Upper body
+  const avgUpper=Math.round(['Pectoral','Deltoides','Tríceps','Dorsal','Bíceps'].reduce((s,m)=>s+getMFVal(m),0)/5);
+  const upperOk=f.upperScore>=65&&avgUpper<40;
+  items.push({ok:upperOk,warn:f.upperScore<45,text:upperOk?'Tren superior fresco':'Tren superior fatigado ('+avgUpper+'%)'});
+
+  // Lower body
+  const avgLower=Math.round(['Cuádriceps','Isquiotibiales','Glúteo','Gemelos/Sóleo'].reduce((s,m)=>s+getMFVal(m),0)/4);
+  const lowerOk=f.lowerScore>=65&&avgLower<40;
+  const lowerWarn=f.lowerScore<45||avgLower>55;
+  items.push({ok:lowerOk,warn:lowerWarn,text:lowerOk?'Tren inferior tolerable':lowerWarn?'Fatiga pierna elevada ('+avgLower+'%)':'Tren inferior moderado ('+avgLower+'%)'});
+
+  // Cardio / Z2
+  const cardioOk=f.cardioScore>=70;
+  const cardioWarn=f.cardioScore<45;
+  items.push({ok:cardioOk,warn:cardioWarn,text:cardioOk?'Z2 compatible':'Evitar intensidad cardio alta'});
+
+  // Interference
+  if(intf&&intf.level==='high'){
+    items.push({ok:false,warn:true,text:'Interferencia running activa — cuidado lower'});
+  }
+
+  // HRV signal
+  const hrv=S._hrv;
+  if(hrv&&hrv.pctVsBase<-10){
+    items.push({ok:false,warn:true,text:'HRV bajo baseline — prioriza recuperación'});
+  } else if(hrv&&hrv.pctVsBase>8){
+    items.push({ok:true,warn:false,text:'HRV elevada — día óptimo para carga'});
+  }
+
+  el.innerHTML=items.map(function(item){
+    var col=item.warn?'var(--r)':item.ok?'var(--g)':'var(--y)';
+    var icon=item.warn?'⚠':item.ok?'✓':'~';
+    return '<div style="display:flex;align-items:center;gap:8px;font-size:12px;"><span style="color:'+col+';font-size:13px;width:16px;flex-shrink:0;">'+icon+'</span><span style="color:'+(item.warn?'var(--fg)':'var(--fg2)')+';">'+item.text+'</span></div>';
+  }).join('');
+}
+
 function safe(fn,name){try{fn();}catch(e){console.error(name+':',e.message);}}
 function showS(id){
   document.querySelectorAll('.screen').forEach(function(s){s.classList.remove('active');});
