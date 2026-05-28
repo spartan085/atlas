@@ -18,7 +18,7 @@ body{background:var(--bg);color:var(--fg);font-family:'Geist',system-ui,sans-ser
 body::after{content:'';position:fixed;inset:0;z-index:9999;pointer-events:none;background-image:url("data:image/svg+xml,%3Csvg viewBox='0 0 512 512' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.75' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.04'/%3E%3C/svg%3E");opacity:.45;}
 .app{display:flex;flex-direction:column;min-height:100svh;padding-top:var(--st);}
 .main{flex:1;padding-bottom:calc(72px + var(--sb));overflow-y:auto;}
-.screen{display:none;animation:si .28s ease;}.screen.active{display:block;}
+.screen{display:none;animation:si .28s ease;}.screen.active{display:block;padding-bottom:calc(80px + var(--sb));}
 @keyframes si{from{opacity:0;transform:translateY(5px);}to{opacity:1;transform:none;}}
 .hdr{position:sticky;top:0;z-index:100;height:52px;padding:0 18px;display:flex;align-items:center;justify-content:space-between;background:rgba(8,9,12,0.88);backdrop-filter:blur(22px);-webkit-backdrop-filter:blur(22px);border-bottom:1px solid var(--line);}
 .wordmark{font-family:'Instrument Serif',serif;font-size:19px;letter-spacing:-.3px;}.wordmark em{font-style:italic;color:var(--c);}
@@ -218,7 +218,7 @@ textarea.field{resize:vertical;min-height:60px;}
       <div class="st o"><div class="st-src">FC Reposo</div><div class="st-val" id="m-rhr">—</div><div class="st-unit">ppm <span id="m-rhr-d" style="font-size:10px;"></span></div></div>
       <div class="st p"><div class="st-src">Pasos</div><div class="st-val" id="m-steps">—</div><div class="st-unit">pasos</div></div>
       <div class="st b"><div class="st-src">VO2max · Garmin</div><div class="st-val" id="m-vo2max">—</div><div class="st-unit">ml/kg/min</div></div>
-      <div class="st g"><div class="st-src">FC Nocturna</div><div class="st-val" id="m-nocthr">—</div><div class="st-unit">ppm durmiendo</div></div>
+
     </div>
 
     <div class="card" style="margin-bottom:10px;">
@@ -1470,7 +1470,7 @@ function EffectiveSetsEngine(hevyWorkouts, weekOffset){
         const setEffective = rirMult * stimMult * lenMult;
         totalEffective += setEffective;
 
-        setDetails.push({rpe:rpe||null, reps, kg, rirMult, sfrMult, lenMult, effective:Math.round(setEffective*100)/100});
+        setDetails.push({rpe:rpe||null, reps, kg, rirMult, stimMult, lenMult, effective:Math.round(setEffective*100)/100});
       });
 
       const avgEffective = Math.round(totalEffective*100)/100;
@@ -2722,7 +2722,7 @@ function updateMetrics(){
   sv('m-bb',m.bb);sv('m-rhr',m.restingHR?m.restingHR+'ppm':null);
   sv('m-steps',m.steps?(m.steps>=1000?(Math.round(m.steps/1000)+'k'):m.steps):null);
   sv('m-vo2max',m.vo2max?m.vo2max+'':null);
-  sv('m-nocthr',m.avgNocturnalHR?Math.round(m.avgNocturnalHR)+'ppm':null);
+
   sv('m-ctl',m.ctl!=null&&m.atl!=null?`CTL ${Math.round(m.ctl)} · ATL ${Math.round(m.atl)}`:m.ctl?Math.round(m.ctl):null);
   const hEl=document.getElementById('m-hrv-d');
   if(hEl&&S._hrv?.pctVsBase!=null){const p=S._hrv.pctVsBase;hEl.textContent=`${p>=0?'+':''}${p}% vs base ${Math.round(S._hrv.baseline28||0)}ms`;hEl.className='st-delta '+(p>=-5?'up':p<-10?'dn':'nt');}
@@ -2975,8 +2975,8 @@ async function fetchIntervals(){
     S.metrics.musclePct=fv['MuscleMass']||fv['muscleMass']||null;
     S.metrics.waterPct=fv['BodyWater']||fv['bodyWater']||null;
     const nutFv=latestNut.fieldValues||{};const allFv={...fv,...nutFv};
-    S.metrics.kcal=latestNut.kcalConsumed||latestNut.calories||allFv['CaloriesConsumed']||null;
-    S.metrics.kcalBurned=latestBio.calories||latestBio.kcalBurned||latestBio.active_calories||allFv['CaloriesBurned']||allFv['ActiveCalories']||null;
+    S.metrics.kcal=latestNut.kcalConsumed||latestNut.calories||allFv['CaloriesConsumed']||latestNut.activeCalories||null;
+    S.metrics.kcalBurned=latestBio.calories||latestBio.kcalBurned||latestBio.active_calories||latestBio.totalCalories||allFv['CaloriesBurned']||allFv['ActiveCalories']||allFv['TotalCalories']||null;
     S.metrics.protein=latestNut.protein||latestNut.proteinG||allFv['Protein']||null;
     S.metrics.carbs=latestNut.carbohydrates||latestNut.carbsG||allFv['Carbohydrates']||null;
     S.metrics.fat=latestNut.fatTotal||latestNut.fatG||latestNut.fat||allFv['Fat']||null;
