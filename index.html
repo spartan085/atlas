@@ -17,7 +17,7 @@ body::after{content:'';position:fixed;inset:0;z-index:9999;pointer-events:none;b
 .app{display:flex;flex-direction:column;min-height:100svh;padding-top:var(--st);}
 .main{flex:1;padding-bottom:calc(72px + var(--sb));overflow-y:auto;}
 .screen{display:none;animation:si .28s ease;background:var(--bg);}
-.screen.active{display:block;padding-bottom:calc(76px + var(--sb));min-height:100vh;}
+.screen.active{display:block;padding-bottom:calc(76px + var(--sb));min-height:100vh;background:var(--bg);}
 @keyframes si{from{opacity:0;transform:translateY(5px);}to{opacity:1;transform:none;}}
 .hdr{position:sticky;top:0;z-index:100;height:52px;padding:0 18px;display:flex;align-items:center;justify-content:space-between;background:rgba(8,9,12,0.88);backdrop-filter:blur(22px);-webkit-backdrop-filter:blur(22px);border-bottom:1px solid var(--line);}
 .wordmark{font-family:'Instrument Serif',serif;font-size:19px;letter-spacing:-.3px;}.wordmark em{font-style:italic;color:var(--c);}
@@ -581,22 +581,24 @@ textarea.field{resize:vertical;min-height:60px;}
 <div class="screen" id="s-plan">
   <div class="pad">
     <div class="card">
-      <div class="card-hdr"><span class="t-md">Distribución semanal</span></div>
+      <div class="card-hdr"><span class="t-md">Mesociclo</span></div>
       <div class="card-body">
-        <div style="display:flex;flex-direction:column;gap:7px;">
-          <div style="display:flex;gap:8px;padding:6px 0;border-bottom:1px solid var(--line);"><span style="font-family:'Geist Mono',monospace;font-size:10px;color:var(--c);width:28px;flex-shrink:0;">D1</span><span style="font-size:12px;color:var(--fg2);">Torso Empuje + Core — Press banca, inclinado, aperturas, militar, laterales, fondos</span></div>
-          <div style="display:flex;gap:8px;padding:6px 0;border-bottom:1px solid var(--line);"><span style="font-family:'Geist Mono',monospace;font-size:10px;color:var(--c);width:28px;flex-shrink:0;">D2</span><span style="font-size:12px;color:var(--fg2);">Pierna A · Cuád/Glúteo + Gemelos — Pre-activación obligatoria</span></div>
-          <div style="display:flex;gap:8px;padding:6px 0;border-bottom:1px solid var(--line);"><span style="font-family:'Geist Mono',monospace;font-size:10px;color:var(--g);width:28px;flex-shrink:0;">D3</span><span style="font-size:12px;color:var(--fg2);">Cardio Z2 · 115-135ppm · 35-45min</span></div>
-          <div style="display:flex;gap:8px;padding:6px 0;border-bottom:1px solid var(--line);"><span style="font-family:'Geist Mono',monospace;font-size:10px;color:var(--c);width:28px;flex-shrink:0;">D4</span><span style="font-size:12px;color:var(--fg2);">Torso Tirón + Core — Remo, pullover, face pull, bíceps</span></div>
-          <div style="display:flex;gap:8px;padding:6px 0;border-bottom:1px solid var(--line);"><span style="font-family:'Geist Mono',monospace;font-size:10px;color:var(--c);width:28px;flex-shrink:0;">D5</span><span style="font-size:12px;color:var(--fg2);">Pierna B · Isquio/Glúteo + Gemelos — Pre-activación obligatoria</span></div>
-          <div style="display:flex;gap:8px;padding:6px 0;border-bottom:1px solid var(--line);"><span style="font-family:'Geist Mono',monospace;font-size:10px;color:var(--g);width:28px;flex-shrink:0;">D6</span><span style="font-size:12px;color:var(--fg2);">Z2 + Movilidad · 30min + 20min</span></div>
-          <div style="display:flex;gap:8px;padding:6px 0;"><span style="font-family:'Geist Mono',monospace;font-size:10px;color:var(--fg4);width:28px;flex-shrink:0;">D7</span><span style="font-size:12px;color:var(--fg3);">Descanso completo</span></div>
+        <div style="display:flex;gap:6px;margin-bottom:10px;">
+          <button onclick="selectMeso(1)" id="meso-btn-1" style="flex:1;padding:8px;border-radius:8px;font-size:12px;background:var(--c);color:#000;border:none;cursor:pointer;font-weight:600;">M1</button>
+          <button onclick="selectMeso(2)" id="meso-btn-2" style="flex:1;padding:8px;border-radius:8px;font-size:12px;background:var(--bg3);color:var(--fg3);border:1px solid var(--line);cursor:pointer;">M2</button>
+          <button onclick="selectMeso(3)" id="meso-btn-3" style="flex:1;padding:8px;border-radius:8px;font-size:12px;background:var(--bg3);color:var(--fg3);border:1px solid var(--line);cursor:pointer;">M3</button>
+          <button onclick="selectMeso(4)" id="meso-btn-4" style="flex:1;padding:8px;border-radius:8px;font-size:12px;background:var(--bg3);color:var(--fg3);border:1px solid var(--line);cursor:pointer;">M4</button>
         </div>
+        <div id="mesoInfo" style="font-size:11px;color:var(--fg3);padding:6px 8px;background:var(--bg3);border-radius:6px;">Mesociclo 1 · Readaptación · Semanas 1-4</div>
       </div>
+    </div>
+    <div class="card" style="margin-bottom:10px;">
+      <div class="card-hdr"><span class="t-md">Distribución semanal</span><span class="mono" style="font-size:10px;color:var(--fg3);" id="planMesoLbl">M1 · Sem 1-4</span></div>
+      <div class="card-body"><div style="display:flex;flex-direction:column;gap:7px;" id="planDaysList"></div></div>
     </div>
     <div class="card">
       <div class="card-hdr"><span class="t-md">Protocolo rodilla</span><span class="chip chip-y">ACTIVO</span></div>
-      <div class="card-body"><p class="t-sm">Pre-activación obligatoria D2 y D5: clam shell x15/lado · puente glúteo x15 · TKE x15/lado · bird dog x8/lado · mini-squat x10.</p><p class="t-sm" style="margin-top:8px;">Dolor >3/10 durante ejercicio = parar. >3/10 persistente >24h = fisio.</p></div>
+      <div class="card-body"><p class="t-sm">Pre-activación D2 y D5: clam shell x15 · puente glúteo x15 · TKE x15 · bird dog x8 · mini-squat x10.</p><p class="t-sm" style="margin-top:8px;">Dolor >3/10 = parar. Persistente >24h = fisio.</p></div>
     </div>
   </div>
 </div>
@@ -617,7 +619,7 @@ textarea.field{resize:vertical;min-height:60px;}
 
 // ══ STATE ══
 const S = {
-  int:{aid:'',key:'',ok:false}, claude:{key:''},
+  int:{aid:'',key:'',ok:false}, claude:{key:''}, currentMeso:1,
   metrics:{hrv:null,restingHR:null,sleep:null,sleepScore:null,bb:null,steps:null,weight:null,
     fatPct:null,musclePct:null,waterPct:null,kcal:null,protein:null,carbs:null,fat:null,
     ctl:null,atl:null,tsb:null,hrv7:[],_nutDate:null,activities:[],weightHistory:[]},
@@ -2819,7 +2821,7 @@ function renderMAV(){
     else if(current<=eMRV){col='var(--y)';zone='MAV→MRV';}
     else{col='var(--r)';zone=`Sobre MRV (+${current-eMRV}s)`;}
     const dyn=isReduced?`<div style="font-size:10px;color:var(--y);margin-top:2px;">⚠ MRV dinámico: ${mrv}→${eMRV} (×${eff.mult})</div>`:'';
-    return`<div class="mav-row"><div class="mav-header"><div class="mav-muscle">${muscle}</div><div class="mav-nums"><span style="color:${col};font-weight:600;">${current}s</span> · MEV${mev} MAV${mavBase} MRV<span style="color:${isReduced?'var(--y)':'inherit'}">${eMRV}</span></div></div><div class="mav-track"><div class="mav-mev" style="width:${mevPct}%"></div><div class="mav-fill" style="width:${fillPct}%;background:${col};"></div><div class="mav-mrv" style="left:${mrvPct}%"></div></div><div class="mav-zone" style="color:${col};">${zone}</div>${dyn}</div>`;
+    return`<div class="mav-row"><div class="mav-header"><div class="mav-muscle">${muscle}${(function(){var f=(S._hevyRecent||[]).filter(function(s){return s.age<7*864e5&&s.muscleSets&&s.muscleSets[muscle]>0;}).length;var c=f>=2?"var(--g)":f===1?"var(--y)":"var(--fg4)";var t=f>=2?"F2":"F1";return f>0?"<span style=\"font-size:9px;color:"+c+";margin-left:5px;font-family:monospace;\">"+t+"</span>":"";}())}</div><div class="mav-nums"><span style="color:${col};font-weight:600;">${current}s</span> · MEV${mev} MAV${mavBase} MRV<span style="color:${isReduced?'var(--y)':'inherit'}">${eMRV}</span></div></div><div class="mav-track"><div class="mav-mev" style="width:${mevPct}%"></div><div class="mav-fill" style="width:${fillPct}%;background:${col};"></div><div class="mav-mrv" style="left:${mrvPct}%"></div></div><div class="mav-zone" style="color:${col};">${zone}</div>${dyn}</div>`;
   }).join('');
   if(mav&&mav.reasons.length&&multCard&&multList){multCard.style.display='block';multList.innerHTML=mav.reasons.map(r=>`<div style="font-size:12px;color:var(--fg2);padding:4px 0;border-bottom:1px solid var(--line);">${r}</div>`).join('')+`<div style="font-family:'Geist Mono',monospace;font-size:11px;color:var(--c);padding:6px 0 0;">Global ×${mav.global}</div>`;}
   else if(multCard)multCard.style.display='none';
@@ -3350,6 +3352,39 @@ function renderTodaySummary(){
   }).join('');
 }
 
+
+var MESO_DAYS = {
+  1:[['D1','var(--c)','Torso Empuje + Core'],['D2','var(--c)','Pierna A Cuad/Gluteo + Gemelos Pre-activacion'],['D3','var(--g)','Cardio Z2 115-135ppm 35-45min'],['D4','var(--c)','Torso Tiron + Core'],['D5','var(--c)','Pierna B Isquio/Gluteo + Gemelos Pre-activacion'],['D6','var(--g)','Z2 + Movilidad 30+20min'],['D7','var(--fg4)','Descanso']],
+  2:[['D1','var(--c)','Torso Empuje +1s press inclinado +1s aperturas cable'],['D2','var(--c)','Pierna A +1s bulgara progresion gemelo seated'],['D3','var(--g)','Cardio Z2 45-55min'],['D4','var(--c)','Torso Tiron +1s jalon +1s remo cable'],['D5','var(--c)','Pierna B +1s RDL +1s curl femoral seated'],['D6','var(--g)','Z2 + Movilidad 40+20min'],['D7','var(--fg4)','Descanso']],
+  3:[['D1','var(--c)','Torso Empuje RIR 1-2 maxima carga'],['D2','var(--c)','Pierna A RIR 1-2 foco elongado'],['D3','var(--g)','Z2 o umbral corto segun readiness'],['D4','var(--c)','Torso Tiron RIR 1-2 progresion e1RM'],['D5','var(--c)','Pierna B RDL pesado curl seated RIR 1-2'],['D6','var(--g)','Recuperacion activa Z1 o movilidad'],['D7','var(--fg4)','Descanso']],
+  4:[['D1','var(--fg3)','Torso Empuje 50% series 60-70% carga'],['D2','var(--fg3)','Pierna A 50% series sin fallo'],['D3','var(--g)','Z1 activo 30min'],['D4','var(--fg3)','Torso Tiron 50% series'],['D5','var(--fg3)','Pierna B 50% series tecnica'],['D6','var(--g)','Movilidad completa 30min'],['D7','var(--fg4)','Descanso']]
+};
+var MESO_INFO = {
+  1:'Mesociclo 1 - Readaptacion - Semanas 1-4 - Volumen base tecnica VMO',
+  2:'Mesociclo 2 - Acumulacion - Semanas 5-8 - +2s grupos prioritarios',
+  3:'Mesociclo 3 - Intensificacion - Semanas 9-12 - RIR 1-2 carga maxima',
+  4:'Mesociclo 4 - Deload - Semana 13 - 50% volumen recuperacion'
+};
+function selectMeso(n){
+  S.currentMeso=n;
+  var i,b;
+  for(i=1;i<=4;i++){
+    b=document.getElementById('meso-btn-'+i);
+    if(!b)continue;
+    if(i===n){b.style.background='var(--c)';b.style.color='#000';b.style.border='none';b.style.fontWeight='600';}
+    else{b.style.background='var(--bg3)';b.style.color='var(--fg3)';b.style.border='1px solid var(--line)';b.style.fontWeight='400';}
+  }
+  var info=document.getElementById('mesoInfo');
+  if(info)info.textContent=MESO_INFO[n]||'';
+  var lbl=document.getElementById('planMesoLbl');
+  if(lbl)lbl.textContent='M'+n;
+  var list=document.getElementById('planDaysList');
+  var days=MESO_DAYS[n]||[];
+  if(list)list.innerHTML=days.map(function(d,idx){
+    return '<div style="display:flex;gap:8px;padding:6px 0;'+(idx<days.length-1?'border-bottom:1px solid var(--line)':'')+'">'+'<span style="font-family:monospace;font-size:10px;color:'+d[1]+';width:28px;flex-shrink:0;">'+d[0]+'</span>'+'<span style="font-size:12px;color:var(--fg2);">'+d[2]+'</span></div>';
+  }).join('');
+  save();
+}
 function safe(fn,name){try{fn();}catch(e){console.error(name+':',e.message);}}
 function showS(id){
   document.querySelectorAll('.screen').forEach(function(s){s.classList.remove('active');});
@@ -3357,11 +3392,11 @@ function showS(id){
   document.querySelectorAll('.ni').forEach(function(n){n.classList.remove('active');});
   var map={'s-hoy':'ni-hoy','s-fatiga':'ni-fatiga','s-mav':'ni-mav','s-log':'ni-log','s-datos':'ni-datos','s-plan':'ni-plan'};
   var btn=document.getElementById(map[id]);if(btn)btn.classList.add('active');
-  window.scrollTo(0,0);try{document.querySelector(".main").scrollTop=0;document.documentElement.scrollTop=0;document.body.scrollTop=0;}catch(e){}
+  window.scrollTo(0,0);try{var m=document.querySelector(".main");if(m)m.scrollTop=0;document.documentElement.scrollTop=0;document.body.scrollTop=0;}catch(e){}setTimeout(function(){try{var m=document.querySelector(".main");if(m)m.scrollTop=0;window.scrollTo(0,0);}catch(e){}},50);
   if(id==='s-mav'){safe(renderWeekZones,'rz');safe(renderMAV,'rm');safe(renderProgressionPanel,'rp');safe(renderE1RMPanel,'re');safe(renderEffectiveSets,'ref');}
   if(id==='s-log'){safe(renderLog,'rl');}
   if(id==='s-fatiga'){safe(renderFatigueSignals,'rs');safe(renderMuscleFatigue,'rmf');safe(renderInterferencePanel,'ri');safe(renderDensityPanel,'rd');safe(renderConfidencePanel,'rc');safe(renderValidationPanel,'rv');}
-  if(id==='s-datos'){safe(renderValidationDashboard,'rvd');}
+  if(id==='s-datos'){safe(renderValidationDashboard,'rvd');}if(id==='s-plan'){safe(function(){selectMeso(S.currentMeso||1);},'meso');}
 }
 async function syncAll(){if(S.int.aid&&S.int.key)await fetchIntervals();if(S.hevy?.key)await fetchHevy();}
 function toast(title,msg,icon,ms=3500){const el=document.createElement('div');el.className='toast';el.innerHTML=`<div class="toast-t">${icon||'ℹ️'} ${title}</div>${msg?`<div class="toast-m">${msg}</div>`:''}`;document.body.appendChild(el);setTimeout(()=>el.remove(),ms);}
@@ -3372,6 +3407,7 @@ function init(){
   if(S.int.aid){const e=document.getElementById('intAid');if(e)e.value=S.int.aid;}
   if(S.int.key){const e=document.getElementById('intKey');if(e)e.value='••••••••••••••••';}
   if(S.int.ok)setIntStatus('ok');
+  safe(function(){selectMeso(S.currentMeso||1);},'meso');
   if(S.hevy?.key){const e=document.getElementById('hevyKey');if(e)e.value='••••••••••••••••';const st=document.getElementById('hevyStatus');if(st)st.innerHTML='<span class="sdot-sm sdot-g"></span><span style="color:var(--g);">Conectado</span>';}
   if(S.claude.key){const e=document.getElementById('claudeKey');if(e)e.value='sk-ant-...guardada';}
   S.weekDays.forEach(day=>{document.querySelectorAll('.wd').forEach(el=>{if(el.querySelector('.wd-n')?.textContent===day)el.classList.add('done');});});
