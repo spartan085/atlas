@@ -633,15 +633,6 @@ textarea.field{resize:vertical;min-height:60px;}
 </div>
 
 <script>
-// Error handler — catch parse/runtime errors for debugging
-window.onerror = function(msg, src, line, col, err){
-  const d = document.createElement('div');
-  d.style.cssText = 'position:fixed;top:0;left:0;right:0;background:#ef4444;color:#fff;padding:10px;font-size:11px;z-index:99999;font-family:monospace;word-break:break-all;';
-  d.textContent = 'JS ERROR: ' + msg + ' | Line: ' + line + ':' + col + ' | ' + (err && err.stack ? err.stack.slice(0,200) : '');
-  document.body && document.body.appendChild(d);
-  return false;
-};
-try {
 'use strict';
 
 // ══ STATE ══
@@ -3720,7 +3711,6 @@ function init(){
 }
 window.addEventListener('DOMContentLoaded',init);
 
-} catch(e){ window.onerror(e.message,"",0,0,e); }
 </script>
 
 </body>
