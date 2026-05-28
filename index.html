@@ -204,6 +204,8 @@ textarea.field{resize:vertical;min-height:60px;}
   </div>
 
   <div class="pad" style="padding-top:4px;">
+
+    <!-- NIVEL 1: siempre visible -->
     <div class="card" id="recsCard" style="display:none;">
       <div class="card-hdr"><span class="t-md">Recomendaciones</span><span class="mono" style="font-size:10px;color:var(--fg3);" id="recsConf"></span></div>
       <div class="card-body"><ul class="rec-list" id="recsList"></ul></div>
@@ -214,49 +216,6 @@ textarea.field{resize:vertical;min-height:60px;}
       <div class="st b"><div class="st-src">CTL · ATL · TSB</div><div class="st-val sm" id="m-ctl">—</div><div class="st-delta" id="m-tsb-d"></div><div class="st-label">Forma <span id="m-tsb">—</span></div></div>
       <div class="st g"><div class="st-src">Sueño</div><div class="st-val" id="m-sleep">—</div><div class="st-unit">h · <span id="m-sleep-score"></span></div></div>
       <div class="st y"><div class="st-src">Body Battery</div><div class="st-val" id="m-bb">—</div><div class="st-unit">/100</div></div>
-      <div class="st o"><div class="st-src">FC Reposo</div><div class="st-val" id="m-rhr">—</div><div class="st-unit">ppm <span id="m-rhr-d" style="font-size:10px;"></span></div></div>
-      <div class="st p"><div class="st-src">Pasos</div><div class="st-val" id="m-steps">—</div><div class="st-unit">pasos</div></div>
-      <div class="st b"><div class="st-src">VO2max · Garmin</div><div class="st-val" id="m-vo2max">—</div><div class="st-unit">ml/kg/min</div></div>
-      <div class="st g"><div class="st-src">FC Nocturna</div><div class="st-val" id="m-nocthr">—</div><div class="st-unit">ppm durmiendo</div></div>
-    </div>
-
-    <div class="card" style="margin-bottom:10px;">
-      <div class="card-hdr"><span class="t-md">Nutrición · Composición</span><span class="mono" style="font-size:10px;color:var(--fg3);" id="nutDate">Intervals</span></div>
-      <div class="card-body">
-        <!-- Macros row: Prot · Carbs · Grasas · Kcal -->
-        <div class="sg4" style="margin-bottom:10px;">
-          <div style="text-align:center;padding:6px 4px;background:var(--bg3);border-radius:8px;"><div style="font-family:'Instrument Serif',serif;font-size:20px;color:var(--o);" id="nut-prot">—</div><div style="font-size:9px;color:var(--fg3);">g prot · 180</div></div>
-          <div style="text-align:center;padding:6px 4px;background:var(--bg3);border-radius:8px;"><div style="font-family:'Instrument Serif',serif;font-size:20px;color:var(--b);" id="nut-carbs">—</div><div style="font-size:9px;color:var(--fg3);">g carbs · 230</div></div>
-          <div style="text-align:center;padding:6px 4px;background:var(--bg3);border-radius:8px;"><div style="font-family:'Instrument Serif',serif;font-size:20px;color:var(--p);" id="nut-fat">—</div><div style="font-size:9px;color:var(--fg3);">g grasa · 65</div></div>
-          <div style="text-align:center;padding:6px 4px;background:var(--bg3);border-radius:8px;"><div style="font-family:'Instrument Serif',serif;font-size:20px;color:var(--y);" id="nut-kcal">—</div><div style="font-size:9px;color:var(--fg3);">kcal · 2300</div></div>
-        </div>
-        <!-- Kcal balance row -->
-        <div style="display:flex;justify-content:space-between;align-items:center;padding:6px 8px;background:var(--bg3);border-radius:8px;margin-bottom:10px;">
-          <div style="font-size:11px;color:var(--fg2);">Ingeridas <span style="color:var(--y);font-family:'Geist Mono',monospace;" id="nut-kcal-ing">—</span> kcal</div>
-          <div style="font-size:10px;color:var(--fg4);">·</div>
-          <div style="font-size:11px;color:var(--fg2);">Quemadas <span style="color:var(--o);font-family:'Geist Mono',monospace;" id="nut-kcal-burned">—</span> kcal</div>
-          <div style="font-size:10px;color:var(--fg4);">·</div>
-          <div style="font-size:11px;color:var(--fg2);">Balance <span id="nut-balance" style="font-family:'Geist Mono',monospace;">—</span></div>
-        </div>
-        <div class="pb"><div class="pb-row"><div class="pb-label">Proteína</div><div class="pb-val" id="nut-prot-lbl">—/180g</div></div><div class="pb-track"><div class="pb-fill" id="nut-prot-bar" style="width:0%;background:var(--o)"></div></div></div>
-        <div class="pb"><div class="pb-row"><div class="pb-label">Carbohidratos</div><div class="pb-val" id="nut-carbs-lbl">—/230g</div></div><div class="pb-track"><div class="pb-fill" id="nut-carbs-bar" style="width:0%;background:var(--b)"></div></div></div>
-        <div class="pb"><div class="pb-row"><div class="pb-label">Grasas</div><div class="pb-val" id="nut-fat-lbl">—/65g</div></div><div class="pb-track"><div class="pb-fill" id="nut-fat-bar" style="width:0%;background:var(--p)"></div></div></div>
-        <div class="pb"><div class="pb-row"><div class="pb-label">Calorías</div><div class="pb-val" id="nut-kcal-lbl">—/2300</div></div><div class="pb-track"><div class="pb-fill" id="nut-kcal-bar" style="width:0%;background:var(--y)"></div></div></div>
-        <div style="border-top:1px solid var(--line);margin-top:12px;padding-top:12px;">
-          <div class="sg4" style="margin-bottom:8px;">
-            <div style="text-align:center;"><div style="font-family:'Instrument Serif',serif;font-size:18px;" id="comp-weight">—</div><div style="font-size:9px;color:var(--fg3);">kg peso</div></div>
-            <div style="text-align:center;"><div style="font-family:'Instrument Serif',serif;font-size:18px;color:var(--o);" id="comp-fat">—</div><div style="font-size:9px;color:var(--fg3);">% grasa</div></div>
-            <div style="text-align:center;"><div style="font-family:'Instrument Serif',serif;font-size:18px;color:var(--g);" id="comp-muscle">—</div><div style="font-size:9px;color:var(--fg3);">% músculo</div></div>
-            <div style="text-align:center;"><div style="font-family:'Instrument Serif',serif;font-size:18px;color:var(--b);" id="comp-water">—</div><div style="font-size:9px;color:var(--fg3);">% agua</div></div>
-          </div>
-          <div id="compKgRow" style="display:none;padding:8px;background:var(--bg3);border-radius:8px;">
-            <div style="display:flex;justify-content:space-between;font-size:11px;margin-bottom:3px;"><span style="color:var(--fg2);">Masa grasa</span><span style="color:var(--o);font-family:'Geist Mono',monospace;" id="comp-fatkg">—</span></div>
-            <div style="display:flex;justify-content:space-between;font-size:11px;margin-bottom:3px;"><span style="color:var(--fg2);">Masa magra</span><span style="color:var(--g);font-family:'Geist Mono',monospace;" id="comp-leankg">—</span></div>
-            <div style="display:flex;justify-content:space-between;font-size:11px;margin-bottom:3px;"><span style="color:var(--fg2);">Para 10% grasa</span><span style="color:var(--c);font-family:'Geist Mono',monospace;" id="comp-target">—</span></div>
-            <div style="font-size:9px;color:var(--fg4);margin-top:4px;" id="fatDateNote"></div>
-          </div>
-        </div>
-      </div>
     </div>
 
     <div class="card" style="margin-bottom:10px;">
@@ -285,7 +244,7 @@ textarea.field{resize:vertical;min-height:60px;}
       </div>
     </div>
 
-    <div class="card">
+    <div class="card" style="margin-bottom:10px;">
       <div class="card-hdr"><span class="t-md">HRV · 14 días</span><span class="mono" style="font-size:10px;color:var(--fg3);" id="hrvAvgLbl">—</span></div>
       <div class="card-body">
         <div class="hrv-chart" id="hrvChart"></div>
@@ -295,12 +254,83 @@ textarea.field{resize:vertical;min-height:60px;}
       </div>
     </div>
 
-    <div class="card">
-      <div class="card-hdr"><span class="t-md">Actividades recientes</span><span class="mono" style="font-size:10px;color:var(--fg3);">14 días</span></div>
-      <div class="card-body" id="activityList"><div class="empty"><div class="empty-icon">🏃</div><div class="empty-title">Sin actividades</div></div></div>
+    <!-- NIVEL 2: colapsables -->
+    <div style="margin-bottom:10px;">
+      <button onclick="toggleSection('sec-metrics')" style="width:100%;background:var(--bg2);border:1px solid var(--line);border-radius:var(--radius);padding:10px 15px;display:flex;justify-content:space-between;align-items:center;cursor:pointer;">
+        <span style="font-size:13px;font-weight:500;color:var(--fg2);">Métricas detalladas</span>
+        <span style="font-size:10px;color:var(--fg3);">FC · Pasos · VO2max ▾</span>
+      </button>
+      <div id="sec-metrics" style="display:none;margin-top:4px;">
+        <div class="sg">
+          <div class="st o"><div class="st-src">FC Reposo</div><div class="st-val" id="m-rhr">—</div><div class="st-unit">ppm <span id="m-rhr-d" style="font-size:10px;"></span></div></div>
+          <div class="st p"><div class="st-src">Pasos</div><div class="st-val" id="m-steps">—</div><div class="st-unit">pasos</div></div>
+          <div class="st b"><div class="st-src">VO2max</div><div class="st-val" id="m-vo2max">—</div><div class="st-unit">ml/kg/min</div></div>
+          <div class="st c"><div class="st-src">Proteína</div><div class="st-val sm" id="m-prot-quick">—</div><div class="st-unit">g / 180g</div></div>
+        </div>
+      </div>
     </div>
-  </div>
 
+    <div style="margin-bottom:10px;">
+      <button onclick="toggleSection('sec-nut')" style="width:100%;background:var(--bg2);border:1px solid var(--line);border-radius:var(--radius);padding:10px 15px;display:flex;justify-content:space-between;align-items:center;cursor:pointer;">
+        <span style="font-size:13px;font-weight:500;color:var(--fg2);">Nutrición · Composición</span>
+        <span style="font-family:'Geist Mono',monospace;font-size:10px;color:var(--fg3);" id="nutSummaryBtn">— ▾</span>
+      </button>
+      <div id="sec-nut" style="display:none;margin-top:4px;" class="card">
+        <div class="card-body">
+          <span id="nutDate" style="display:none"></span>
+          <div class="sg4" style="margin-bottom:10px;">
+            <div style="text-align:center;padding:6px 4px;background:var(--bg3);border-radius:8px;"><div style="font-family:'Geist Mono',monospace;font-size:20px;color:var(--o);" id="nut-prot">—</div><div style="font-size:9px;color:var(--fg3);">g prot · 180</div></div>
+            <div style="text-align:center;padding:6px 4px;background:var(--bg3);border-radius:8px;"><div style="font-family:'Geist Mono',monospace;font-size:20px;color:var(--b);" id="nut-carbs">—</div><div style="font-size:9px;color:var(--fg3);">g carbs · 230</div></div>
+            <div style="text-align:center;padding:6px 4px;background:var(--bg3);border-radius:8px;"><div style="font-family:'Geist Mono',monospace;font-size:20px;color:var(--p);" id="nut-fat">—</div><div style="font-size:9px;color:var(--fg3);">g grasa · 65</div></div>
+            <div style="text-align:center;padding:6px 4px;background:var(--bg3);border-radius:8px;"><div style="font-family:'Geist Mono',monospace;font-size:20px;color:var(--y);" id="nut-kcal">—</div><div style="font-size:9px;color:var(--fg3);">kcal · 2300</div></div>
+          </div>
+          <div id="kcalBalanceRow" style="background:var(--bg3);border-radius:8px;margin-bottom:10px;padding:8px 10px;">
+            <div style="display:flex;justify-content:space-between;margin-bottom:4px;">
+              <span style="font-size:10px;color:var(--fg3);">Ingeridas</span>
+              <span style="font-size:10px;color:var(--fg3);">Quemadas</span>
+              <span style="font-size:10px;color:var(--fg3);">Balance</span>
+            </div>
+            <div style="display:flex;justify-content:space-between;align-items:baseline;">
+              <span style="font-family:'Geist Mono',monospace;font-size:14px;color:var(--y);" id="nut-kcal-ing">—</span>
+              <span style="font-family:'Geist Mono',monospace;font-size:14px;color:var(--o);" id="nut-kcal-burned">—</span>
+              <span style="font-family:'Geist Mono',monospace;font-size:14px;font-weight:600;" id="nut-balance">—</span>
+            </div>
+            <div style="font-size:9px;color:var(--fg4);margin-top:3px;" id="kcalNote">Cronometer → Intervals → Sync</div>
+          </div>
+          <!-- hidden compat IDs -->
+          <span id="nut-prot-lbl" style="display:none"></span><span id="nut-prot-bar" style="display:none"></span>
+          <span id="nut-carbs-lbl" style="display:none"></span><span id="nut-carbs-bar" style="display:none"></span>
+          <span id="nut-fat-lbl" style="display:none"></span><span id="nut-fat-bar" style="display:none"></span>
+          <span id="nut-kcal-lbl" style="display:none"></span><span id="nut-kcal-bar" style="display:none"></span>
+          <div style="border-top:1px solid var(--line);padding-top:10px;">
+            <div class="sg4" style="margin-bottom:8px;">
+              <div style="text-align:center;"><div style="font-family:'Geist Mono',monospace;font-size:18px;" id="comp-weight">—</div><div style="font-size:9px;color:var(--fg3);">kg</div></div>
+              <div style="text-align:center;"><div style="font-family:'Geist Mono',monospace;font-size:18px;color:var(--o);" id="comp-fat">—</div><div style="font-size:9px;color:var(--fg3);">% grasa</div></div>
+              <div style="text-align:center;"><div style="font-family:'Geist Mono',monospace;font-size:18px;color:var(--g);" id="comp-muscle">—</div><div style="font-size:9px;color:var(--fg3);">% músculo</div></div>
+              <div style="text-align:center;"><div style="font-family:'Geist Mono',monospace;font-size:18px;color:var(--b);" id="comp-water">—</div><div style="font-size:9px;color:var(--fg3);">% agua</div></div>
+            </div>
+            <div id="compKgRow" style="display:none;padding:8px;background:var(--bg3);border-radius:8px;">
+              <div style="display:flex;justify-content:space-between;font-size:11px;margin-bottom:3px;"><span style="color:var(--fg2);">Masa grasa</span><span style="color:var(--o);font-family:'Geist Mono',monospace;" id="comp-fatkg">—</span></div>
+              <div style="display:flex;justify-content:space-between;font-size:11px;margin-bottom:3px;"><span style="color:var(--fg2);">Masa magra</span><span style="color:var(--g);font-family:'Geist Mono',monospace;" id="comp-leankg">—</span></div>
+              <div style="display:flex;justify-content:space-between;font-size:11px;margin-bottom:3px;"><span style="color:var(--fg2);">Para 10% grasa</span><span style="color:var(--c);font-family:'Geist Mono',monospace;" id="comp-target">—</span></div>
+              <div style="font-size:9px;color:var(--fg4);margin-top:4px;" id="fatDateNote"></div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div style="margin-bottom:10px;">
+      <button onclick="toggleSection('sec-acts')" style="width:100%;background:var(--bg2);border:1px solid var(--line);border-radius:var(--radius);padding:10px 15px;display:flex;justify-content:space-between;align-items:center;cursor:pointer;">
+        <span style="font-size:13px;font-weight:500;color:var(--fg2);">Actividades recientes</span>
+        <span style="font-size:10px;color:var(--fg3);">14 días ▾</span>
+      </button>
+      <div id="sec-acts" style="display:none;margin-top:4px;" class="card">
+        <div class="card-body" id="activityList"><div class="empty"><div class="empty-icon">🏃</div><div class="empty-title">Sin actividades</div></div></div>
+      </div>
+    </div>
+
+  </div>
   <div class="ai-panel" id="aiDayP" style="display:none;">
     <div class="ai-panel-hdr"><div class="ai-av">⬡</div><div style="flex:1;"><div style="font-size:12px;font-weight:500;">ATLAS · Análisis del día</div><div class="mono" style="font-size:10px;color:var(--fg3);" id="aiDayT"></div></div></div>
     <div class="ai-body"><div class="ai-text" id="aiDayTxt"></div></div>
@@ -2706,8 +2736,11 @@ function updateMetrics(){
   sv('m-hrv',m.hrv?m.hrv+'ms':null);sv('m-sleep',m.sleep);sv('m-sleep-score',m.sleepScore?'score '+m.sleepScore:'');
   sv('m-bb',m.bb);sv('m-rhr',m.restingHR?m.restingHR+'ppm':null);
   sv('m-steps',m.steps?(m.steps>=1000?(Math.round(m.steps/1000)+'k'):m.steps):null);
+  var mProt=document.getElementById('m-prot-quick');
+  if(mProt)mProt.textContent=m.protein?Math.round(m.protein):'—';
+  var nutBtn=document.getElementById('nutSummaryBtn');
+  if(nutBtn&&(m.protein||m.kcal)){nutBtn.textContent=(m.protein?Math.round(m.protein)+'g prot':'—')+(m.kcal?' · '+Math.round(m.kcal)+' kcal':'')+' ▾';}
   sv('m-vo2max',m.vo2max?m.vo2max+'':null);
-  sv('m-nocthr',m.avgNocturnalHR?Math.round(m.avgNocturnalHR)+'ppm':null);
   sv('m-ctl',m.ctl!=null&&m.atl!=null?`CTL ${Math.round(m.ctl)} · ATL ${Math.round(m.atl)}`:m.ctl?Math.round(m.ctl):null);
   const hEl=document.getElementById('m-hrv-d');
   if(hEl&&S._hrv?.pctVsBase!=null){const p=S._hrv.pctVsBase;hEl.textContent=`${p>=0?'+':''}${p}% vs base ${Math.round(S._hrv.baseline28||0)}ms`;hEl.className='st-delta '+(p>=-5?'up':p<-10?'dn':'nt');}
@@ -2720,8 +2753,10 @@ function updateMetrics(){
   const sl=(id,t)=>{const e=document.getElementById(id);if(e)e.textContent=t;};
   sv('nut-kcal',m.kcal?Math.round(m.kcal):null);sv('nut-prot',m.protein?Math.round(m.protein):null);sv('nut-carbs',m.carbs?Math.round(m.carbs):null);sv('nut-fat',m.fat?Math.round(m.fat):null);
   // Kcal balance row
-  sv('nut-kcal-ing',m.kcal?Math.round(m.kcal):null);
-  sv('nut-kcal-burned',m.kcalBurned?Math.round(m.kcalBurned):null);
+  sv('nut-kcal-burned',m.kcalBurned?Math.round(m.kcalBurned)+'':null);
+  sv('nut-kcal-ing',m.kcal?Math.round(m.kcal)+'':null);
+  const kcalNote=document.getElementById('kcalNote');
+  if(kcalNote){if(m.kcal||m.kcalBurned){kcalNote.style.display='none';}else{kcalNote.textContent='Sin datos · Cronometer→Intervals→Sync';kcalNote.style.display='block';}}
   const balEl=document.getElementById('nut-balance');
   if(balEl&&m.kcal&&m.kcalBurned){const bal=Math.round(m.kcal-m.kcalBurned);balEl.textContent=(bal>0?'+':'')+bal+'kcal';balEl.style.color=bal>200?'var(--r)':bal<-200?'var(--b)':'var(--g)';}
   else if(balEl)balEl.textContent='—';
@@ -3254,6 +3289,11 @@ async function analyzeMav(){const vol=Object.entries(S.weeklyVol||{}).map(([k,v]
 async function analyzeSession(){const last=S.logs[0];if(!last){toast('Sin sesión','Registra una sesión primero','⚠️');return;}await callAI(`ANÁLISIS DE SESIÓN\n${last.sess} · ${last.dur}min · RPE ${last.rpe} · sRPE ${last.srpe} · Rodilla ${last.knee||0}/10\nNotas: "${last.notes||'ninguna'}"\n\n${buildCtx()}\n\n1) ¿sRPE apropiado para el estado de fatiga? 2) Señales de infra/sobreestimulación. 3) Impacto en readiness mañana.`,'aiSessP','aiSessTxt','aiSessT');}
 
 // ══ NAV & SYNC ══
+
+function toggleSection(id){
+  var el=document.getElementById(id);
+  if(el)el.style.display=el.style.display==='none'?'block':'none';
+}
 function safe(fn,name){try{fn();}catch(e){console.error(name+':',e.message);}}
 function showS(id){
   document.querySelectorAll('.screen').forEach(function(s){s.classList.remove('active');});
