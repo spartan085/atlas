@@ -3678,7 +3678,27 @@ async function analyzeMav(){const vol=Object.entries(S.weeklyVol||{}).map(([k,v]
 async function analyzeSession(){const last=S.logs[0];if(!last){toast('Sin sesión','Registra una sesión primero','⚠️');return;}await callAI(`ANÁLISIS DE SESIÓN\n${last.sess} · ${last.dur}min · RPE ${last.rpe} · sRPE ${last.srpe} · Rodilla ${last.knee||0}/10\nNotas: "${last.notes||'ninguna'}"\n\n${buildCtx()}\n\n1) ¿sRPE apropiado para el estado de fatiga? 2) Señales de infra/sobreestimulación. 3) Impacto en readiness mañana.`,'aiSessP','aiSessTxt','aiSessT');}
 
 // ══ NAV & SYNC ══
-function showS(id){document.querySelectorAll('.screen').forEach(s=>s.classList.remove('active'));const t=document.getElementById(id);if(t)t.classList.add('active');document.querySelectorAll('.ni').forEach(n=>n.classList.remove('active'));const map={'s-hoy':'ni-hoy','s-fatiga':'ni-fatiga','s-mav':'ni-mav','s-log':'ni-log','s-datos':'ni-datos','s-plan':'ni-plan'};const btn=document.getElementById(map[id]);if(btn)btn.classList.add('active');window.scrollTo(0,0);if(id==='s-mav'){renderWeekZones();renderMAV();renderProgressionPanel();renderE1RMPanel();renderEffectiveSets();}if(id==='s-log')renderLog();if(id==='s-fatiga'){renderFatigueSignals();renderMuscleFatigue();renderInterferencePanel();renderDensityPanel();renderConfidencePanel();renderValidationPanel();renderRunningPanel();}if(id==='s-datos')renderValidationDashboard();}
+function showS(id){
+  try{
+    document.querySelectorAll('.screen').forEach(function(s){s.classList.remove('active');});
+    var t=document.getElementById(id);if(t)t.classList.add('active');
+    document.querySelectorAll('.ni').forEach(function(n){n.classList.remove('active');});
+    var map={'s-hoy':'ni-hoy','s-fatiga':'ni-fatiga','s-mav':'ni-mav','s-log':'ni-log','s-datos':'ni-datos','s-plan':'ni-plan'};
+    var btn=document.getElementById(map[id]);if(btn)btn.classList.add('active');
+    window.scrollTo(0,0);
+    if(id==='s-mav'){try{renderWeekZones();}catch(e){console.error('renderWeekZones:',e);}try{renderMAV();}catch(e){console.error('renderMAV:',e);}try{renderProgressionPanel();}catch(e){console.error('renderProgressionPanel:',e);}try{renderE1RMPanel();}catch(e){console.error('renderE1RMPanel:',e);}try{renderEffectiveSets();}catch(e){console.error('renderEffectiveSets:',e);}}
+    if(id==='s-log'){try{renderLog();}catch(e){console.error('renderLog:',e);}}
+    if(id==='s-fatiga'){try{renderFatigueSignals();}catch(e){console.error('renderFatigueSignals:',e);}try{renderMuscleFatigue();}catch(e){console.error('renderMuscleFatigue:',e);}try{renderInterferencePanel();}catch(e){console.error('renderInterferencePanel:',e);}try{renderDensityPanel();}catch(e){console.error('renderDensityPanel:',e);}try{renderConfidencePanel();}catch(e){console.error('renderConfidencePanel:',e);}try{renderValidationPanel();}catch(e){console.error('renderValidationPanel:',e);}try{renderRunningPanel();}catch(e){console.error('renderRunningPanel:',e);}}
+    if(id==='s-datos'){try{renderValidationDashboard();}catch(e){console.error('renderValidationDashboard:',e);}}
+  }catch(e){
+    console.error('showS error:',e);
+    var d=document.createElement('div');
+    d.style.cssText='position:fixed;top:60px;left:0;right:0;background:#ef4444;color:#fff;padding:8px;font-size:10px;z-index:99999;font-family:monospace;word-break:break-all;';
+    d.textContent='showS ERROR: '+e.message+' | '+e.stack;
+    document.body.appendChild(d);
+    setTimeout(function(){d.remove();},8000);
+  }
+}
 async function syncAll(){if(S.int.aid&&S.int.key)await fetchIntervals();if(S.(hevy&&hevy.key))await fetchHevy();}
 function toast(title,msg,icon,ms=3500){const el=document.createElement('div');el.className='toast';el.innerHTML=`<div class="toast-t">${icon||'ℹ️'} ${title}</div>${msg?`<div class="toast-m">${msg}</div>`:''}`;document.body.appendChild(el);setTimeout(()=>el.remove(),ms);}
 
