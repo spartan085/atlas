@@ -3304,7 +3304,7 @@ async function fetchHevy(){
       const wDate=new Date(w.start_time||w.created_at||0);
       const isThisWeek=wDate>=weekStart;
       const age=now-wDate;
-      const isRecent=age<72*3600000;
+      const isRecent=age<7*24*3600000; // 7 days for F2 weekly counting (was 72h)
       const muscleSets={};// key: muscle, value: set count (using ExDB)
 
       (w.exercises||[]).forEach(ex=>{
