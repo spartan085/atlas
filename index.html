@@ -17,7 +17,7 @@ body::after{content:'';position:fixed;inset:0;z-index:9999;pointer-events:none;b
 .app{display:flex;flex-direction:column;min-height:100svh;padding-top:var(--st);}
 .main{flex:1;padding-bottom:calc(72px + var(--sb));overflow-y:auto;}
 .screen{display:none;animation:si .28s ease;background:var(--bg);}
-.screen.active{display:block;padding-bottom:calc(76px + var(--sb));min-height:100vh;background:var(--bg);}
+.screen.active{display:block;padding-bottom:calc(76px + var(--sb));min-height:100vh;}
 @keyframes si{from{opacity:0;transform:translateY(5px);}to{opacity:1;transform:none;}}
 .hdr{position:sticky;top:0;z-index:100;height:52px;padding:0 18px;display:flex;align-items:center;justify-content:space-between;background:rgba(8,9,12,0.88);backdrop-filter:blur(22px);-webkit-backdrop-filter:blur(22px);border-bottom:1px solid var(--line);}
 .wordmark{font-family:'Instrument Serif',serif;font-size:19px;letter-spacing:-.3px;}.wordmark em{font-style:italic;color:var(--c);}
@@ -580,7 +580,7 @@ textarea.field{resize:vertical;min-height:60px;}
 <!-- PLAN -->
 <div class="screen" id="s-plan">
   <div class="pad">
-    <div class="card">
+    <div class="card" style="margin-bottom:10px;">
       <div class="card-hdr"><span class="t-md">Mesociclo</span></div>
       <div class="card-body">
         <div style="display:flex;gap:6px;margin-bottom:10px;">
@@ -615,6 +615,30 @@ textarea.field{resize:vertical;min-height:60px;}
 </div>
 
 <script>
+// ══ SAFE HELPERS (audit fix) ══
+function safeNum(v,def){
+  if(def===undefined)def=0;
+  var n=parseFloat(v);
+  return Number.isFinite(n)?n:def;
+}
+function safeInt(v,def){
+  if(def===undefined)def=0;
+  var n=parseInt(v,10);
+  return Number.isFinite(n)?n:def;
+}
+function safeArr(v){
+  return Array.isArray(v)?v:[];
+}
+function safeDOM(id){
+  return document.getElementById(id)||null;
+}
+function safeVal(id,def){
+  var el=document.getElementById(id);
+  if(!el)return(def===undefined?'':def);
+  return el.value||el.textContent||(def===undefined?'':def);
+}
+
+
 'use strict';
 
 // ══ STATE ══
@@ -647,43 +671,79 @@ function setCookie(k,v,days=365){const d=new Date();d.setTime(d.getTime()+days*8
 function getCookie(k){const m=document.cookie.match('(^|;)\\s*'+k+'\\s*=\\s*([^;]+)');return m?decodeURIComponent(m.pop()):null;}
 
 function save(){
-  const data={int:S.int,claude:S.claude,metrics:S.metrics,logs:S.logs.slice(0,40),weeklyVol:S.weeklyVol,weekDays:[...S.weekDays],weekStart:S.weekStart,weekOffset:S.weekOffset,logWeekOffset:S.logWeekOffset,hevy:S.hevy?{key:S.hevy.key,totalWorkouts:S.hevy.totalWorkouts,workouts:S.hevy.workouts}:null};
-  const json=JSON.stringify(data);
-  try{localStorage.setItem('atlas6',json);}catch(e){}
+  // MEDIUM 3: Prune old data before saving (prevent Safari storage purge)
+  var now=new Date().toISOString().split('T')[0];
+  var cutoff90=new Date(Date.now()-90*864e5).toISOString().split('T')[0];
+
+  // Prune logs: keep last 90 days, max 150 entries
+  var prunedLogs=safeArr(S.logs)
+    .filter(function(l){return l&&l.date&&l.date>=cutoff90;})
+    .slice(-150);
+
+  // Prune RVL snapshots in localStorage
+  try{
+    var rvlRaw=localStorage.getItem('atlas_rvl_v1');
+    if(rvlRaw){
+      var rvl=JSON.parse(rvlRaw);
+      if(rvl&&rvl.snapshots&&rvl.snapshots.length>90){
+        rvl.snapshots=rvl.snapshots.slice(-90);
+        localStorage.setItem('atlas_rvl_v1',JSON.stringify(rvl));
+      }
+    }
+  }catch(e){}
+
+  var data={
+    int:S.int,claude:S.claude,
+    metrics:S.metrics,
+    logs:prunedLogs,
+    weeklyVol:S.weeklyVol,
+    weekDays:[...S.weekDays],
+    weekStart:S.weekStart,
+    weekOffset:S.weekOffset,
+    logWeekOffset:S.logWeekOffset,
+    hevy:S.hevy?{key:S.hevy.key,totalWorkouts:S.hevy.totalWorkouts,workouts:S.hevy.workouts}:null,
+    currentMeso:S.currentMeso||1,
+    _saved:now
+  };
+  var json=JSON.stringify(data);
+  try{localStorage.setItem('atlas6',json);}catch(e){
+    // If quota exceeded, try without hevy workouts
+    try{data.hevy=S.hevy?{key:S.hevy.key}:null;json=JSON.stringify(data);localStorage.setItem('atlas6',json);}catch(e2){}
+  }
   try{sessionStorage.setItem('atlas6',json);}catch(e){}
-  // Mirror v5 individual key storage — most resilient in Safari iOS
   try{
     if(S.int.aid)localStorage.setItem('atlas_int_aid',S.int.aid);
     if(S.int.key)localStorage.setItem('atlas_int_key',S.int.key);
-    if(S.hevy?.key)localStorage.setItem('atlas_hevy_key',S.hevy.key);
+    if(S.hevy&&S.hevy.key)localStorage.setItem('atlas_hevy_key',S.hevy.key);
     if(S.claude.key)localStorage.setItem('atlas_anthropic_key',S.claude.key);
   }catch(e){}
-  // Cookie backup
   if(S.int.aid)setCookie('atlas_aid',S.int.aid);
   if(S.int.key)setCookie('atlas_ikey',S.int.key);
-  if(S.hevy?.key){setCookie('atlas_hkey',S.hevy.key);}
+  if(S.hevy&&S.hevy.key){setCookie('atlas_hkey',S.hevy.key);}
   if(S.claude.key)setCookie('atlas_ckey',S.claude.key);
 }
 
 function loadPersisted(){
   try{
-    const raw=localStorage.getItem('atlas6')||sessionStorage.getItem('atlas6')||'{}';
-    const p=JSON.parse(raw);
-    if(p.int)S.int={...S.int,...p.int};
-    if(p.claude)S.claude={...S.claude,...p.claude};
-    if(p.metrics)S.metrics={...S.metrics,...p.metrics};
-    if(p.logs)S.logs=p.logs;
-    if(p.weeklyVol)S.weeklyVol=p.weeklyVol;
-    if(p.weekDays)S.weekDays=new Set(p.weekDays);
-    if(p.weekStart)S.weekStart=p.weekStart;
-    if(p.weekOffset!=null)S.weekOffset=p.weekOffset;
-    if(p.logWeekOffset!=null)S.logWeekOffset=p.logWeekOffset;
-    if(p.hevy)S.hevy=p.hevy;
-  }catch(e){}
-  // Restore individual keys (v5 compatible + cookie fallback)
+    var raw=localStorage.getItem('atlas6')||sessionStorage.getItem('atlas6')||'{}';
+    var p=validateStorage(raw);
+    if(p){
+      if(p.int)S.int=Object.assign({},S.int,p.int);
+      if(p.claude)S.claude=Object.assign({},S.claude,p.claude);
+      if(p.metrics)S.metrics=Object.assign({},S.metrics,p.metrics);
+      if(p.logs)S.logs=p.logs;
+      if(p.weeklyVol)S.weeklyVol=p.weeklyVol;
+      if(p.weekDays)S.weekDays=new Set(p.weekDays);
+      if(p.weekStart)S.weekStart=p.weekStart;
+      if(p.weekOffset!=null)S.weekOffset=p.weekOffset;
+      if(p.logWeekOffset!=null)S.logWeekOffset=p.logWeekOffset;
+      if(p.hevy)S.hevy=p.hevy;
+      if(p.currentMeso)S.currentMeso=p.currentMeso;
+    }
+  }catch(e){console.error('loadPersisted:',e.message);}
   if(!S.int.aid) S.int.aid=localStorage.getItem('atlas_int_aid')||getCookie('atlas_aid')||'';
   if(!S.int.key) S.int.key=localStorage.getItem('atlas_int_key')||getCookie('atlas_ikey')||'';
-  if(!S.hevy?.key){const k=localStorage.getItem('atlas_hevy_key')||getCookie('atlas_hkey');if(k)S.hevy={...(S.hevy||{}),key:k};}
+  if(!S.hevy&&localStorage.getItem('atlas_hevy_key')){S.hevy={key:localStorage.getItem('atlas_hevy_key')};}
   if(!S.claude.key) S.claude.key=localStorage.getItem('atlas_anthropic_key')||getCookie('atlas_ckey')||'';
 }
 
@@ -811,7 +871,7 @@ function getPatternLabel(pat){
 // ══ HRV ENGINE ══
 // Pure deterministic. EWMA baseline. Z-score. Coupling. Confidence.
 function HRVEngine(history){
-  const data=history.filter(d=>d.hrv&&d.hrv>0).map(d=>({date:d.id||d.date,hrv:Math.round(d.hrv),rhr:d.restingHR||null,sleep:d.sleepSecs?d.sleepSecs/3600:(d.sleep?parseFloat(d.sleep):null)})).sort((a,b)=>(a.date||'').localeCompare(b.date||''));
+  const data=history.filter(d=>d.hrv&&d.hrv>0).map(d=>({date:d.id||d.date,hrv:Math.round(d.hrv),rhr:d.restingHR||null,sleep:d.sleepSecs?d.sleepSecs/3600:(d.sleep?safeNum(d.sleep):null)})).sort((a,b)=>(a.date||'').localeCompare(b.date||''));
   if(data.length<3)return{state:'insufficient',confidence:0,signals:[],baseline7:null,baseline28:null,zScore:null,pctVsBase:0,drivers:[],current:null};
   function ewma(arr,alpha){let v=arr[0];for(let i=1;i<arr.length;i++)v=alpha*arr[i]+(1-alpha)*v;return Math.round(v*10)/10;}
   const vals=data.map(d=>d.hrv);
@@ -877,7 +937,7 @@ function FatigueEngine(metrics,logs,hevyRecent,domsUpper,domsLower,knee){
     signals.hrv={label:hrv.signals[0]?.label||`HRV ${metrics.hrv}ms`,ok:p>-5,warn:p<-10};
     if(hrv.coupling==='suppressed_strong'){autonomic+=15;drivers.push('hrv_rhr_coupling');signals.coupling={label:'HRV↓+FCr↑ doble supresión',ok:false,warn:true};}
   }
-  const sl=metrics.sleep?parseFloat(metrics.sleep):null;
+  const sl=metrics.sleep?safeNum(metrics.sleep):null;
   if(sl){const sf=sl>=7.5?0:sl>=7?10:sl>=6?25:sl>=5?45:65;autonomic+=sf;if(sl<6)drivers.push('low_sleep');signals.sleep={label:`Sueño ${sl}h`,ok:sl>=7,warn:sl<5.5};}
   if(metrics.bb!=null){const bf=metrics.bb>=70?0:metrics.bb>=50?10:metrics.bb>=30?25:45;autonomic+=bf;if(metrics.bb<30)drivers.push('low_battery');signals.bb={label:`Body Battery ${metrics.bb}/100`,ok:metrics.bb>=60,warn:metrics.bb<30};}
   if(metrics.tsb!=null){const tf=metrics.tsb>5?0:metrics.tsb>-5?10:metrics.tsb>-15?25:40;autonomic+=tf;if(metrics.tsb<-15)drivers.push('negative_tsb');signals.tsb={label:`TSB ${metrics.tsb>0?'+':''}${metrics.tsb}`,ok:metrics.tsb>-5&&metrics.tsb<25,warn:metrics.tsb<-15};}
@@ -887,8 +947,8 @@ function FatigueEngine(metrics,logs,hevyRecent,domsUpper,domsLower,knee){
   let mechanical=0;
   const r48=logs.filter(l=>{const d=parseDate(l.date);return d&&(now-d)<48*3600000;});
   const r72=logs.filter(l=>{const d=parseDate(l.date);return d&&(now-d)<72*3600000;});
-  let srpe48=r48.reduce((s,l)=>s+(parseFloat(l.srpe)||0),0);
-  let srpe72=r72.reduce((s,l)=>s+(parseFloat(l.srpe)||0),0);
+  let srpe48=r48.reduce((s,l)=>s+(safeNum(l.srpe)||0),0);
+  let srpe72=r72.reduce((s,l)=>s+(safeNum(l.srpe)||0),0);
   hevyRecent.forEach(s=>{if(s.sRPE==null)return;if(s.age<48*3600000)srpe48+=s.sRPE;if(s.age<72*3600000)srpe72+=s.sRPE;});
   const hevyNoRPE=hevyRecent.filter(s=>s.age<48*3600000&&s.noRPE);
   signals.srpe48={label:`sRPE 48h: ${srpe48}${hevyNoRPE.length?' (⚠'+hevyNoRPE.length+' sin RPE)':''}`,ok:srpe48<400,warn:srpe48>700};
@@ -905,7 +965,7 @@ function FatigueEngine(metrics,logs,hevyRecent,domsUpper,domsLower,knee){
   // Monotony (Foster 1998) — same load daily = CNS suppression risk
   const last7Logs=logs.filter(l=>{const d=parseDate(l.date);return d&&(now-d)<7*864e5;});
   if(last7Logs.length>=3){
-    const dailySRPE=last7Logs.map(l=>parseFloat(l.srpe)||0);
+    const dailySRPE=last7Logs.map(l=>safeNum(l.srpe)||0);
     const mean=dailySRPE.reduce((a,b)=>a+b,0)/dailySRPE.length;
     const sd=Math.sqrt(dailySRPE.map(v=>(v-mean)**2).reduce((a,b)=>a+b,0)/dailySRPE.length);
     const monotony=sd>0?Math.round(mean/sd*10)/10:0;
@@ -914,7 +974,7 @@ function FatigueEngine(metrics,logs,hevyRecent,domsUpper,domsLower,knee){
   }
 
   // Session mismatch signals
-  (S._hevyRecent||[]).filter(s=>s.age<48*3600000&&s.mismatchNote).forEach((s,i)=>{
+  safeArr(S._hevyRecent).filter(s=>s.age<48*3600000&&s.mismatchNote).forEach((s,i)=>{
     signals[`mismatch_${i}`]={label:s.mismatchNote,ok:s.sessionType!=='high_both',warn:s.sessionType==='high_both'};
     if(s.sessionType==='high_both') drivers.push('high_both_rpe');
   });
@@ -1043,7 +1103,7 @@ function MuscleFatigueEngine(logs, hevyRecent){
 
   // Recovery context from HRV + sleep
   const hrv = S._hrv;
-  const sl = S.metrics.sleep ? parseFloat(S.metrics.sleep) : null;
+  const sl = S.metrics.sleep ? safeNum(S.metrics.sleep) : null;
   let recovMod = 1.0;
   if(hrv?.pctVsBase < -10) recovMod = 1.25; // suppressed HRV = slower recovery
   else if(hrv?.pctVsBase > 8) recovMod = 0.9; // elevated HRV = faster recovery
@@ -1086,7 +1146,7 @@ function MuscleFatigueEngine(logs, hevyRecent){
   logs.slice(0, 10).forEach(l => {
     const d = parseDate(l.date); if(!d) return;
     const ageMs = now - d; if(ageMs > 120*3600000) return;
-    const rpe = parseFloat(l.rpe) || 6;
+    const rpe = safeNum(l.rpe) || 6;
     const key = ['D1','D2','D4','D5'].find(k => l.sess && l.sess.includes(k));
     if(!key) return;
     Object.entries(sessMap[key]).forEach(([m, {sets, ex}]) => {
@@ -1110,7 +1170,7 @@ function MuscleFatigueEngine(logs, hevyRecent){
     (sess.exercises || []).forEach(ex => {
       const exData = getExDB(ex.title || '');
       if(!exData) return;
-      const nSets = (ex.sets||[]).filter(s=>parseInt(s.reps||0)>0).length;
+      const nSets = (ex.sets||[]).filter(s=>safeInt(s.reps||0)>0).length;
       exData.p.forEach(m => {
         // Keep the highest-fatigue exercise per muscle
         if(!muscleExName[m] || nSets > (muscleExName[m].sets||0)){
@@ -1150,6 +1210,108 @@ function MuscleFatigueEngine(logs, hevyRecent){
   return fatigue;
 }
 
+
+// ══ RUNNING NEUROMUSCULAR MODEL (audit HIGH 3) ══
+// Extends interference beyond cardiovascular cost
+// Models eccentric impact, tendon load, sprint fatigue, lower-body overlap
+// Evidence: Millet 2011, Blagrove 2018, Beattie 2014
+
+function RunningNeuromuscularEngine(activities) {
+  var now = Date.now();
+  var RUN_TYPES = ['Run','VirtualRun','TrailRun'];
+
+  var recentRuns = safeArr(activities).filter(function(a) {
+    var d = new Date(a.start_date_local||0);
+    return (now - d) < 72*3600000 && RUN_TYPES.indexOf(a.type||a.sport_type) >= 0;
+  });
+
+  var result = {
+    neuromuscularCost: 0,     // 0-100: total NM fatigue from running
+    eccentricLoad: 0,         // impact/downhill stress on quads/soleus
+    tendonLoad: 0,            // achilles/patellar tendon stress
+    sprintFatigue: 0,         // CNS cost from high-intensity running
+    soleusLoad: 0,            // calf/soleus specific load
+    lowerOverlap: 0,          // overlap with strength lower muscles
+    impactScore: 0,           // total mechanical impact
+    classification: 'none',   // none/z2/tempo/threshold/sprint/mixed
+    blockLower: false,
+    blockHinge: false,
+    signals: []
+  };
+
+  if (!recentRuns.length) return result;
+
+  recentRuns.forEach(function(a) {
+    var agePct = 1 - (now - new Date(a.start_date_local||0)) / (72*3600000);
+    var dist = safeNum(a.distance, 0) / 1000; // km
+    var dur = safeNum(a.moving_time, 0) / 60; // min
+    var load = safeNum(a.icu_training_load, 0);
+    var zones = safeArr(a.icu_zone_times || a.icu_hr_zone_times);
+    var totalZ = zones.reduce(function(s,v){return s+safeNum(v);},0);
+    var z4z5 = (safeNum(zones[3])+safeNum(zones[4])) / (totalZ||1); // sprint zones
+    var z3 = safeNum(zones[2]) / (totalZ||1);                        // threshold
+    var elev = safeNum(a.total_elevation_gain, 0);
+
+    // Eccentric load: distance + elevation gain (downhill = eccentric quad stress)
+    var eccentric = (dist * 0.8 + elev * 0.05) * agePct;
+    result.eccentricLoad += eccentric;
+
+    // Sprint fatigue: Z4/Z5 time → CNS cost disproportionate to load
+    var sprint = z4z5 * dur * 1.8 * agePct;
+    result.sprintFatigue += sprint;
+
+    // Tendon load: distance * pace proxy (higher speed = more tendon stress)
+    var tendon = dist * (1 + z3 + z4z5*2) * agePct;
+    result.tendonLoad += tendon;
+
+    // Soleus/calf: Z2 running is high soleus load (endurance)
+    var soleus = (dur * 0.4 + dist * 0.3) * agePct;
+    result.soleusLoad += soleus;
+
+    // Classify this run
+    if (z4z5 > 0.20) result.classification = 'sprint';
+    else if (z3 > 0.30 || z4z5 > 0.05) result.classification = result.classification === 'sprint' ? 'mixed' : 'threshold';
+    else if (load > 0 || dur > 20) result.classification = result.classification === 'none' ? 'z2' : result.classification;
+  });
+
+  // Normalize to 0-100
+  result.eccentricLoad = Math.min(100, Math.round(result.eccentricLoad * 3));
+  result.sprintFatigue = Math.min(100, Math.round(result.sprintFatigue * 4));
+  result.tendonLoad    = Math.min(100, Math.round(result.tendonLoad * 2));
+  result.soleusLoad    = Math.min(100, Math.round(result.soleusLoad * 1.5));
+
+  // Total neuromuscular cost (weighted)
+  result.neuromuscularCost = Math.min(100, Math.round(
+    result.eccentricLoad * 0.35 +
+    result.sprintFatigue * 0.30 +
+    result.tendonLoad    * 0.20 +
+    result.soleusLoad    * 0.15
+  ));
+
+  // Lower body overlap: which strength muscles are affected
+  result.lowerOverlap = Math.round(
+    (result.eccentricLoad * 0.4 +  // quad overlap
+     result.soleusLoad    * 0.4 +  // calf overlap
+     result.tendonLoad    * 0.2)   // general lower
+  );
+
+  // Impact score: mechanical stress on joints
+  result.impactScore = Math.round((result.eccentricLoad + result.tendonLoad) / 2);
+
+  // Blocks
+  result.blockLower = result.neuromuscularCost > 55 || result.eccentricLoad > 60;
+  result.blockHinge = result.eccentricLoad > 45 || result.sprintFatigue > 50;
+
+  // Signals
+  if (result.eccentricLoad > 40) result.signals.push('Carga excéntrica cuád/sóleo — evita búlgara/sentadilla pesada');
+  if (result.sprintFatigue > 35) result.signals.push('Fatiga CNS por sprints/umbral — SNC comprometido');
+  if (result.tendonLoad > 40)    result.signals.push('Estrés tendinoso — cuidado con impacto y balístico');
+  if (result.soleusLoad > 50)    result.signals.push('Sóleo cargado — gemelos/sóleo ya estimulados');
+  if (result.blockHinge)         result.signals.push('Bisagra comprometida — evita RDL/peso muerto hoy');
+
+  return result;
+}
+
 // ══ INTERFERENCE ENGINE ══
 function InterferenceEngine(activities){
   const now=Date.now();
@@ -1169,7 +1331,7 @@ function InterferenceEngine(activities){
     const ageH=Math.round((now-new Date(a.start_date_local||0))/3600000);
     signals.push({label:`${a.name||'Running'} hace ${ageH}h — carga ${Math.round(load)}, ${Math.round(highPct*100)}% Z3+`,ok:load<30&&highPct<0.2,warn:load>50||highPct>0.4});
   });
-  const domsLow=parseFloat(document.getElementById('domsLower')?.value)||0;
+  const domsLow=safeNum(safeDOM('domsLower')?.value)||0;
   if(domsLow>4){score*=1.3;signals.push({label:`DOMS inf ${domsLow}/10 amplifica interferencia`,ok:false,warn:true});}
   const s=Math.min(100,Math.round(score/2));
   let level,recommendation,blockLower=false;
@@ -1180,18 +1342,107 @@ function InterferenceEngine(activities){
   return{score:s,level,recommendation,blockLower,signals};
 }
 
+
+// ══ HRV SIGNAL STABILIZATION (audit HIGH 2) ══
+// Single HRV drops should NOT aggressively reduce MRV.
+// Requires multi-signal confirmation over rolling window.
+// Evidence: Plews 2013, Buchheit 2014 — HRV noise requires 3-5 day rolling average
+
+function HRVStabilityCheck(hrv, metrics, recentLogs) {
+  var result = {
+    suppressed: false,
+    confirmed: false,
+    confidence: 0,
+    signals: [],
+    rollingHRV: null
+  };
+
+  if (!hrv || hrv.state === 'insufficient') return result;
+
+  var pct = safeNum(hrv.pctVsBase, 0);
+
+  // Signal 1: HRV below baseline
+  var hrvSuppressed = pct < -8;
+  if (hrvSuppressed) result.signals.push('HRV ' + Math.round(pct) + '% vs base');
+
+  // Signal 2: Elevated RHR
+  var rhr = metrics ? safeNum(metrics.rhr, 0) : 0;
+  var rhrElevated = rhr > 0 && hrv.baseline28 && rhr > (safeNum(hrv.baseline28) * 0.05 + rhr);
+  // Simpler: check if RHR is mentioned as elevated in hrv signals
+  var rhrSignal = hrv.signals && hrv.signals.some(function(s) {
+    return s && s.label && s.label.indexOf('FC') >= 0 && !s.ok;
+  });
+  if (rhrSignal) result.signals.push('FC reposo elevada');
+
+  // Signal 3: Poor sleep
+  var sleep = metrics ? safeNum(metrics.sleep, 8) : 8;
+  if (sleep > 0 && sleep < 6.5) result.signals.push('Sueño ' + sleep.toFixed(1) + 'h');
+
+  // Signal 4: Rolling HRV trend (last 3 days from logs)
+  var recentHRV = safeArr(recentLogs)
+    .filter(function(l) { return l && l.hrv && l.hrv > 0; })
+    .slice(-3)
+    .map(function(l) { return safeNum(l.hrv); });
+
+  if (recentHRV.length >= 2 && hrv.baseline7) {
+    var rollingMean = recentHRV.reduce(function(a, b) { return a + b; }, 0) / recentHRV.length;
+    result.rollingHRV = Math.round(rollingMean);
+    var rollingPct = (rollingMean - hrv.baseline7) / hrv.baseline7 * 100;
+    if (rollingPct < -10) result.signals.push('HRV rolling ' + Math.round(rollingPct) + '%');
+  }
+
+  // Confirmation: need 2+ signals for MRV suppression
+  result.suppressed = hrvSuppressed;
+  result.confirmed = result.signals.length >= 2;
+  result.confidence = Math.min(1, result.signals.length / 3);
+
+  return result;
+}
+
 // ══ MAV ENGINE ══
 function MAVEngine(fatigue,metrics,knee){
   const mult={};const reasons=[];
   const hrv=S._hrv;
-  if(hrv){const p=hrv.pctVsBase;if(p<-15){mult.hrv=0.75;reasons.push(`HRV ${p}% ↓base → ×0.75`);}else if(p<-8){mult.hrv=0.88;reasons.push(`HRV ${p}% → ×0.88`);}else if(p>8){mult.hrv=1.05;}else mult.hrv=1.0;}else mult.hrv=1.0;
-  const sl=metrics.sleep?parseFloat(metrics.sleep):null;
-  if(sl){if(sl<5.5){mult.sleep=0.75;reasons.push(`Sueño ${sl}h < 5.5h → ×0.75`);}else if(sl<6.5){mult.sleep=0.88;reasons.push(`Sueño ${sl}h → ×0.88`);}else if(sl>8.5)mult.sleep=1.05;else mult.sleep=1.0;}else mult.sleep=1.0;
-  const prot=metrics.protein||0;
-  if(prot>0){if(prot<130){mult.nutrition=0.85;reasons.push(`Proteína ${Math.round(prot)}g bajo → ×0.85`);}else if(prot>=170)mult.nutrition=1.03;else mult.nutrition=1.0;}else mult.nutrition=1.0;
+  // HRV: use stability check — single drop only reduces if confirmed by 2+ signals
+  var hrvStab = HRVStabilityCheck(hrv, metrics, S.logs||[]);
+  if(hrv){
+    var p=safeNum(hrv.pctVsBase,0);
+    if(hrvStab.confirmed && p<-15){mult.hrv=0.80;reasons.push('HRV suprimida confirmada '+Math.round(p)+'% → ×0.80');}
+    else if(hrvStab.confirmed && p<-8){mult.hrv=0.90;reasons.push('HRV baja confirmada → ×0.90');}
+    else if(!hrvStab.confirmed && p<-8){mult.hrv=0.95;reasons.push('HRV baja sin confirmar → ×0.95 (señal única)');}
+    else if(p>8){mult.hrv=1.05;}
+    else{mult.hrv=1.0;}
+  }else{mult.hrv=1.0;}
+  // HIGH 1: Probabilistic recovery — rolling average, not binary threshold
+  // Single night of poor sleep is much less impactful than sustained pattern
+  var recentSleepVals=safeArr(S.logs).slice(-5).map(function(l){return safeNum(l.sleep,0);}).filter(function(v){return v>0;});
+  var sl=metrics.sleep?safeNum(metrics.sleep,0):0;
+  if(sl>0)recentSleepVals.push(sl);
+  var sleepRolling=recentSleepVals.length>0?(recentSleepVals.reduce(function(a,b){return a+b;},0)/recentSleepVals.length):0;
+  // Weight: rolling mean 70%, last night 30%
+  var sleepScore=sleepRolling>0?(sleepRolling*0.7+(sl||sleepRolling)*0.3):0;
+  if(sleepScore>0){
+    // Smooth sigmoid-like response instead of hard thresholds
+    if(sleepScore<5.0){mult.sleep=0.78;reasons.push('Sueño crónico bajo ('+sleepScore.toFixed(1)+'h rolling) → ×0.78');}
+    else if(sleepScore<6.0){mult.sleep=0.88;reasons.push('Sueño insuficiente ('+sleepScore.toFixed(1)+'h) → ×0.88');}
+    else if(sleepScore<6.5){mult.sleep=0.94;reasons.push('Sueño moderado ('+sleepScore.toFixed(1)+'h) → ×0.94');}
+    else if(sleepScore>8.5){mult.sleep=1.04;}
+    else{mult.sleep=1.0;}
+  }else{mult.sleep=1.0;}
+  var prot=metrics.protein||0;
+  // Protein: rolling 3-day average more stable than single day
+  var recentProt=safeArr(S.logs).slice(-3).map(function(l){return safeNum(l.protein,0);}).filter(function(v){return v>0;});
+  if(prot>0)recentProt.push(prot);
+  var protRolling=recentProt.length>0?(recentProt.reduce(function(a,b){return a+b;},0)/recentProt.length):prot;
+  if(protRolling>0){
+    if(protRolling<120){mult.nutrition=0.82;reasons.push('Proteína crónica baja ('+Math.round(protRolling)+'g avg) → ×0.82');}
+    else if(protRolling<140){mult.nutrition=0.91;reasons.push('Proteína moderada ('+Math.round(protRolling)+'g) → ×0.91');}
+    else if(protRolling>=170){mult.nutrition=1.03;}
+    else{mult.nutrition=1.0;}
+  }else{mult.nutrition=1.0;}
   const fat=fatigue.systemic;
   if(fat>65){mult.fatigue=0.70;reasons.push(`Fatiga sistémica ${fat}% → ×0.70`);}else if(fat>45){mult.fatigue=0.85;reasons.push(`Fatiga ${fat}% → ×0.85`);}else if(fat<20)mult.fatigue=1.03;else mult.fatigue=1.0;
-  const kv=parseFloat(knee||0);
+  const kv=safeNum(knee||0);
   if(kv>3){mult.knee=0.65;reasons.push(`Rodilla ${kv}/10 → MRV pierna ×0.65`);}else if(kv>1)mult.knee=0.88;else mult.knee=1.0;
   const global=Math.round(mult.hrv*mult.sleep*mult.nutrition*mult.fatigue*100)/100;
   const LOWER_M=['Cuádriceps','Isquiotibiales','Glúteo','Gemelos/Sóleo','Aductores'];
@@ -1473,7 +1724,7 @@ function EffectiveSetsEngine(hevyWorkouts, weekOffset){
       const exData = getExDB(exName);
       if(!exData) return;
 
-      const workingSets = (ex.sets||[]).filter(s => parseInt(s.reps||0) > 0);
+      const workingSets = (ex.sets||[]).filter(s => safeInt(s.reps||0) > 0);
       if(!workingSets.length) return;
 
       // Per-set calculation
@@ -1482,9 +1733,9 @@ function EffectiveSetsEngine(hevyWorkouts, weekOffset){
       let setDetails = [];
 
       workingSets.forEach(s => {
-        const rpe = parseFloat(s.rpe||s.rpe_rating||0);
-        const reps = parseInt(s.reps||0);
-        const kg = parseFloat(s.weight_kg||s.weight||0);
+        const rpe = safeNum(s.rpe||s.rpe_rating||0);
+        const reps = safeInt(s.reps||0);
+        const kg = safeNum(s.weight_kg||s.weight||0);
 
         // effectiveSets = sets × rirMult × stimMult × lenMult
         // SFR (stimulus/fatigue ratio) used ONLY for fatigue modeling, NOT here
@@ -1603,8 +1854,8 @@ function ProgressionEngine(workouts, hevyRecent, muscleFatigue, fatigue, metrics
       // Get best set (highest e1RM) for this exercise in this session
       let bestE1RM = null, bestKg = 0, bestReps = 0;
       (ex.sets||[]).forEach(s => {
-        const kg = parseFloat(s.weight_kg||s.weight||0);
-        const reps = parseInt(s.reps||0);
+        const kg = safeNum(s.weight_kg||s.weight||0);
+        const reps = safeInt(s.reps||0);
         if(!kg||!reps) return;
         const e1rm = calc1RM(kg, reps);
         if(e1rm > (bestE1RM||0)){ bestE1RM = e1rm; bestKg = kg; bestReps = reps; }
@@ -1825,11 +2076,11 @@ function buildSnapshot(type, data){
   dataQuality.hrv = hrsHRV < 26 ? 'fresh' : hrsHRV < 72 ? 'stale' : 'no_data';
 
   // Hevy quality
-  const lastHevyAge = (S._hevyRecent||[]).length ? Math.min(...(S._hevyRecent||[]).map(s=>s.age))/3600000 : 999;
+  const lastHevyAge = safeArr(S._hevyRecent).length ? Math.min(...safeArr(S._hevyRecent).map(s=>s.age))/3600000 : 999;
   dataQuality.strength = lastHevyAge < 72 ? 'fresh' : lastHevyAge < 168 ? 'stale' : 'no_data';
 
   // RPE quality: has Hevy RPE per set?
-  const hevyRPECoverage = (S._hevyRecent||[]).filter(s=>s.hevyRPE).length / Math.max((S._hevyRecent||[]).length,1);
+  const hevyRPECoverage = safeArr(S._hevyRecent).filter(s=>s.hevyRPE).length / Math.max(safeArr(S._hevyRecent).length,1);
   dataQuality.rpe = hevyRPECoverage >= 0.8 ? 'complete' : hevyRPECoverage >= 0.4 ? 'partial' : 'missing';
 
   // Contradictory: HRV good but TSB very negative, or vice versa
@@ -1849,7 +2100,7 @@ function buildSnapshot(type, data){
     type,
     dataQuality,
     raw: {
-      hrv: m.hrv, rhr: m.restingHR, sleep: m.sleep ? parseFloat(m.sleep) : null,
+      hrv: m.hrv, rhr: m.restingHR, sleep: m.sleep ? safeNum(m.sleep) : null,
       sleepScore: m.sleepScore, bb: m.bb, steps: m.steps,
       kcal: m.kcal ? Math.round(m.kcal) : null,
       protein: m.protein ? Math.round(m.protein) : null,
@@ -1891,7 +2142,7 @@ function buildSnapshot(type, data){
 function computeMismatch(outcomeData, fatigue){
   if(!fatigue || outcomeData.actualRPE == null) return 'unknown';
   const predictedSystemic = fatigue.systemic;
-  const actualRPE = parseFloat(outcomeData.actualRPE);
+  const actualRPE = safeNum(outcomeData.actualRPE);
 
   // Expected RPE from systemic fatigue (rough heuristic)
   // systemic 0-25 → expected RPE 4-6, systemic 25-50 → 6-7.5, systemic 50+ → 8+
@@ -2093,9 +2344,9 @@ function RecommendationEngine(fatigue,interference){
 
 // ══ MAIN ORCHESTRATOR ══
 function runEngines(){
-  const knee=parseFloat(document.getElementById('kneeToday')?.value)||0;
-  const domsUp=parseFloat(document.getElementById('domsUpper')?.value)||0;
-  const domsLow=parseFloat(document.getElementById('domsLower')?.value)||0;
+  const knee=safeNum(safeDOM('kneeToday')?.value)||0;
+  const domsUp=safeNum(safeDOM('domsUpper')?.value)||0;
+  const domsLow=safeNum(safeDOM('domsLower')?.value)||0;
 
   // ── Engine execution order (dependencies matter) ──
   // 1. HRV first — needed by ConfidenceEngine and FatigueEngine
@@ -2110,6 +2361,7 @@ function runEngines(){
   S._fatigue=FatigueEngine(S.metrics,S.logs,S._hevyRecent||[],domsUp,domsLow,knee);
   // 6. Interference — needs activities only
   S._interference=InterferenceEngine(S.metrics.activities||[]);
+  S._runNeuro=RunningNeuromuscularEngine(S.metrics.activities||[]);
   // 7. MAV — needs fatigue output
   S._mav=MAVEngine(S._fatigue,S.metrics,knee);
   // 8. Progression — needs fatigue + muscleFatigue + workouts
@@ -2118,6 +2370,9 @@ function runEngines(){
   S._effectiveSets=EffectiveSetsEngine(S.hevy?.workouts||[],S.weekOffset||0);
   // 10. Recommendations — needs fatigue + interference
   S._recs=RecommendationEngine(S._fatigue,S._interference);
+  S._readiness=ReadinessEngine(S._fatigue,S._hrv,S.metrics,S._muscleFatigue);
+  S._performance=PerformancePotentialEngine(S._readiness,S._fatigue,S._hrv,S._progression);
+  S._decision=DecisionEngine(S._fatigue,S._hrv,S._muscleFatigue,S._interference,S.metrics,S._progression);
   // 11. Adaptation Engine — analyzes prediction vs outcome history
   S._adaptation=AdaptationEngine(getValidationSnapshots());
   // Store prediction snapshot for later comparison with outcomes
@@ -2166,8 +2421,8 @@ function renderReadinessGrid(){
   }
 
   function setCard(id,score,sigKeys,sysConf){
-    const card=document.getElementById(id);if(!card)return;
-    const vEl=document.getElementById(id+'-val'),lEl=document.getElementById(id+'-lbl'),sEl=document.getElementById(id+'-sigs');
+    const card=safeDOM(id);if(!card)return;
+    const vEl=safeDOM(id+'-val'),lEl=safeDOM(id+'-lbl'),sEl=safeDOM(id+'-sigs');
     const st=score>=70?'ok':score>=45?'warn':'bad';
     card.className='rsys-card '+st;
     if(vEl)vEl.textContent=score+'%';
@@ -2191,7 +2446,7 @@ function renderReadinessGrid(){
   setCard('rsys-lower', f.lowerScore, ['lowerSess','domsLower','knee','srpe72'],(confE.strength+confE.hrv)/2||0.5);
 
   // Confidence badge on cardio card (HRV-driven)
-  const cardioCard=document.getElementById('rsys-cardio');
+  const cardioCard=safeDOM('rsys-cardio');
   if(cardioCard){
     let badge=cardioCard.querySelector('.conf-badge');
     if(!badge){badge=document.createElement('div');badge.className='conf-badge';cardioCard.appendChild(badge);}
@@ -2202,13 +2457,13 @@ function renderReadinessGrid(){
 
 function renderFatigueHero(){
   const f=S._fatigue;const r=S._recs;if(!f)return;
-  const sv=(id,v)=>{const e=document.getElementById(id);if(e)e.textContent=v;};
-  const sb=(id,p,c)=>{const e=document.getElementById(id);if(e){e.style.width=p+'%';if(c)e.style.background=c;}};
+  const sv=(id,v)=>{const e=safeDOM(id);if(e)e.textContent=v;};
+  const sb=(id,p,c)=>{const e=safeDOM(id);if(e){e.style.width=p+'%';if(c)e.style.background=c;}};
   sv('fe-cardio',f.autonomic+'%');sv('fe-neuro',f.mechanical+'%');sv('fe-sys',f.systemic+'%');
   sb('fat-cv-b',f.autonomic,'var(--b)');sb('fat-nm-b',f.mechanical,'var(--o)');sb('fat-sy-b',f.systemic,'var(--p)');
   const itf=S._interference?.score||0;sb('fat-itf-b',itf,'var(--r)');sv('fat-itf',itf+'%');
   sv('fat-cv',f.autonomic+'%');sv('fat-nm',f.mechanical+'%');sv('fat-sy',f.systemic+'%');
-  const hero=document.getElementById('feHero'),orb=document.getElementById('feOrb'),title=document.getElementById('feTitle'),msg=document.getElementById('feMsg'),status=document.getElementById('feStatus');
+  const hero=safeDOM('feHero'),orb=safeDOM('feOrb'),title=safeDOM('feTitle'),msg=safeDOM('feMsg'),status=safeDOM('feStatus');
   if(!hero)return;
   const topRec=r?.actions[0];
   if(f.signals.knee?.warn){
@@ -2240,7 +2495,7 @@ function renderFatigueHero(){
 }
 
 function renderDensityPanel(){
-  const el=document.getElementById('densityPanel');if(!el)return;
+  const el=safeDOM('densityPanel');if(!el)return;
   const density=S._density||[];
   if(!density.length){el.innerHTML='<div style="font-size:12px;color:var(--fg3);">Sin sesiones de Hevy recientes</div>';return;}
   const colMap={baja:'var(--g)',moderada:'var(--c)',alta:'var(--r)'};
@@ -2259,7 +2514,7 @@ function renderDensityPanel(){
 }
 
 function renderConfidencePanel(){
-  const el=document.getElementById('confidencePanel');if(!el)return;
+  const el=safeDOM('confidencePanel');if(!el)return;
   const conf=S._confidence;if(!conf){el.innerHTML='<div style="font-size:12px;color:var(--fg3);">Sin datos</div>';return;}
   const systems=[
     {label:'HRV · Autonómico',val:conf.hrv,note:`${conf.daysSince?.hrv||0}d sin datos`},
@@ -2298,10 +2553,10 @@ function renderConfidencePanel(){
 
 function renderProgressionPanel(){
   const prog=S._progression;
-  const panel=document.getElementById('progressionPanel');
-  const subtitle=document.getElementById('progressionSubtitle');
-  const junkCard=document.getElementById('junkVolumeCard');
-  const junkPanel=document.getElementById('junkVolumePanel');
+  const panel=safeDOM('progressionPanel');
+  const subtitle=safeDOM('progressionSubtitle');
+  const junkCard=safeDOM('junkVolumeCard');
+  const junkPanel=safeDOM('junkVolumePanel');
   if(!panel)return;
 
   if(!prog||!Object.keys(prog.progressionReadiness||{}).length){
@@ -2355,7 +2610,7 @@ function renderProgressionPanel(){
 
 function renderE1RMPanel(){
   const prog=S._progression;
-  const el=document.getElementById('e1rmPanel');
+  const el=safeDOM('e1rmPanel');
   if(!el)return;
   if(!prog||!Object.keys(prog.exTrends||{}).length){
     el.innerHTML='<div style="font-size:12px;color:var(--fg3);">Sin historial de Hevy</div>';
@@ -2386,8 +2641,8 @@ function renderE1RMPanel(){
 
 function renderEffectiveSets(){
   const eff=S._effectiveSets;
-  const el=document.getElementById('effSetsPanel');
-  const confEl=document.getElementById('effSetsConf');
+  const el=safeDOM('effSetsPanel');
+  const confEl=safeDOM('effSetsConf');
   if(!el)return;
 
   if(!eff||!Object.keys(eff.muscles||{}).length){
@@ -2436,8 +2691,8 @@ function renderEffectiveSets(){
 }
 
 function renderValidationPanel(){
-  const el=document.getElementById('rvlPanel');
-  const confEl=document.getElementById('rvlConf');
+  const el=safeDOM('rvlPanel');
+  const confEl=safeDOM('rvlConf');
   if(!el)return;
   const adapt=S._adaptation;
   if(!adapt){el.innerHTML='<div style="font-size:12px;color:var(--fg3);">Sin datos de validación</div>';return;}
@@ -2482,8 +2737,8 @@ function renderValidationPanel(){
 }
 
 function renderValidationDashboard(){
-  const el=document.getElementById('validationDashboard');
-  const vEl=document.getElementById('vd-version');
+  const el=safeDOM('validationDashboard');
+  const vEl=safeDOM('vd-version');
   if(!el)return;
   if(vEl)vEl.textContent=ENGINE_VERSION;
 
@@ -2574,11 +2829,11 @@ function renderValidationDashboard(){
 }
 
 function renderFatigueSignals(){
-  const f=S._fatigue;const hrv=S._hrv;const el=document.getElementById('fatigueSignals');if(!f||!el)return;
+  const f=S._fatigue;const hrv=S._hrv;const el=safeDOM('fatigueSignals');if(!f||!el)return;
   const conf=f.confidence||0.5;
   const confLabel=conf>=0.8?'Alta':conf>=0.5?'Moderada':'Baja';
   const confColor=conf>=0.8?'var(--g)':conf>=0.5?'var(--y)':'var(--r)';
-  const confEl=document.getElementById('sigConf');
+  const confEl=safeDOM('sigConf');
   if(confEl)confEl.innerHTML=`<span style="color:${confColor};font-family:'Geist Mono',monospace;font-size:10px;">● Confianza ${confLabel}</span>`;
   el.innerHTML=Object.entries(f.signals||{}).map(([k,s])=>{
     const c=s.warn?'var(--r)':s.ok?'var(--g)':'var(--y)';
@@ -2588,7 +2843,7 @@ function renderFatigueSignals(){
 
 function renderRecommendations(){
   const r=S._recs;const f=S._fatigue;const h=S._hrv;
-  const card=document.getElementById('recsCard');const list=document.getElementById('recsList');const conf=document.getElementById('recsConf');
+  const card=safeDOM('recsCard');const list=safeDOM('recsList');const conf=safeDOM('recsConf');
   if(!r||!card||!list)return;
   if(!r.actions.length){card.style.display='none';return;}
   card.style.display='block';
@@ -2676,14 +2931,14 @@ function renderRecommendations(){
 }
 
 function renderInterferencePanel(){
-  const i=S._interference;const el=document.getElementById('interferencePanel');if(!i||!el)return;
+  const i=S._interference;const el=safeDOM('interferencePanel');if(!i||!el)return;
   const lc={none:'var(--g)',minimal:'var(--g)',low:'var(--c)',moderate:'var(--y)',high:'var(--r)'}[i.level]||'var(--fg3)';
   const ll={none:'Sin interferencia',minimal:'Mínima',low:'Baja',moderate:'Moderada',high:'Alta'}[i.level];
   el.innerHTML=`<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;"><span style="font-family:'Geist Mono',monospace;font-size:11px;font-weight:600;color:${lc};">${ll} (${i.score}%)</span>${i.blockLower?'<span class="chip chip-r">Pierna bloqueada</span>':''}</div><div style="font-size:12px;color:var(--fg2);margin-bottom:10px;">${i.recommendation}</div>${(i.signals||[]).map(s=>`<div class="sig-row"><span class="sig-icon" style="color:${s.warn?'var(--r)':'var(--y)'};">${s.warn?'↓':'~'}</span><span class="sig-text" style="font-size:11px;">${s.label}</span></div>`).join('')}`;
 }
 
 function renderMuscleFatigue(){
-  const container=document.getElementById('muscleFatigue');if(!container)return;
+  const container=safeDOM('muscleFatigue');if(!container)return;
   const mf=S._muscleFatigue||{};
 
   // Handle both old format (number) and new format (object)
@@ -2743,32 +2998,32 @@ function renderMuscleFatigue(){
 
 function updateMetrics(){
   const m=S.metrics;
-  const sv=(id,v)=>{const e=document.getElementById(id);if(e)e.textContent=v!=null?v:'—';};
+  const sv=(id,v)=>{const e=safeDOM(id);if(e)e.textContent=v!=null?v:'—';};
   sv('m-hrv',m.hrv?m.hrv+'ms':null);sv('m-sleep',m.sleep);sv('m-sleep-score',m.sleepScore?'score '+m.sleepScore:'');
   sv('m-bb',m.bb);sv('m-rhr',m.restingHR?m.restingHR+'ppm':null);
   sv('m-steps',m.steps?(m.steps>=1000?(Math.round(m.steps/1000)+'k'):m.steps):null);
-  var mProt=document.getElementById('m-prot-quick');
+  var mProt=safeDOM('m-prot-quick');
   if(mProt)mProt.textContent=m.protein?Math.round(m.protein):'—';
-  var nutBtn=document.getElementById('nutSummaryBtn');
+  var nutBtn=safeDOM('nutSummaryBtn');
   if(nutBtn&&(m.protein||m.kcal)){nutBtn.textContent=(m.protein?Math.round(m.protein)+'g prot':'—')+(m.kcal?' · '+Math.round(m.kcal)+' kcal':'')+' ▾';}
   sv('m-vo2max',m.vo2max?m.vo2max+'':null);
   sv('m-ctl',m.ctl!=null&&m.atl!=null?`CTL ${Math.round(m.ctl)} · ATL ${Math.round(m.atl)}`:m.ctl?Math.round(m.ctl):null);
-  const hEl=document.getElementById('m-hrv-d');
+  const hEl=safeDOM('m-hrv-d');
   if(hEl&&S._hrv?.pctVsBase!=null){const p=S._hrv.pctVsBase;hEl.textContent=`${p>=0?'+':''}${p}% vs base ${Math.round(S._hrv.baseline28||0)}ms`;hEl.className='st-delta '+(p>=-5?'up':p<-10?'dn':'nt');}
-  const tEl=document.getElementById('m-tsb'),tdEl=document.getElementById('m-tsb-d');
+  const tEl=safeDOM('m-tsb'),tdEl=safeDOM('m-tsb-d');
   if(tEl&&m.tsb!=null){tEl.textContent=(m.tsb>0?'+':'')+m.tsb;tEl.style.color=m.tsb>5?'var(--g)':m.tsb<-10?'var(--r)':'';}
   if(tdEl&&m.tsb!=null){tdEl.textContent=m.tsb>5?'Fresco ✓':m.tsb<-10?'Fatigado ⚠':'Neutro';tdEl.className='st-delta '+(m.tsb>5?'up':m.tsb<-10?'dn':'nt');}
-  const rEl=document.getElementById('m-rhr-d');
+  const rEl=safeDOM('m-rhr-d');
   if(rEl&&S._hrv?.rhrDelta!=null){const d=S._hrv.rhrDelta;rEl.textContent=`(${d>0?'+':''}${d})`;rEl.style.color=d>3?'var(--r)':d<-2?'var(--g)':'var(--fg3)';}
-  const sb=(id,pct,col)=>{const e=document.getElementById(id);if(e){e.style.width=pct+'%';if(col)e.style.background=col;}};
-  const sl=(id,t)=>{const e=document.getElementById(id);if(e)e.textContent=t;};
+  const sb=(id,pct,col)=>{const e=safeDOM(id);if(e){e.style.width=pct+'%';if(col)e.style.background=col;}};
+  const sl=(id,t)=>{const e=safeDOM(id);if(e)e.textContent=t;};
   sv('nut-kcal',m.kcal?Math.round(m.kcal):null);sv('nut-prot',m.protein?Math.round(m.protein):null);sv('nut-carbs',m.carbs?Math.round(m.carbs):null);sv('nut-fat',m.fat?Math.round(m.fat):null);
   // Kcal balance row
   sv('nut-kcal-burned',m.kcalBurned?Math.round(m.kcalBurned)+'':null);
   sv('nut-kcal-ing',m.kcal?Math.round(m.kcal)+'':null);
-  const kcalNote=document.getElementById('kcalNote');
+  const kcalNote=safeDOM('kcalNote');
   if(kcalNote){if(m.kcal||m.kcalBurned){kcalNote.style.display='none';}else{kcalNote.textContent='Sin datos · Cronometer→Intervals→Sync';kcalNote.style.display='block';}}
-  const balEl=document.getElementById('nut-balance');
+  const balEl=safeDOM('nut-balance');
   if(balEl&&m.kcal&&m.kcalBurned){const bal=Math.round(m.kcal-m.kcalBurned);balEl.textContent=(bal>0?'+':'')+bal+'kcal';balEl.style.color=bal>200?'var(--r)':bal<-200?'var(--b)':'var(--g)';}
   else if(balEl)balEl.textContent='—';
   const protPct=m.protein?Math.min(Math.round(m.protein/180*100),100):0;
@@ -2779,14 +3034,14 @@ function updateMetrics(){
   sb('nut-kcal-bar',kcalPct,kcalPct>=85&&kcalPct<=115?'var(--g)':kcalPct>115?'var(--r)':'var(--y)');sl('nut-kcal-lbl',(m.kcal?Math.round(m.kcal):'—')+'/2300');
   sb('nut-carbs-bar',carbPct,'var(--b)');sl('nut-carbs-lbl',(m.carbs?Math.round(m.carbs):'—')+'/230g');
   sb('nut-fat-bar',fatPct,'var(--p)');sl('nut-fat-lbl',(m.fat?Math.round(m.fat):'—')+'/65g');
-  const nutD=document.getElementById('nutDate');if(nutD&&m._nutDate)nutD.textContent='Intervals · '+m._nutDate;
-  sv('comp-weight',m.weight?m.weight+'kg':null);sv('comp-fat',m.fatPct?parseFloat(m.fatPct).toFixed(1)+'%':null);sv('comp-muscle',m.musclePct?parseFloat(m.musclePct).toFixed(1)+'%':null);sv('comp-water',m.waterPct?parseFloat(m.waterPct).toFixed(1)+'%':null);
-  const kr=document.getElementById('compKgRow');
-  if(m.weight&&m.fatPct){const fg=+(m.weight*parseFloat(m.fatPct)/100).toFixed(1),lg=+(m.weight-fg).toFixed(1),tw=+(lg/0.9).toFixed(1),tl=+(m.weight-tw).toFixed(1);sv('comp-fatkg',fg+'kg');sv('comp-leankg',lg+'kg');sv('comp-target',tl>0?'-'+tl+'kg grasa':'En objetivo ✓');if(kr)kr.style.display='block';const fnEl=document.getElementById('fatDateNote');if(fnEl)fnEl.textContent=m._fatDate?`% grasa del ${m._fatDate}`:'';}else{if(kr)kr.style.display='none';}
+  const nutD=safeDOM('nutDate');if(nutD&&m._nutDate)nutD.textContent='Intervals · '+m._nutDate;
+  sv('comp-weight',m.weight?m.weight+'kg':null);sv('comp-fat',m.fatPct?safeNum(m.fatPct).toFixed(1)+'%':null);sv('comp-muscle',m.musclePct?safeNum(m.musclePct).toFixed(1)+'%':null);sv('comp-water',m.waterPct?safeNum(m.waterPct).toFixed(1)+'%':null);
+  const kr=safeDOM('compKgRow');
+  if(m.weight&&m.fatPct){const fg=+(m.weight*safeNum(m.fatPct)/100).toFixed(1),lg=+(m.weight-fg).toFixed(1),tw=+(lg/0.9).toFixed(1),tl=+(m.weight-tw).toFixed(1);sv('comp-fatkg',fg+'kg');sv('comp-leankg',lg+'kg');sv('comp-target',tl>0?'-'+tl+'kg grasa':'En objetivo ✓');if(kr)kr.style.display='block';const fnEl=safeDOM('fatDateNote');if(fnEl)fnEl.textContent=m._fatDate?`% grasa del ${m._fatDate}`:'';}else{if(kr)kr.style.display='none';}
 }
 
 function renderHRV(){
-  const el=document.getElementById('hrvChart'),avgEl=document.getElementById('hrvAvgLbl'),b28El=document.getElementById('hrvBase28Lbl');
+  const el=safeDOM('hrvChart'),avgEl=safeDOM('hrvAvgLbl'),b28El=safeDOM('hrvBase28Lbl');
   if(!el)return;
   const data=S.metrics.hrv7||[];
   if(!data.length){el.innerHTML='<div style="color:var(--fg4);font-size:11px;">Sin datos HRV</div>';return;}
@@ -2799,7 +3054,7 @@ function renderHRV(){
 }
 
 function renderMAV(){
-  const container=document.getElementById('mavBars');const multCard=document.getElementById('mavMultCard');const multList=document.getElementById('mavMultList');
+  const container=safeDOM('mavBars');const multCard=safeDOM('mavMultCard');const multList=safeDOM('mavMultList');
   if(!container)return;
   const mav=S._mav;
   const offset=S.weekOffset||0;
@@ -2821,14 +3076,14 @@ function renderMAV(){
     else if(current<=eMRV){col='var(--y)';zone='MAV→MRV';}
     else{col='var(--r)';zone=`Sobre MRV (+${current-eMRV}s)`;}
     const dyn=isReduced?`<div style="font-size:10px;color:var(--y);margin-top:2px;">⚠ MRV dinámico: ${mrv}→${eMRV} (×${eff.mult})</div>`:'';
-    return`<div class="mav-row"><div class="mav-header"><div class="mav-muscle">${muscle}${(function(){var f=(S._hevyRecent||[]).filter(function(s){return s.age<7*864e5&&s.muscleSets&&s.muscleSets[muscle]>0;}).length;var c=f>=2?"var(--g)":f===1?"var(--y)":"var(--fg4)";var t=f>=2?"F2":"F1";return f>0?"<span style=\"font-size:9px;color:"+c+";margin-left:5px;font-family:monospace;\">"+t+"</span>":"";}())}</div><div class="mav-nums"><span style="color:${col};font-weight:600;">${current}s</span> · MEV${mev} MAV${mavBase} MRV<span style="color:${isReduced?'var(--y)':'inherit'}">${eMRV}</span></div></div><div class="mav-track"><div class="mav-mev" style="width:${mevPct}%"></div><div class="mav-fill" style="width:${fillPct}%;background:${col};"></div><div class="mav-mrv" style="left:${mrvPct}%"></div></div><div class="mav-zone" style="color:${col};">${zone}</div>${dyn}</div>`;
+    return`<div class="mav-row"><div class="mav-header"><div class="mav-muscle">${muscle}${(function(){var f=safeArr(S._hevyRecent).filter(function(s){return s.age<7*864e5&&s.muscleSets&&s.muscleSets[muscle]>0;}).length;return f>0?"<span style=\"font-size:9px;color:"+(f>=2?"var(--g)":"var(--y)")+";margin-left:5px;font-family:monospace;\">"+(f>=2?"F2":"F1")+"</span>":"";}())}</div><div class="mav-nums"><span style="color:${col};font-weight:600;">${current}s</span> · MEV${mev} MAV${mavBase} MRV<span style="color:${isReduced?'var(--y)':'inherit'}">${eMRV}</span></div></div><div class="mav-track"><div class="mav-mev" style="width:${mevPct}%"></div><div class="mav-fill" style="width:${fillPct}%;background:${col};"></div><div class="mav-mrv" style="left:${mrvPct}%"></div></div><div class="mav-zone" style="color:${col};">${zone}</div>${dyn}</div>`;
   }).join('');
   if(mav&&mav.reasons.length&&multCard&&multList){multCard.style.display='block';multList.innerHTML=mav.reasons.map(r=>`<div style="font-size:12px;color:var(--fg2);padding:4px 0;border-bottom:1px solid var(--line);">${r}</div>`).join('')+`<div style="font-family:'Geist Mono',monospace;font-size:11px;color:var(--c);padding:6px 0 0;">Global ×${mav.global}</div>`;}
   else if(multCard)multCard.style.display='none';
 }
 
 function renderActivities(){
-  const el=document.getElementById('activityList');if(!el)return;
+  const el=safeDOM('activityList');if(!el)return;
   const acts=(S.metrics.activities||[]).slice(0,8);
   if(!acts.length){el.innerHTML='<div class="empty"><div class="empty-icon">🏃</div><div class="empty-title">Sin actividades</div></div>';return;}
   const RUN=['Run','VirtualRun','TrailRun'];const STR=['WeightTraining','Workout','CrossFit','Other'];
@@ -2855,7 +3110,7 @@ function renderWeekZones(){
 }
 
 function renderSportZones(elId,analysisId,labelId,acts,offset){
-  const el=document.getElementById(elId);const analysis=document.getElementById(analysisId);const lbl=document.getElementById(labelId);
+  const el=safeDOM(elId);const analysis=safeDOM(analysisId);const lbl=safeDOM(labelId);
   if(!el)return;
   const {start}=getWeekBounds(offset);
   if(lbl)lbl.textContent=offset===0?'Semana actual':start.toLocaleDateString('es-ES',{day:'numeric',month:'short'});
@@ -2871,7 +3126,7 @@ function renderSportZones(elId,analysisId,labelId,acts,offset){
 }
 
 function renderStrengthLoad(elId,labelId,acts,offset){
-  const el=document.getElementById(elId);const lbl=document.getElementById(labelId);if(!el)return;
+  const el=safeDOM(elId);const lbl=safeDOM(labelId);if(!el)return;
   const {start}=getWeekBounds(offset);if(lbl)lbl.textContent=offset===0?'Semana actual':start.toLocaleDateString('es-ES',{day:'numeric',month:'short'});
   if(!acts.length){el.innerHTML='<div style="color:var(--fg4);font-size:11px;">Sin sesiones</div>';return;}
   el.innerHTML=acts.map(a=>{
@@ -2882,7 +3137,7 @@ function renderStrengthLoad(elId,labelId,acts,offset){
     const date=(a.start_date_local||'').split('T')[0].slice(5);
     const rpeCol=a.icu_rpe?(a.icu_rpe>=8?'var(--r)':a.icu_rpe>=6?'var(--y)':'var(--g)'):'var(--fg4)';
     // Find matching Hevy session for this activity
-    const hevySess=(S._hevyRecent||[]).find(s=>{
+    const hevySess=safeArr(S._hevyRecent).find(s=>{
       const diff=Math.abs(new Date(a.start_date_local||0).getTime()-s.date.getTime());
       return diff<8*3600000;
     });
@@ -2905,26 +3160,26 @@ function renderStrengthLoad(elId,labelId,acts,offset){
 
 // ══ LOG ══
 function calcSRPE(){
-  const dur=parseFloat(document.getElementById('logDur')?.value)||0;
-  const rpe=parseFloat(document.getElementById('logRPE')?.value)||0;
+  const dur=safeNum(safeDOM('logDur')?.value)||0;
+  const rpe=safeNum(safeDOM('logRPE')?.value)||0;
   const srpe=dur>0&&rpe>0?Math.round(rpe*dur):0;
-  const nEl=document.getElementById('srpeNum'),rEl=document.getElementById('srpeRing'),zEl=document.getElementById('srpeZone');
+  const nEl=safeDOM('srpeNum'),rEl=safeDOM('srpeRing'),zEl=safeDOM('srpeZone');
   if(nEl)nEl.textContent=srpe>0?srpe:'—';
   if(rEl){const pct=Math.min(srpe/800,1);rEl.style.strokeDashoffset=251.2*(1-pct);rEl.style.stroke=srpe>600?'var(--r)':srpe>350?'var(--y)':'var(--c)';}
   if(zEl)zEl.textContent=srpe<200?'Ligera':srpe<350?'Moderada':srpe<600?'Alta':'MUY ALTA';
 }
 
 function saveLog(){
-  const sess=document.getElementById('logSess')?.value;const dur=document.getElementById('logDur')?.value;const rpe=document.getElementById('logRPE')?.value;const knee=document.getElementById('logKnee')?.value;const notes=document.getElementById('logNotes')?.value;
+  const sess=safeDOM('logSess')?.value;const dur=safeDOM('logDur')?.value;const rpe=safeDOM('logRPE')?.value;const knee=safeDOM('logKnee')?.value;const notes=safeDOM('logNotes')?.value;
   if(!sess){toast('Sin sesión','Selecciona una sesión','⚠️');return;}
-  const srpe=dur&&rpe?Math.round(parseFloat(rpe)*parseFloat(dur)):0;
+  const srpe=dur&&rpe?Math.round(safeNum(rpe)*safeNum(dur)):0;
   const today=new Date();const ds=`${String(today.getDate()).padStart(2,'0')}/${String(today.getMonth()+1).padStart(2,'0')}/${today.getFullYear()}`;
   S.logs.unshift({sess,dur,rpe,knee,notes,srpe,date:ds});
   const sm={'D1':{'Pectoral':8,'Deltoides':6,'Tríceps':5,'Core':3},'D2':{'Cuádriceps':7,'Glúteo':5,'Aductores':3,'Gemelos/Sóleo':4},'D4':{'Dorsal':7,'Bíceps':5,'Tríceps':2,'Core':3},'D5':{'Isquiotibiales':7,'Glúteo':7,'Gemelos/Sóleo':3,'Aductores':2}};
   const k=['D1','D2','D4','D5'].find(k=>sess.includes(k));
   if(k)Object.entries(sm[k]).forEach(([m,s])=>{S.weeklyVol[m]=(S.weeklyVol[m]||0)+s;});
   S.weekDays.add(sess.split('—')[0].trim());
-  const sc=document.getElementById('wkScore');if(sc)sc.textContent=S.weekDays.size+'/6';
+  const sc=safeDOM('wkScore');if(sc)sc.textContent=S.weekDays.size+'/6';
   document.querySelectorAll('.wd').forEach(el=>{if(el.querySelector('.wd-n')?.textContent===sess.split('—')[0].trim())el.classList.add('done');});
   save();renderLog();renderMAV();runEngines();
 
@@ -2944,25 +3199,25 @@ function saveLog(){
     });
   }
   storePerformanceOutcome({
-    sess, rpe:parseFloat(rpe)||0, sRPE:srpe,
-    knee:parseFloat(knee)||0, notes, e1rmDeltas
+    sess, rpe:safeNum(rpe)||0, sRPE:srpe,
+    knee:safeNum(knee)||0, notes, e1rmDeltas
   });
   toast('Sesión guardada',`${sess} · sRPE ${srpe}`,'✅');
-  ['logDur','logRPE','logKnee','logNotes'].forEach(id=>{const e=document.getElementById(id);if(e)e.value='';});
-  document.getElementById('logSess').value='';calcSRPE();
+  ['logDur','logRPE','logKnee','logNotes'].forEach(id=>{const e=safeDOM(id);if(e)e.value='';});
+  safeDOM('logSess').value='';calcSRPE();
 }
 
 function changeLogWeek(dir){S.logWeekOffset=(S.logWeekOffset||0)+dir;if(S.logWeekOffset>0)S.logWeekOffset=0;renderLog();}
 function renderLog(){
-  const el=document.getElementById('logList');if(!el)return;
+  const el=safeDOM('logList');if(!el)return;
   const offset=S.logWeekOffset||0;const {start,end}=getWeekBounds(offset);const endFull=new Date(end);endFull.setHours(23,59,59,999);
   const fmt=d=>d.toLocaleDateString('es-ES',{day:'numeric',month:'short'});
-  const lEl=document.getElementById('logWeekLabel'),nBtn=document.getElementById('logWeekNextBtn');
+  const lEl=safeDOM('logWeekLabel'),nBtn=safeDOM('logWeekNextBtn');
   if(lEl)lEl.textContent=offset===0?'Esta semana':offset===-1?'Semana pasada':`${fmt(start)} – ${fmt(end)}`;
   if(nBtn)nBtn.style.opacity=offset>=0?'0.3':'1';
-  const filtered=(S.logs||[]).filter(l=>{if(!l.date)return offset===0;const parts=l.date.split('/');const d=parts.length===3?new Date(parts[2],parts[1]-1,parts[0]):new Date(l.date);if(isNaN(d))return offset===0;return d>=start&&d<=endFull;});
+  const filtered=safeArr(S.logs).filter(l=>{if(!l.date)return offset===0;const parts=l.date.split('/');const d=parts.length===3?new Date(parts[2],parts[1]-1,parts[0]):new Date(l.date);if(isNaN(d))return offset===0;return d>=start&&d<=endFull;});
   if(!filtered.length){el.innerHTML=`<div class="empty"><div class="empty-icon">📋</div><div class="empty-title">Sin sesiones</div><div class="empty-msg">${offset===0?'Registra tu primera sesión':'Sin sesiones esta semana'}</div></div>`;return;}
-  el.innerHTML=filtered.slice().reverse().map(l=>`<div class="log-row"><div class="log-left"><div class="log-name">${l.sess||'Sesión'}</div><div class="log-meta">${l.date} · ${l.dur||'—'}min${l.notes?' · '+l.notes.slice(0,35)+'…':''}</div></div><div class="log-chips"><span class="chip ${parseFloat(l.rpe)>=8?'chip-r':parseFloat(l.rpe)>=6?'chip-y':'chip-g'}">RPE ${l.rpe||'—'}</span><span class="chip chip-c">sRPE ${l.srpe||'—'}</span>${parseFloat(l.knee)>0?`<span class="chip chip-r">Rodilla ${l.knee}</span>`:''}</div></div>`).join('');
+  el.innerHTML=filtered.slice().reverse().map(l=>`<div class="log-row"><div class="log-left"><div class="log-name">${l.sess||'Sesión'}</div><div class="log-meta">${l.date} · ${l.dur||'—'}min${l.notes?' · '+l.notes.slice(0,35)+'…':''}</div></div><div class="log-chips"><span class="chip ${safeNum(l.rpe)>=8?'chip-r':safeNum(l.rpe)>=6?'chip-y':'chip-g'}">RPE ${l.rpe||'—'}</span><span class="chip chip-c">sRPE ${l.srpe||'—'}</span>${safeNum(l.knee)>0?`<span class="chip chip-r">Rodilla ${l.knee}</span>`:''}</div></div>`).join('');
 }
 
 // ══ INTERVALS FETCH ══
@@ -2991,7 +3246,7 @@ async function fetchIntervals(){
     S.metrics.sleepScore=latestBio.sleepScore||null;
     S.metrics.bb=latestBio.bodyBattery!=null?Math.round(latestBio.bodyBattery):latestBio.body_battery!=null?Math.round(latestBio.body_battery):null;
     S.metrics.steps=latestBio.steps!=null?Math.round(latestBio.steps):null;
-    S.metrics.weight=latestBio.weight?parseFloat(latestBio.weight.toFixed(1)):null;
+    S.metrics.weight=latestBio.weight?safeNum(latestBio.weight.toFixed(1)):null;
     S.metrics.vo2max=latestBio.vo2max||null;
     S.metrics.avgNocturnalHR=latestBio.avgSleepingHR||null;
     const fv=latestBio.fieldValues||{};
@@ -3017,10 +3272,10 @@ async function fetchIntervals(){
     if(S.metrics.ctl==null&&latestBio.ctl!=null)S.metrics.ctl=Math.round(latestBio.ctl);
     if(S.metrics.atl==null&&latestBio.atl!=null)S.metrics.atl=Math.round(latestBio.atl);
     if(S.metrics.tsb==null&&latestBio.ctl!=null&&latestBio.atl!=null)S.metrics.tsb=Math.round(latestBio.ctl-latestBio.atl);
-    try{const atR=await fetch(`https://intervals.icu/api/v1/athlete/${aid}`,{headers:H,mode:'cors'});if(atR.ok){const at=await atR.json();if(!S.metrics.weight&&at.icu_weight)S.metrics.weight=parseFloat(at.icu_weight.toFixed(1));if(!S.metrics.restingHR&&at.icu_resting_hr)S.metrics.restingHR=at.icu_resting_hr;if(!S.metrics.vo2max&&at.icu_vo2max)S.metrics.vo2max=Math.round(at.icu_vo2max*10)/10;if(S.metrics.ctl==null&&at.ctl!=null)S.metrics.ctl=Math.round(at.ctl);if(S.metrics.atl==null&&at.atl!=null)S.metrics.atl=Math.round(at.atl);if(S.metrics.tsb==null&&at.form!=null)S.metrics.tsb=Math.round(at.form);}}catch(e){}
+    try{const atR=await fetch(`https://intervals.icu/api/v1/athlete/${aid}`,{headers:H,mode:'cors'});if(atR.ok){const at=await atR.json();if(!S.metrics.weight&&at.icu_weight)S.metrics.weight=safeNum(at.icu_weight.toFixed(1));if(!S.metrics.restingHR&&at.icu_resting_hr)S.metrics.restingHR=at.icu_resting_hr;if(!S.metrics.vo2max&&at.icu_vo2max)S.metrics.vo2max=Math.round(at.icu_vo2max*10)/10;if(S.metrics.ctl==null&&at.ctl!=null)S.metrics.ctl=Math.round(at.ctl);if(S.metrics.atl==null&&at.atl!=null)S.metrics.atl=Math.round(at.atl);if(S.metrics.tsb==null&&at.form!=null)S.metrics.tsb=Math.round(at.form);}}catch(e){}
     S.metrics.activities=activities;
     S._activitiesByDate={};activities.forEach(a=>{const d=(a.start_date_local||'').split('T')[0];if(d){if(!S._activitiesByDate[d])S._activitiesByDate[d]=[];S._activitiesByDate[d].push(a);}});
-    S.metrics.weightHistory=wSorted.filter(d=>d.weight||(d.fieldValues||{})['BodyFatPercent']).map(d=>({date:d.id,w:d.weight?parseFloat(d.weight.toFixed(1)):null,fat:d.fatPercent||(d.fieldValues||{})['BodyFatPercent']||null}));
+    S.metrics.weightHistory=wSorted.filter(d=>d.weight||(d.fieldValues||{})['BodyFatPercent']).map(d=>({date:d.id,w:d.weight?safeNum(d.weight.toFixed(1)):null,fat:d.fatPercent||(d.fieldValues||{})['BodyFatPercent']||null}));
     S.int.ok=true;save();setIntStatus('ok');
     runEngines();renderHRV();renderActivities();renderWeekZones();
     toast('Intervals sincronizado',[S.metrics.hrv?`HRV ${S.metrics.hrv}ms`:'',S._hrv?.baseline28?`base28 ${Math.round(S._hrv.baseline28)}ms`:'',S.metrics.ctl?`CTL ${Math.round(S.metrics.ctl)}`:'',S.metrics.weight?`${S.metrics.weight}kg`:'',S.metrics.protein?`Prot ${Math.round(S.metrics.protein)}g`:''].filter(Boolean).join(' · ')||'OK','✅');
@@ -3029,9 +3284,9 @@ async function fetchIntervals(){
 
 // ══ HEVY FETCH ══
 async function fetchHevy(){
-  const key=S.hevy?.key||document.getElementById('hevyKey')?.value?.trim();
+  const key=S.hevy?.key||safeDOM('hevyKey')?.value?.trim();
   if(!key){toast('Sin API Key','Añade tu API Key de Hevy','⚠️');return;}
-  const sp=document.getElementById('hevySpin');if(sp)sp.style.display='block';
+  const sp=safeDOM('hevySpin');if(sp)sp.style.display='block';
   try{
     const PROXY='';
     let r=await fetch('https://api.hevyapp.com/v1/workouts?page=1&pageSize=10',{
@@ -3055,7 +3310,7 @@ async function fetchHevy(){
       (w.exercises||[]).forEach(ex=>{
         const exName=ex.title||ex.exercise_template_title||ex.name||'';
         const exData=getExDB(exName);
-        const sets=(ex.sets||[]).filter(s=>parseInt(s.reps||0)>0);
+        const sets=(ex.sets||[]).filter(s=>safeInt(s.reps||0)>0);
         const nSets=sets.length;
         if(!nSets)return;
         if(exData){
@@ -3064,7 +3319,7 @@ async function fetchHevy(){
         }
         // Volume tracking — primary muscles only (Israetel/Schoenfeld standard)
         if(isThisWeek&&exData){
-          const workingSets3=(ex.sets||[]).filter(s=>parseInt(s.reps||0)>0).length;
+          const workingSets3=(ex.sets||[]).filter(s=>safeInt(s.reps||0)>0).length;
           if(workingSets3>0)exData.p.forEach(m=>{S.weeklyVol[m]=(S.weeklyVol[m]||0)+workingSets3;});
         }
       });
@@ -3111,7 +3366,7 @@ async function fetchHevy(){
         const hevySetRPEs = [];
         (w.exercises||[]).forEach(ex => {
           (ex.sets||[]).forEach(s => {
-            const r = parseFloat(s.rpe||s.rpe_rating||0);
+            const r = safeNum(s.rpe||s.rpe_rating||0);
             if(r > 0) hevySetRPEs.push(r);
           });
         });
@@ -3158,7 +3413,7 @@ async function fetchHevy(){
     S._hevyRecent=recentHevySess;
     S.hevy={workouts,totalWorkouts:data.workout_count||workouts.length,key};
     save();
-    const hSt=document.getElementById('hevyStatus');if(hSt)hSt.innerHTML='<span class="sdot-sm sdot-g"></span><span style="color:var(--g);">Conectado</span>';
+    const hSt=safeDOM('hevyStatus');if(hSt)hSt.innerHTML='<span class="sdot-sm sdot-g"></span><span style="color:var(--g);">Conectado</span>';
     renderMAV();runEngines();
     toast('Hevy sincronizado',`${workouts.length} sesiones · ${recentHevySess.length} recientes (72h)`,'💪',5000);
   }catch(err){toast('Error Hevy',err.message,'❌');}
@@ -3166,35 +3421,35 @@ async function fetchHevy(){
 }
 
 // ══ CONNECTIONS ══
-async function connectIntervals(){const aid=document.getElementById('intAid')?.value?.trim();const key=document.getElementById('intKey')?.value?.trim();if(!aid||!key){toast('Faltan datos','Introduce Athlete ID y API Key','⚠️');return;}S.int={aid,key,ok:false};save();setIntStatus('loading');await fetchIntervals();}
-function disconnectIntervals(){S.int={aid:'',key:'',ok:false};S._wellnessHistory=[];S._hrv=null;S._fatigue=null;save();setIntStatus('idle');document.getElementById('intAid').value='';document.getElementById('intKey').value='';toast('Intervals desconectado','','🔌');}
-async function connectHevy(){const key=document.getElementById('hevyKey')?.value?.trim();if(!key)return;S.hevy={...(S.hevy||{}),key};await fetchHevy();}
-function disconnectHevy(){S.hevy=null;S.weeklyVol={};S._hevyRecent=[];save();renderMAV();document.getElementById('hevyKey').value='';const st=document.getElementById('hevyStatus');if(st)st.innerHTML='<span class="sdot-sm sdot-k"></span><span style="color:var(--fg3);">Sin conectar</span>';toast('Hevy desconectado','','🔌');}
-function saveClaudeKey(){const key=document.getElementById('claudeKey')?.value?.trim();if(!key||!key.startsWith('sk-ant')){toast('API Key inválida','Debe comenzar con sk-ant-...','⚠️');return;}S.claude.key=key;save();document.getElementById('claudeKey').value='sk-ant-...guardada';toast('API Key guardada','IA lista','✅');}
-function setIntStatus(state){const el=document.getElementById('intStatus');const sp=document.getElementById('intSpin');const dot=document.getElementById('syncDot');if(sp)sp.style.display=state==='loading'?'block':'none';if(!el)return;if(state==='loading')el.innerHTML='<span class="sdot-sm sdot-y" style="animation:pd 1.5s infinite;"></span><span style="color:var(--y);">Conectando...</span>';else if(state==='ok'){el.innerHTML='<span class="sdot-sm sdot-g"></span><span style="color:var(--g);">Conectado</span>';if(dot){dot.style.background='var(--g)';dot.style.animation='pd 2s ease-in-out infinite';}}else if(state==='error')el.innerHTML='<span class="sdot-sm sdot-r"></span><span style="color:var(--r);">Error</span>';else el.innerHTML='<span class="sdot-sm sdot-k"></span><span style="color:var(--fg3);">Sin conectar</span>';}
+async function connectIntervals(){const aid=safeDOM('intAid')?.value?.trim();const key=safeDOM('intKey')?.value?.trim();if(!aid||!key){toast('Faltan datos','Introduce Athlete ID y API Key','⚠️');return;}S.int={aid,key,ok:false};save();setIntStatus('loading');await fetchIntervals();}
+function disconnectIntervals(){S.int={aid:'',key:'',ok:false};S._wellnessHistory=[];S._hrv=null;S._fatigue=null;save();setIntStatus('idle');safeDOM('intAid').value='';safeDOM('intKey').value='';toast('Intervals desconectado','','🔌');}
+async function connectHevy(){const key=safeDOM('hevyKey')?.value?.trim();if(!key)return;S.hevy={...(S.hevy||{}),key};await fetchHevy();}
+function disconnectHevy(){S.hevy=null;S.weeklyVol={};S._hevyRecent=[];save();renderMAV();safeDOM('hevyKey').value='';const st=safeDOM('hevyStatus');if(st)st.innerHTML='<span class="sdot-sm sdot-k"></span><span style="color:var(--fg3);">Sin conectar</span>';toast('Hevy desconectado','','🔌');}
+function saveClaudeKey(){const key=safeDOM('claudeKey')?.value?.trim();if(!key||!key.startsWith('sk-ant')){toast('API Key inválida','Debe comenzar con sk-ant-...','⚠️');return;}S.claude.key=key;save();safeDOM('claudeKey').value='sk-ant-...guardada';toast('API Key guardada','IA lista','✅');}
+function setIntStatus(state){const el=safeDOM('intStatus');const sp=safeDOM('intSpin');const dot=safeDOM('syncDot');if(sp)sp.style.display=state==='loading'?'block':'none';if(!el)return;if(state==='loading')el.innerHTML='<span class="sdot-sm sdot-y" style="animation:pd 1.5s infinite;"></span><span style="color:var(--y);">Conectando...</span>';else if(state==='ok'){el.innerHTML='<span class="sdot-sm sdot-g"></span><span style="color:var(--g);">Conectado</span>';if(dot){dot.style.background='var(--g)';dot.style.animation='pd 2s ease-in-out infinite';}}else if(state==='error')el.innerHTML='<span class="sdot-sm sdot-r"></span><span style="color:var(--r);">Error</span>';else el.innerHTML='<span class="sdot-sm sdot-k"></span><span style="color:var(--fg3);">Sin conectar</span>';}
 function manualUpdate(){
-  const h=parseFloat(document.getElementById('manHRV')?.value);
-  const bb=parseFloat(document.getElementById('manBB')?.value);
-  const sl=parseFloat(document.getElementById('manSleep')?.value);
-  const rhr=parseFloat(document.getElementById('manRHR')?.value);
-  const domsUp=parseFloat(document.getElementById('manDomsUpper')?.value);
-  const domsLo=parseFloat(document.getElementById('manDomsLower')?.value);
+  const h=safeNum(safeDOM('manHRV')?.value);
+  const bb=safeNum(safeDOM('manBB')?.value);
+  const sl=safeNum(safeDOM('manSleep')?.value);
+  const rhr=safeNum(safeDOM('manRHR')?.value);
+  const domsUp=safeNum(safeDOM('manDomsUpper')?.value);
+  const domsLo=safeNum(safeDOM('manDomsLower')?.value);
   if(!isNaN(h)&&h>0)S.metrics.hrv=h;
   if(!isNaN(bb))S.metrics.bb=bb;
   if(!isNaN(sl)&&sl>0)S.metrics.sleep=sl;
   if(!isNaN(rhr)&&rhr>0)S.metrics.restingHR=rhr;
   // Sync manual DOMS to the HOY screen fields
-  if(!isNaN(domsUp)){const e=document.getElementById('domsUpper');if(e)e.value=domsUp;}
-  if(!isNaN(domsLo)){const e=document.getElementById('domsLower');if(e)e.value=domsLo;}
-  const pain=document.getElementById('manPain')?.value;
-  if(pain){const e=document.getElementById('painToday');if(e)e.value=pain;}
+  if(!isNaN(domsUp)){const e=safeDOM('domsUpper');if(e)e.value=domsUp;}
+  if(!isNaN(domsLo)){const e=safeDOM('domsLower');if(e)e.value=domsLo;}
+  const pain=safeDOM('manPain')?.value;
+  if(pain){const e=safeDOM('painToday');if(e)e.value=pain;}
   runEngines();updateMetrics();
 }
-function showDebug(){const el=document.getElementById('debugPanel'),c=document.getElementById('debugContent');if(!el||!c)return;el.style.display='block';c.textContent=JSON.stringify({raw_wellness:S._rawWellness,hrv_engine:S._hrv,fatigue:{...S._fatigue,signals:Object.fromEntries(Object.entries(S._fatigue?.signals||{}).slice(0,8))},muscle_fatigue:S._muscleFatigue,interference:S._interference,mav:S._mav?{global:S._mav.global,reasons:S._mav.reasons}:null,recs:S._recs?.actions?.map(a=>a.id),hevy_recent:S._hevyRecent?.map(s=>({name:s.name,muscles:s.muscles,hasUpper:s.hasUpper,hasLower:s.hasLower,muscleSets:s.muscleSets,sRPE:s.sRPE,rpe:s.rpe}))},null,2);}
+function showDebug(){const el=safeDOM('debugPanel'),c=safeDOM('debugContent');if(!el||!c)return;el.style.display='block';c.textContent=JSON.stringify({raw_wellness:S._rawWellness,hrv_engine:S._hrv,fatigue:{...S._fatigue,signals:Object.fromEntries(Object.entries(S._fatigue?.signals||{}).slice(0,8))},muscle_fatigue:S._muscleFatigue,interference:S._interference,mav:S._mav?{global:S._mav.global,reasons:S._mav.reasons}:null,recs:S._recs?.actions?.map(a=>a.id),hevy_recent:S._hevyRecent?.map(s=>({name:s.name,muscles:s.muscles,hasUpper:s.hasUpper,hasLower:s.hasLower,muscleSets:s.muscleSets,sRPE:s.sRPE,rpe:s.rpe}))},null,2);}
 
 // ══ WEEK UTILITIES ══
 function getWeekBounds(offset){const now=new Date();const monday=new Date(now);monday.setHours(0,0,0,0);monday.setDate(now.getDate()-(now.getDay()===0?6:now.getDay()-1)+(offset*7));const sunday=new Date(monday);sunday.setDate(monday.getDate()+6);return{start:monday,end:sunday};}
-function checkWeekReset(){const now=new Date();const monday=new Date(now);monday.setHours(0,0,0,0);monday.setDate(now.getDate()-(now.getDay()===0?6:now.getDay()-1));const ms=monday.toISOString().split('T')[0];if(S.weekStart!==ms){S.weekStart=ms;S.weeklyVol={};S.weekDays=new Set();document.querySelectorAll('.wd').forEach(el=>el.classList.remove('done'));const sc=document.getElementById('wkScore');if(sc)sc.textContent='0/6';save();}}
+function checkWeekReset(){const now=new Date();const monday=new Date(now);monday.setHours(0,0,0,0);monday.setDate(now.getDate()-(now.getDay()===0?6:now.getDay()-1));const ms=monday.toISOString().split('T')[0];if(S.weekStart!==ms){S.weekStart=ms;S.weeklyVol={};S.weekDays=new Set();document.querySelectorAll('.wd').forEach(el=>el.classList.remove('done'));const sc=safeDOM('wkScore');if(sc)sc.textContent='0/6';save();}}
 function getWeeklyVolForOffset(offset){
   if(offset===0)return S.weeklyVol||{};
   if(!S.hevy?.workouts)return{};
@@ -3208,7 +3463,7 @@ function getWeeklyVolForOffset(offset){
       const exData=getExDB(ex.title||ex.exercise_template_title||ex.name||'');
       if(!exData)return;
       // Count working sets only (primary muscles only — Israetel/Schoenfeld standard)
-      const workingSets=(ex.sets||[]).filter(s=>parseInt(s.reps||0)>0);
+      const workingSets=(ex.sets||[]).filter(s=>safeInt(s.reps||0)>0);
       if(!workingSets.length)return;
       // Primary muscles only for volume counting
       exData.p.forEach(m=>{vol[m]=(vol[m]||0)+workingSets.length;});
@@ -3217,8 +3472,8 @@ function getWeeklyVolForOffset(offset){
   return vol;
 }
 function changeWeek(dir){S.weekOffset=(S.weekOffset||0)+dir;if(S.weekOffset>0)S.weekOffset=0;updateWeekSelector();renderMAV();renderWeekZones();}
-function updateWeekSelector(){const offset=S.weekOffset||0;const {start,end}=getWeekBounds(offset);const fmt=d=>d.toLocaleDateString('es-ES',{day:'numeric',month:'short'});const lEl=document.getElementById('weekLabel'),nBtn=document.getElementById('weekNextBtn'),nEl=document.getElementById('mavWeekNote');if(lEl)lEl.textContent=offset===0?'Esta semana':offset===-1?'Semana pasada':`${fmt(start)} – ${fmt(end)}`;if(nBtn)nBtn.style.opacity=offset>=0?'0.3':'1';if(nEl)nEl.textContent=offset===0?'':`${fmt(start)} – ${fmt(end)}`;const mT=document.getElementById('mavBarsTitle');if(mT)mT.textContent=offset===0?'Volumen semana':`Volumen · ${fmt(start)}`;}
-function tw(el,day){el.classList.toggle('done');if(el.classList.contains('done'))S.weekDays.add(day);else S.weekDays.delete(day);const sc=document.getElementById('wkScore');if(sc)sc.textContent=S.weekDays.size+'/6';save();}
+function updateWeekSelector(){const offset=S.weekOffset||0;const {start,end}=getWeekBounds(offset);const fmt=d=>d.toLocaleDateString('es-ES',{day:'numeric',month:'short'});const lEl=safeDOM('weekLabel'),nBtn=safeDOM('weekNextBtn'),nEl=safeDOM('mavWeekNote');if(lEl)lEl.textContent=offset===0?'Esta semana':offset===-1?'Semana pasada':`${fmt(start)} – ${fmt(end)}`;if(nBtn)nBtn.style.opacity=offset>=0?'0.3':'1';if(nEl)nEl.textContent=offset===0?'':`${fmt(start)} – ${fmt(end)}`;const mT=safeDOM('mavBarsTitle');if(mT)mT.textContent=offset===0?'Volumen semana':`Volumen · ${fmt(start)}`;}
+function tw(el,day){el.classList.toggle('done');if(el.classList.contains('done'))S.weekDays.add(day);else S.weekDays.delete(day);const sc=safeDOM('wkScore');if(sc)sc.textContent=S.weekDays.size+'/6';save();}
 function parseDate(str){if(!str)return null;const p=str.split('/');if(p.length===3)return new Date(p[2],p[1]-1,p[0]);return new Date(str)||null;}
 
 // ══ AI ══
@@ -3229,7 +3484,7 @@ function buildCtx(){
   const getMFVal=mu=>typeof mf[mu]==='object'?mf[mu].value:(mf[mu]||0);
   const getMFConf=mu=>typeof mf[mu]==='object'?Math.round(mf[mu].confidence*100)+'%':'—';
   const dataWeeks=Math.min(((S._wellnessHistory||[]).length/7),4).toFixed(1);
-  const overallConf=Math.min(0.9,0.35+parseFloat(dataWeeks)*0.14);
+  const overallConf=Math.min(0.9,0.35+safeNum(dataWeeks)*0.14);
 
   const muscleCtx=Object.entries(mf).filter(([,v])=>(typeof v==='object'?v.value:v)>0)
     .sort((a,b)=>(typeof b[1]==='object'?b[1].value:b[1])-(typeof a[1]==='object'?a[1].value:a[1]))
@@ -3286,7 +3541,7 @@ PROGRESIÓN:
 }
 async function callAI(prompt,panelId,txtId,timeId){
   const key=S.claude.key;if(!key||!key.startsWith('sk-ant')){toast('Sin API Key','Añade Claude API Key en Datos','⚠️');return;}
-  const panel=document.getElementById(panelId);const txt=document.getElementById(txtId);const tEl=document.getElementById(timeId);
+  const panel=safeDOM(panelId);const txt=safeDOM(txtId);const tEl=safeDOM(timeId);
   if(!panel||!txt)return;panel.style.display='block';txt.className='ai-text loading';txt.textContent='';
   if(tEl)tEl.textContent=new Date().toLocaleTimeString('es-ES',{hour:'2-digit',minute:'2-digit'});
   try{const r=await fetch('https://api.anthropic.com/v1/messages',{method:'POST',headers:{'Content-Type':'application/json','x-api-key':key,'anthropic-version':'2023-06-01','anthropic-dangerous-direct-browser-access':'true'},body:JSON.stringify({model:'claude-sonnet-4-5',max_tokens:1000,system:SYS,messages:[{role:'user',content:prompt}]})});
@@ -3294,7 +3549,7 @@ async function callAI(prompt,panelId,txtId,timeId){
   const data=await r.json();txt.className='ai-text';txt.textContent=data.content.map(b=>b.text||'').join('');}
   catch(err){txt.className='ai-text';txt.textContent='Error: '+err.message;toast('Error IA',err.message,'❌');}
 }
-async function analyzeDay(){const sess=document.getElementById('todaySess')?.value;const knee=document.getElementById('kneeToday')?.value||'0';const domsUp=document.getElementById('domsUpper')?.value||'0';const domsLo=document.getElementById('domsLower')?.value||'0';const pain=document.getElementById('painToday')?.value||'';const notes=document.getElementById('notesToday')?.value||'';const mf=S._muscleFatigue?Object.entries(S._muscleFatigue).map(([m,v])=>`${m}:${v}%`).join(', '):'sin datos';await callAI(`ANÁLISIS DEL DÍA — ${new Date().toLocaleDateString('es-ES',{weekday:'long',day:'numeric',month:'long'})}\n\n${buildCtx()}\n\nFATIGA MUSCULAR: ${mf}\nSESIÓN: ${sess||'no especificada'}\nRODILLA: ${knee}/10 · DOMS SUP: ${domsUp}/10 · DOMS INF: ${domsLo}/10\n${pain?'DOLOR: '+pain:''}\nNOTAS: "${notes||'ninguna'}"\n\n1) ¿Qué indican los motores sobre el estado de hoy? 2) ¿La sesión planificada es adecuada? 3) Una recomendación accionable principal.`,'aiDayP','aiDayTxt','aiDayT');}
+async function analyzeDay(){const sess=safeDOM('todaySess')?.value;const knee=safeDOM('kneeToday')?.value||'0';const domsUp=safeDOM('domsUpper')?.value||'0';const domsLo=safeDOM('domsLower')?.value||'0';const pain=safeDOM('painToday')?.value||'';const notes=safeDOM('notesToday')?.value||'';const mf=S._muscleFatigue?Object.entries(S._muscleFatigue).map(([m,v])=>`${m}:${v}%`).join(', '):'sin datos';await callAI(`ANÁLISIS DEL DÍA — ${new Date().toLocaleDateString('es-ES',{weekday:'long',day:'numeric',month:'long'})}\n\n${buildCtx()}\n\nFATIGA MUSCULAR: ${mf}\nSESIÓN: ${sess||'no especificada'}\nRODILLA: ${knee}/10 · DOMS SUP: ${domsUp}/10 · DOMS INF: ${domsLo}/10\n${pain?'DOLOR: '+pain:''}\nNOTAS: "${notes||'ninguna'}"\n\n1) ¿Qué indican los motores sobre el estado de hoy? 2) ¿La sesión planificada es adecuada? 3) Una recomendación accionable principal.`,'aiDayP','aiDayTxt','aiDayT');}
 async function analyzeFatigue(){const mf=S._muscleFatigue?Object.entries(S._muscleFatigue).sort((a,b)=>b[1]-a[1]).map(([m,v])=>`${m}:${v}%`).join(', '):'sin datos';await callAI(`ANÁLISIS DE FATIGA HÍBRIDA\n\n${buildCtx()}\n\nFATIGA MUSCULAR por grupo (decay exponencial):\n${mf}\n\n1) ¿Qué tipo de fatiga domina y por qué? 2) ¿Hay interferencia cardio-fuerza? 3) ¿Hay acumulación preocupante? 4) Recomendación próximas 48h.`,'aiFatP','aiFatTxt','aiFatT');}
 async function analyzeMav(){const vol=Object.entries(S.weeklyVol||{}).map(([k,v])=>`${k}:${v}s`).join(', ')||'sin datos';const mavCtx=S._mav?Object.entries(S._mav.muscles).map(([m,d])=>`${m}: actual ${S.weeklyVol[m]||0}/${d.effectiveMRV} (×${d.mult})`).join('\n'):'sin MAV';await callAI(`ANÁLISIS DE VOLUMEN\n\n${buildCtx()}\n\nVOLUMEN REAL:\n${vol}\n\nMAV DINÁMICO:\n${mavCtx}\n\n1) Grupos bajo MEV, en óptimo, sobre MRV. 2) ¿Multiplicadores apropiados? 3) Desequilibrios. 4) Ajuste concreto.`,'aiMavP','aiMavTxt','aiMavT');}
 async function analyzeSession(){const last=S.logs[0];if(!last){toast('Sin sesión','Registra una sesión primero','⚠️');return;}await callAI(`ANÁLISIS DE SESIÓN\n${last.sess} · ${last.dur}min · RPE ${last.rpe} · sRPE ${last.srpe} · Rodilla ${last.knee||0}/10\nNotas: "${last.notes||'ninguna'}"\n\n${buildCtx()}\n\n1) ¿sRPE apropiado para el estado de fatiga? 2) Señales de infra/sobreestimulación. 3) Impacto en readiness mañana.`,'aiSessP','aiSessTxt','aiSessT');}
@@ -3302,97 +3557,585 @@ async function analyzeSession(){const last=S.logs[0];if(!last){toast('Sin sesió
 // ══ NAV & SYNC ══
 
 function toggleSection(id){
-  var el=document.getElementById(id);
+  var el=safeDOM(id);
   if(el)el.style.display=el.style.display==='none'?'block':'none';
 }
 function renderTodaySummary(){
-  const el=document.getElementById('todaySummaryItems');
+  var el=safeDOM('todaySummaryItems');
   if(!el)return;
-  const f=S._fatigue;
-  const mf=S._muscleFatigue||{};
-  const intf=S._interference;
-  if(!f){el.innerHTML='<div style="font-size:12px;color:var(--fg3);">Sincroniza para ver estado</div>';return;}
-
-  const getMFVal=m=>(mf[m]&&typeof mf[m]==='object'?mf[m].value:(mf[m]||0));
-  const items=[];
-
-  // Upper body
-  const avgUpper=Math.round(['Pectoral','Deltoides','Tríceps','Dorsal','Bíceps'].reduce((s,m)=>s+getMFVal(m),0)/5);
-  const upperOk=f.upperScore>=65&&avgUpper<40;
-  items.push({ok:upperOk,warn:f.upperScore<45,text:upperOk?'Tren superior fresco':'Tren superior fatigado ('+avgUpper+'%)'});
-
-  // Lower body
-  const avgLower=Math.round(['Cuádriceps','Isquiotibiales','Glúteo','Gemelos/Sóleo'].reduce((s,m)=>s+getMFVal(m),0)/4);
-  const lowerOk=f.lowerScore>=65&&avgLower<40;
-  const lowerWarn=f.lowerScore<45||avgLower>55;
-  items.push({ok:lowerOk,warn:lowerWarn,text:lowerOk?'Tren inferior tolerable':lowerWarn?'Fatiga pierna elevada ('+avgLower+'%)':'Tren inferior moderado ('+avgLower+'%)'});
-
-  // Cardio / Z2
-  const cardioOk=f.cardioScore>=70;
-  const cardioWarn=f.cardioScore<45;
-  items.push({ok:cardioOk,warn:cardioWarn,text:cardioOk?'Z2 compatible':'Evitar intensidad cardio alta'});
-
-  // Interference
-  if(intf&&intf.level==='high'){
-    items.push({ok:false,warn:true,text:'Interferencia running activa — cuidado lower'});
+  var d=S._decision;
+  if(!d||!d.available){
+    el.innerHTML='<div style="font-size:12px;color:var(--fg3);">Sincroniza para ver estado</div>';
+    return;
   }
 
-  // HRV signal
-  const hrv=S._hrv;
-  if(hrv&&hrv.pctVsBase<-10){
-    items.push({ok:false,warn:true,text:'HRV bajo baseline — prioriza recuperación'});
-  } else if(hrv&&hrv.pctVsBase>8){
-    items.push({ok:true,warn:false,text:'HRV elevada — día óptimo para carga'});
-  }
-
-  el.innerHTML=items.map(function(item){
-    var col=item.warn?'var(--r)':item.ok?'var(--g)':'var(--y)';
-    var icon=item.warn?'⚠':item.ok?'✓':'~';
-    return '<div style="display:flex;align-items:center;gap:8px;font-size:12px;"><span style="color:'+col+';font-size:13px;width:16px;flex-shrink:0;">'+icon+'</span><span style="color:'+(item.warn?'var(--fg)':'var(--fg2)')+';">'+item.text+'</span></div>';
+  // Items: max 3 (2 others + 1 main warning)
+  var html=d.items.map(function(item){
+    return'<div style="display:flex;align-items:center;gap:8px;font-size:12px;">'
+      +'<span style="color:'+item.col+';font-size:13px;width:16px;flex-shrink:0;">'+item.icon+'</span>'
+      +'<span style="color:var(--fg2);">'+item.text+'</span></div>';
   }).join('');
+
+  // Extra warning (collapsible — tap to see)
+  if(d.extraWarning){
+    html+='<div style="display:flex;align-items:center;gap:8px;font-size:11px;opacity:0.7;margin-top:2px;">'
+      +'<span style="color:'+d.extraWarning.col+';width:16px;flex-shrink:0;">'+d.extraWarning.icon+'</span>'
+      +'<span style="color:var(--fg3);">'+d.extraWarning.text+'</span></div>';
+  }
+
+  // Recommendation
+  html+='<div style="margin-top:8px;padding:7px 10px;background:var(--bg3);border-radius:8px;font-size:12px;font-weight:500;color:'+d.recommendationColor+';">'+d.recommendation+'</div>';
+
+  // Contradictory signal note
+  if(d.contradictory&&d.contradictoryNote){
+    html+='<div style="font-size:10px;color:var(--y);margin-top:4px;">⟳ '+d.contradictoryNote+'</div>';
+  }
+
+  // Confidence badge with why (tap to expand)
+  var confCol=d.confidence>=0.8?'var(--g)':d.confidence>=0.5?'var(--y)':'var(--r)';
+  var whyStr=d.whyConf?d.whyConf.join(' · '):'';
+  html+='<div style="margin-top:5px;">'
+    +'<div style="display:flex;align-items:center;gap:6px;cursor:pointer;" onclick="var w=this.nextSibling;w.style.display=w.style.display===\'none\'?\'block\':\'none\';">'
+    +'<span style="font-family:monospace;font-size:9px;color:'+confCol+';">● CONF '+d.confidenceLabel.toUpperCase()+'</span>'
+    +(d.confidenceNote?'<span style="font-size:9px;color:var(--fg4);">· '+d.confidenceNote+'</span>':'')
+    +'</div>'
+    +(whyStr?'<div style="display:none;font-size:9px;color:var(--fg4);padding:3px 0;line-height:1.6;">'+whyStr+'</div>':'')
+    +'</div>';
+
+  el.innerHTML=html;
 }
 
 
-var MESO_DAYS = {
-  1:[['D1','var(--c)','Torso Empuje + Core'],['D2','var(--c)','Pierna A Cuad/Gluteo + Gemelos Pre-activacion'],['D3','var(--g)','Cardio Z2 115-135ppm 35-45min'],['D4','var(--c)','Torso Tiron + Core'],['D5','var(--c)','Pierna B Isquio/Gluteo + Gemelos Pre-activacion'],['D6','var(--g)','Z2 + Movilidad 30+20min'],['D7','var(--fg4)','Descanso']],
-  2:[['D1','var(--c)','Torso Empuje +1s press inclinado +1s aperturas cable'],['D2','var(--c)','Pierna A +1s bulgara progresion gemelo seated'],['D3','var(--g)','Cardio Z2 45-55min'],['D4','var(--c)','Torso Tiron +1s jalon +1s remo cable'],['D5','var(--c)','Pierna B +1s RDL +1s curl femoral seated'],['D6','var(--g)','Z2 + Movilidad 40+20min'],['D7','var(--fg4)','Descanso']],
-  3:[['D1','var(--c)','Torso Empuje RIR 1-2 maxima carga'],['D2','var(--c)','Pierna A RIR 1-2 foco elongado'],['D3','var(--g)','Z2 o umbral corto segun readiness'],['D4','var(--c)','Torso Tiron RIR 1-2 progresion e1RM'],['D5','var(--c)','Pierna B RDL pesado curl seated RIR 1-2'],['D6','var(--g)','Recuperacion activa Z1 o movilidad'],['D7','var(--fg4)','Descanso']],
-  4:[['D1','var(--fg3)','Torso Empuje 50% series 60-70% carga'],['D2','var(--fg3)','Pierna A 50% series sin fallo'],['D3','var(--g)','Z1 activo 30min'],['D4','var(--fg3)','Torso Tiron 50% series'],['D5','var(--fg3)','Pierna B 50% series tecnica'],['D6','var(--g)','Movilidad completa 30min'],['D7','var(--fg4)','Descanso']]
-};
-var MESO_INFO = {
-  1:'Mesociclo 1 - Readaptacion - Semanas 1-4 - Volumen base tecnica VMO',
-  2:'Mesociclo 2 - Acumulacion - Semanas 5-8 - +2s grupos prioritarios',
-  3:'Mesociclo 3 - Intensificacion - Semanas 9-12 - RIR 1-2 carga maxima',
-  4:'Mesociclo 4 - Deload - Semana 13 - 50% volumen recuperacion'
-};
+var MESO_DAYS={1:[['D1','var(--c)','Torso Empuje + Core'],['D2','var(--c)','Pierna A Cuad/Gluteo + Gemelos Pre-activacion'],['D3','var(--g)','Cardio Z2 115-135ppm 35-45min'],['D4','var(--c)','Torso Tiron + Core'],['D5','var(--c)','Pierna B Isquio/Gluteo + Gemelos Pre-activacion'],['D6','var(--g)','Z2 + Movilidad 30+20min'],['D7','var(--fg4)','Descanso']],2:[['D1','var(--c)','Torso Empuje +1s press inclinado +1s aperturas'],['D2','var(--c)','Pierna A +1s bulgara gemelo seated'],['D3','var(--g)','Cardio Z2 45-55min'],['D4','var(--c)','Torso Tiron +1s jalon +1s remo'],['D5','var(--c)','Pierna B +1s RDL +1s curl seated'],['D6','var(--g)','Z2 + Movilidad 40+20min'],['D7','var(--fg4)','Descanso']],3:[['D1','var(--c)','Torso Empuje RIR 1-2 maxima carga'],['D2','var(--c)','Pierna A RIR 1-2 foco elongado'],['D3','var(--g)','Z2 o umbral corto segun readiness'],['D4','var(--c)','Torso Tiron RIR 1-2 progresion e1RM'],['D5','var(--c)','Pierna B RDL pesado curl seated RIR 1-2'],['D6','var(--g)','Recuperacion activa Z1 o movilidad'],['D7','var(--fg4)','Descanso']],4:[['D1','var(--fg3)','Torso Empuje 50pct series 60-70pct carga'],['D2','var(--fg3)','Pierna A 50pct series sin fallo'],['D3','var(--g)','Z1 activo 30min'],['D4','var(--fg3)','Torso Tiron 50pct series'],['D5','var(--fg3)','Pierna B 50pct series tecnica'],['D6','var(--g)','Movilidad completa 30min'],['D7','var(--fg4)','Descanso']]};
+var MESO_INFO={1:'M1 Readaptacion Sem 1-4 Volumen base tecnica VMO',2:'M2 Acumulacion Sem 5-8 +2s grupos prioritarios densidad moderada',3:'M3 Intensificacion Sem 9-12 RIR 1-2 carga maxima',4:'M4 Deload Sem 13 50pct volumen recuperacion total'};
 function selectMeso(n){
   S.currentMeso=n;
   var i,b;
   for(i=1;i<=4;i++){
-    b=document.getElementById('meso-btn-'+i);
+    b=safeDOM('meso-btn-'+i);
     if(!b)continue;
     if(i===n){b.style.background='var(--c)';b.style.color='#000';b.style.border='none';b.style.fontWeight='600';}
     else{b.style.background='var(--bg3)';b.style.color='var(--fg3)';b.style.border='1px solid var(--line)';b.style.fontWeight='400';}
   }
-  var info=document.getElementById('mesoInfo');
+  var info=safeDOM('mesoInfo');
   if(info)info.textContent=MESO_INFO[n]||'';
-  var lbl=document.getElementById('planMesoLbl');
+  var lbl=safeDOM('planMesoLbl');
   if(lbl)lbl.textContent='M'+n;
-  var list=document.getElementById('planDaysList');
+  var list=safeDOM('planDaysList');
   var days=MESO_DAYS[n]||[];
   if(list)list.innerHTML=days.map(function(d,idx){
-    return '<div style="display:flex;gap:8px;padding:6px 0;'+(idx<days.length-1?'border-bottom:1px solid var(--line)':'')+'">'+'<span style="font-family:monospace;font-size:10px;color:'+d[1]+';width:28px;flex-shrink:0;">'+d[0]+'</span>'+'<span style="font-size:12px;color:var(--fg2);">'+d[2]+'</span></div>';
+    return'<div style="display:flex;gap:8px;padding:6px 0;'+(idx<days.length-1?'border-bottom:1px solid var(--line)':'')+'">'+'<span style="font-family:monospace;font-size:10px;color:'+d[1]+';width:28px;flex-shrink:0;">'+d[0]+'</span>'+'<span style="font-size:12px;color:var(--fg2);">'+d[2]+'</span></div>';
   }).join('');
   save();
 }
+
+// ══ SCHEMA VALIDATION LAYER (audit CRITICAL 3) ══
+var SCHEMA_VERSION = '6.1';
+
+function validateNum(v, min, max, def) {
+  var n = safeNum(v, def !== undefined ? def : 0);
+  if (min !== undefined && n < min) return def !== undefined ? def : min;
+  if (max !== undefined && n > max) return def !== undefined ? def : max;
+  return n;
+}
+
+function validateLog(log) {
+  if (!log || typeof log !== 'object') return null;
+  return {
+    date: typeof log.date === 'string' ? log.date : '',
+    sess: typeof log.sess === 'string' ? log.sess : '',
+    srpe: validateNum(log.srpe, 0, 10, null),
+    rpe: validateNum(log.rpe, 0, 10, null),
+    notes: typeof log.notes === 'string' ? log.notes : '',
+    sets: validateNum(log.sets, 0, 200, 0),
+    duration: validateNum(log.duration, 0, 600, 0),
+    doms: validateNum(log.doms, 0, 10, 0),
+    knee: validateNum(log.knee, 0, 10, 0)
+  };
+}
+
+function validateMetrics(m) {
+  if (!m || typeof m !== 'object') return {};
+  var out = {};
+  var numFields = ['hrv','rhr','sleep','sleepScore','bb','steps','vo2max',
+    'ctl','atl','tsb','protein','carbs','fat','kcal','kcalBurned',
+    'weight','fatPct','musclePct','waterPct'];
+  numFields.forEach(function(f) {
+    if (m[f] != null) out[f] = validateNum(m[f], -999, 9999, null);
+  });
+  if (m._nutDate) out._nutDate = m._nutDate;
+  if (m.activities) out.activities = Array.isArray(m.activities) ? m.activities : [];
+  return out;
+}
+
+function validateStorage(raw) {
+  var p;
+  try { p = JSON.parse(raw); } catch(e) { return null; }
+  if (!p || typeof p !== 'object') return null;
+
+  var out = {};
+
+  // Validate logs array
+  if (Array.isArray(p.logs)) {
+    out.logs = p.logs.map(validateLog).filter(function(l) { return l && l.date; });
+  }
+
+  // Validate metrics
+  if (p.metrics) out.metrics = validateMetrics(p.metrics);
+
+  // Validate int/claude/hevy — only string fields
+  if (p.int && typeof p.int === 'object') {
+    out.int = {
+      aid: typeof p.int.aid === 'string' ? p.int.aid : '',
+      key: typeof p.int.key === 'string' ? p.int.key : '',
+      ok: !!p.int.ok
+    };
+  }
+  if (p.claude && typeof p.claude === 'object') {
+    out.claude = { key: typeof p.claude.key === 'string' ? p.claude.key : '' };
+  }
+  if (p.hevy && typeof p.hevy === 'object') {
+    out.hevy = { key: typeof p.hevy.key === 'string' ? p.hevy.key : '' };
+  }
+
+  // Validate weekly data
+  if (p.weeklyVol && typeof p.weeklyVol === 'object') out.weeklyVol = p.weeklyVol;
+  if (Array.isArray(p.weekDays)) out.weekDays = p.weekDays;
+  if (typeof p.weekStart === 'string') out.weekStart = p.weekStart;
+  if (p.weekOffset != null) out.weekOffset = safeInt(p.weekOffset, 0);
+  if (p.logWeekOffset != null) out.logWeekOffset = safeInt(p.logWeekOffset, 0);
+  if (p.currentMeso != null) out.currentMeso = validateNum(p.currentMeso, 1, 4, 1);
+
+  return out;
+}
+
+
+
+// ══ READINESS ENGINE (audit CRITICAL 4) ══
+// Readiness ≠ Fatigue. Readiness = preparedness to train TODAY.
+// Can be low without high fatigue (poor sleep, stress, travel, CNS)
+// Can be moderate with high fatigue (experienced athlete, good nutrition)
+// Input: fatigue state, HRV, sleep, metrics, wellness
+// Output: independent readiness score 0-100 per system
+
+function ReadinessEngine(fatigue, hrv, metrics, muscleFatigue) {
+  var mf = muscleFatigue || {};
+  function getMF(m) {
+    var v = mf[m];
+    return v && typeof v === 'object' ? safeNum(v.value,0) : safeNum(v,0);
+  }
+
+  // Autonomic readiness — HRV-driven, not fatigue-driven
+  var hrvPct = hrv ? safeNum(hrv.pctVsBase,0) : 0;
+  var autonomicR = 50;
+  if (hrv && hrv.state !== 'insufficient') {
+    if (hrvPct > 8)  autonomicR = 85;
+    else if (hrvPct > 0)  autonomicR = 70;
+    else if (hrvPct > -8)  autonomicR = 55;
+    else if (hrvPct > -15) autonomicR = 40;
+    else autonomicR = 25;
+  }
+
+  // Sleep readiness — acute, not rolling (different from MAV which uses rolling)
+  var sleep = metrics ? safeNum(metrics.sleep,0) : 0;
+  var sleepR = 60;
+  if (sleep > 0) {
+    if (sleep >= 8)   sleepR = 90;
+    else if (sleep >= 7) sleepR = 75;
+    else if (sleep >= 6) sleepR = 55;
+    else if (sleep >= 5) sleepR = 35;
+    else sleepR = 20;
+  }
+
+  // Muscular readiness — from local fatigue
+  var avgUpper = (['Pectoral','Deltoides','Tríceps','Dorsal','Bíceps']
+    .reduce(function(s,m){return s+getMF(m);},0))/5;
+  var avgLower = (['Cuádriceps','Isquiotibiales','Glúteo','Gemelos/Sóleo']
+    .reduce(function(s,m){return s+getMF(m);},0))/4;
+  var muscularR = Math.round(100 - (avgUpper*0.4 + avgLower*0.6)*0.6);
+  muscularR = Math.max(10, Math.min(100, muscularR));
+
+  // Systemic readiness — from fatigue engine
+  var systemic = fatigue ? safeNum(fatigue.systemic,0) : 0;
+  var systemicR = Math.round(100 - systemic * 0.8);
+
+  // Overall readiness — weighted average (NOT derived from fatigue score)
+  // Autonomic 35%, Sleep 25%, Muscular 25%, Systemic 15%
+  var overall = Math.round(
+    autonomicR * 0.35 +
+    sleepR     * 0.25 +
+    muscularR  * 0.25 +
+    systemicR  * 0.15
+  );
+
+  var label = overall >= 80 ? 'Óptima' : overall >= 65 ? 'Buena' :
+              overall >= 50 ? 'Moderada' : overall >= 35 ? 'Reducida' : 'Baja';
+
+  return {
+    overall: overall,
+    label: label,
+    autonomic: autonomicR,
+    sleep: sleepR,
+    muscular: muscularR,
+    systemic: systemicR,
+    // Key insight: readiness can diverge from fatigue
+    divergesFromFatigue: fatigue && Math.abs(overall - (100 - safeNum(fatigue.systemic,0))) > 20
+  };
+}
+
+// ══ PERFORMANCE POTENTIAL ENGINE (audit CRITICAL 4) ══
+// PerformancePotential ≠ Readiness. 
+// Performance = expected execution quality (strength, power, endurance output)
+// An athlete can be "ready" but not at peak performance
+// Input: readiness, fatigue, progression, HRV
+// Output: expected performance % vs personal best
+
+function PerformancePotentialEngine(readiness, fatigue, hrv, progression) {
+  var base = readiness ? safeNum(readiness.overall, 50) : 50;
+
+  // Neuromuscular performance modifier
+  var neuro = fatigue ? safeNum(fatigue.neuroScore, 50) : 50;
+  var neuroMod = neuro >= 75 ? 1.02 : neuro >= 55 ? 1.0 : neuro >= 40 ? 0.95 : 0.88;
+
+  // HRV elevation = performance boost potential (Plews 2013)
+  var hrvPct = hrv ? safeNum(hrv.pctVsBase,0) : 0;
+  var hrvMod = hrvPct > 10 ? 1.04 : hrvPct > 5 ? 1.02 : hrvPct < -10 ? 0.93 : 1.0;
+
+  // e1RM trend modifier
+  var e1rmMod = 1.0;
+  if (progression && progression.overallTrend === 'improving') e1rmMod = 1.02;
+  else if (progression && progression.overallTrend === 'declining') e1rmMod = 0.96;
+
+  var potential = Math.round(base * neuroMod * hrvMod * e1rmMod);
+  potential = Math.max(20, Math.min(105, potential));
+
+  var label = potential >= 90 ? 'Alto rendimiento esperado' :
+              potential >= 75 ? 'Rendimiento normal' :
+              potential >= 60 ? 'Por debajo del óptimo' : 'Sesión de mantenimiento';
+
+  return {
+    potential: potential,
+    label: label,
+    neuroMod: neuroMod,
+    hrvMod: hrvMod,
+    e1rmMod: e1rmMod
+  };
+}
+
+// ══ DECISION ENGINE (audit HIGH 4) ══
+// Input: fatigue, readiness, interference, hrv, muscleFatigue, progression
+// Output: structured coaching decision — no dashboard, pure action
+
+function DecisionEngine(fatigue, hrv, muscleFatigue, interference, metrics, progression) {
+  var mf = muscleFatigue || {};
+
+  function getMF(m) {
+    var v = mf[m];
+    return v && typeof v === 'object' ? safeNum(v.value, 0) : safeNum(v, 0);
+  }
+
+  // ── Subsystem scores ──
+  var cardioScore  = fatigue ? safeNum(fatigue.cardioScore, 50) : 50;
+  var upperScore   = fatigue ? safeNum(fatigue.upperScore, 50) : 50;
+  var lowerScore   = fatigue ? safeNum(fatigue.lowerScore, 50) : 50;
+  var neuroScore   = fatigue ? safeNum(fatigue.neuroScore, 50) : 50;
+  var systemic     = fatigue ? safeNum(fatigue.systemic, 0) : 0;
+
+  // ── HRV state ──
+  var hrvPct   = hrv ? safeNum(hrv.pctVsBase, 0) : 0;
+  var hrvState = hrvPct < -15 ? 'suppressed' : hrvPct < -8 ? 'low' : hrvPct > 8 ? 'elevated' : 'normal';
+
+  // ── Local muscle fatigue ──
+  var avgUpper = Math.round((['Pectoral','Deltoides','Tríceps','Dorsal','Bíceps']
+    .reduce(function(s,m){return s+getMF(m);},0))/5);
+  var avgLower = Math.round((['Cuádriceps','Isquiotibiales','Glúteo','Gemelos/Sóleo']
+    .reduce(function(s,m){return s+getMF(m);},0))/4);
+  var hingeLoad = Math.round((getMF('Isquiotibiales')+getMF('Glúteo'))/2);
+
+  // ── Status items ──
+  var items = [];
+
+  // Upper body
+  if (upperScore >= 75 && avgUpper < 35) {
+    items.push({icon:'✓', col:'var(--g)', text:'Tren superior fresco — buen día para empuje o tirón'});
+  } else if (upperScore < 45 || avgUpper > 55) {
+    items.push({icon:'⚠', col:'var(--r)', text:'Tren superior fatigado ('+avgUpper+'%) — reduce volumen o descansa'});
+  } else {
+    items.push({icon:'~', col:'var(--y)', text:'Tren superior tolerable ('+avgUpper+'%) — RIR conservador'});
+  }
+
+  // Lower body
+  if (lowerScore >= 70 && avgLower < 35) {
+    items.push({icon:'✓', col:'var(--g)', text:'Tren inferior tolerable — pierna viable'});
+  } else if (lowerScore < 40 || avgLower > 55) {
+    items.push({icon:'⚠', col:'var(--r)', text:'Fatiga pierna elevada ('+avgLower+'%) — evitar pierna pesada'});
+  } else {
+    items.push({icon:'~', col:'var(--y)', text:'Tren inferior moderado ('+avgLower+'%) — cuidado con densidad'});
+  }
+
+  // Hinge pattern specific
+  if (hingeLoad > 50) {
+    items.push({icon:'⚠', col:'var(--r)', text:'Bisagra cargada ('+hingeLoad+'%) — evitar RDL/peso muerto hoy'});
+  }
+
+  // Cardio / Z2
+  if (cardioScore >= 70 && hrvState !== 'suppressed') {
+    items.push({icon:'✓', col:'var(--g)', text:'Z2 compatible — FC objetivo normal'});
+  } else if (cardioScore < 45 || hrvState === 'suppressed') {
+    items.push({icon:'⚠', col:'var(--r)', text:'Evitar intensidad cardio — prioriza recuperación'});
+  }
+
+  // HRV signal
+  if (hrvState === 'elevated') {
+    items.push({icon:'✓', col:'var(--c)', text:'HRV elevada +'+Math.round(hrvPct)+'% — día óptimo para carga'});
+  } else if (hrvState === 'suppressed') {
+    items.push({icon:'⚠', col:'var(--r)', text:'HRV suprimida '+Math.round(hrvPct)+'% — sistema nervioso bajo'});
+  } else if (hrvState === 'low') {
+    items.push({icon:'~', col:'var(--y)', text:'HRV algo baja — monitoriza sensaciones'});
+  }
+
+  // Interference
+  if (interference && interference.level === 'high') {
+    items.push({icon:'⚠', col:'var(--r)', text:'Interferencia running activa — lower comprometido'});
+  }
+
+  // Systemic load
+  if (systemic > 65) {
+    items.push({icon:'⚠', col:'var(--r)', text:'Carga sistémica elevada ('+Math.round(systemic)+'%) — día de recuperación'});
+  }
+
+  // Global recommendation
+  var rec = '';
+  var recCol = 'var(--fg2)';
+  var upperOk = upperScore >= 65 && avgUpper < 45;
+  var lowerOk = lowerScore >= 60 && avgLower < 45;
+  var allGreen = upperOk && lowerOk && cardioScore >= 65 && systemic < 50;
+  var allRed   = upperScore < 45 || (lowerScore < 40 && systemic > 65);
+
+  if (allGreen && hrvState !== 'suppressed') {
+    rec = 'Estado óptimo — ejecuta el plan completo';
+    recCol = 'var(--g)';
+  } else if (allRed || systemic > 70) {
+    rec = 'Día de recuperación — movilidad o descanso';
+    recCol = 'var(--r)';
+  } else if (upperOk && !lowerOk) {
+    rec = 'Enfoca en tren superior hoy';
+    recCol = 'var(--c)';
+  } else if (!upperOk && lowerOk) {
+    rec = 'Pierna tolerable — evita empuje/tirón pesado';
+    recCol = 'var(--c)';
+  } else {
+    rec = 'Sesión moderada — RIR conservador, densidad baja';
+    recCol = 'var(--y)';
+  }
+
+  // ── Decision confidence ──
+  var confSignals = 0;
+  var confTotal = 5;
+  if (hrv && hrv.state !== 'insufficient') confSignals++;
+  if (metrics && metrics.sleep > 0) confSignals++;
+  if (metrics && metrics.hrv > 0) confSignals++;
+  if (fatigue && fatigue.confidence && fatigue.confidence > 0.5) confSignals++;
+  if (muscleFatigue && Object.keys(muscleFatigue).length > 3) confSignals++;
+
+  var confScore = confSignals / confTotal;
+  var confLabel = confScore >= 0.8 ? 'Alta' : confScore >= 0.5 ? 'Moderada' : 'Baja';
+
+  // Temporal awareness — how stale is HRV?
+  var hrvAge = '';
+  if (hrv && hrv.lastDate) {
+    var daysSince = Math.round((Date.now() - new Date(hrv.lastDate)) / 864e5);
+    if (daysSince > 1) hrvAge = 'HRV hace ' + daysSince + 'd';
+  }
+  // P6: Epistemological why confidence — not just checklist
+  var whyConf = [];
+  // HRV freshness
+  if (hrv && hrv.state !== 'insufficient') {
+    var hrvDays = hrv.lastDate ? Math.round((Date.now()-new Date(hrv.lastDate))/864e5) : 0;
+    whyConf.push(hrvDays > 1 ? 'HRV válida pero '+hrvDays+'d de antigüedad' : 'HRV válida y reciente');
+  } else whyConf.push('HRV sin datos suficientes');
+  // Sleep data
+  var sleepVw = metrics ? safeNum(metrics.sleep, 0) : 0;
+  if (sleepVw > 0) whyConf.push('sueño registrado ('+sleepVw.toFixed(1)+'h)');
+  else whyConf.push('sueño sin datos hoy');
+  // Muscle data quality
+  var mfKeys = muscleFatigue ? Object.keys(muscleFatigue).length : 0;
+  if (mfKeys > 5) whyConf.push('fatiga muscular completa ('+mfKeys+' grupos)');
+  else if (mfKeys > 0) whyConf.push('fatiga muscular parcial ('+mfKeys+'/9 grupos)');
+  else whyConf.push('Hevy sin datos suficientes');
+  // Divergence
+  if (contradictory) whyConf.push('señales sistémicas y locales divergen');
+  else if (confScore >= 0.8) whyConf.push('señales coherentes entre sí');
+
+  var confNote = confScore < 0.5 ? 'Sincroniza Intervals y Hevy' :
+                 confScore < 0.8 ? 'Datos parciales' + (hrvAge ? ' · ' + hrvAge : '') :
+                 hrvAge ? hrvAge : '';
+
+  // PROBLEMA 4: Confidence affects recommendation aggressiveness
+  // Low confidence → more conservative language
+  if (confScore < 0.5) {
+    rec = rec.replace('ejecuta el plan completo', 'mantén programación normal');
+    rec = rec.replace('Enfoca en', 'Considera');
+    recCol = 'var(--fg2)';
+  }
+
+  // PROBLEMA 3: Max 3 items + 1 optional warning
+  items.sort(function(a, b) {
+    var order = {'⚠': 0, '~': 1, '✓': 2};
+    return (order[a.icon]||1) - (order[b.icon]||1);
+  });
+  var warnings = items.filter(function(i) { return i.icon === '⚠'; });
+  var others   = items.filter(function(i) { return i.icon !== '⚠'; });
+  // Keep max 2 non-warnings + 1 main warning shown always + 1 extra warning if exists
+  var displayItems = others.slice(0, 2);
+  if (warnings.length > 0) displayItems.unshift(warnings[0]);
+  var extraWarning = warnings.length > 1 ? warnings[1] : null;
+
+  // ── P3: Contradictory signal detection ──
+  // When signals point in opposite directions, flag explicitly
+  // P2: Weighted contradiction — each signal has intensity, not just count
+  var positiveWeight = 0, negativeWeight = 0;
+  var hrvPctV = hrv ? safeNum(hrv.pctVsBase, 0) : 0;
+  // HRV: strong signal (weight 2)
+  if (hrvState === 'elevated') positiveWeight += 2;
+  else if (hrvState === 'suppressed') negativeWeight += 2;
+  else if (hrvState === 'low') negativeWeight += 1;
+  // Sleep: medium signal (weight 1.5)
+  var sleepV = metrics ? safeNum(metrics.sleep,0) : 0;
+  if (sleepV >= 7.5) positiveWeight += 1.5;
+  else if (sleepV < 5.5) negativeWeight += 1.5;
+  else if (sleepV < 6.5) negativeWeight += 0.8;
+  // Upper/lower scores: medium signal (weight 1 each)
+  if (upperScore >= 75) positiveWeight += 1;
+  else if (upperScore < 45) negativeWeight += 1;
+  if (lowerScore >= 70) positiveWeight += 1;
+  else if (lowerScore < 40) negativeWeight += 1;
+  // Systemic: weak signal (weight 0.8)
+  if (systemic < 20) positiveWeight += 0.8;
+  else if (systemic > 65) negativeWeight += 0.8;
+
+  var conflictIntensity = Math.min(positiveWeight, negativeWeight); // how much both sides pull
+  var signalDivergence = Math.abs(positiveWeight - negativeWeight);
+  // Contradictory: both sides pull meaningfully AND divergence is low (not one-sided)
+  var contradictory = conflictIntensity >= 2.0 && signalDivergence < 2.5;
+  var contradictoryNote = '';
+  if (contradictory) {
+    contradictoryNote = 'Señales contradictorias — usa sensaciones como desempate';
+    // Contradictory = moderate confidence cap regardless of data
+    if (confScore > 0.62) confScore = 0.62; // P3: contradictory caps at 0.62 not 0.7
+    confLabel = 'Moderada';
+  }
+
+  // ── P6: Decision cost — aggressive recs need higher confidence ──
+  // "Cancel session" or "block lower" = high cost → needs conf > 0.7
+  // "Reduce RIR" or "monitor" = low cost → conf > 0.4 ok
+  var highCostRec = rec.indexOf('recuperación') >= 0 ||
+                    rec.indexOf('descansa') >= 0 ||
+                    rec.indexOf('cancela') >= 0;
+  if (highCostRec && confScore < 0.7) {
+    // Downgrade to lower-cost recommendation
+    rec = 'Sesión moderada — RIR conservador, densidad baja';
+    recCol = 'var(--y)';
+  }
+
+  // P3: Safety floor — these signals always show regardless of confidence
+  // Pain, injury signals are never gated
+  var knee = metrics ? safeNum(metrics.knee||S.logs&&S.logs[0]&&S.logs[0].knee, 0) : 0;
+  var kneeInput = safeDOM('kneeToday');
+  if (kneeInput) knee = Math.max(knee, safeNum(kneeInput.value, 0));
+  if (knee >= 4) {
+    var safetyItem = {icon:'⚠', col:'var(--r)', text:'Rodilla '+knee+'/10 — protocolo seguridad activo', safety:true};
+    // Safety items always shown, prepended, regardless of confidence
+    displayItems = displayItems.filter(function(i){return !i.safety;});
+    displayItems.unshift(safetyItem);
+    displayItems = displayItems.slice(0, 3); // still max 3 but safety always first
+    if (rec === 'Sin señal suficiente — mantén programación normal') {
+      rec = 'Precaución rodilla — ajusta intensidad';
+      recCol = 'var(--y)';
+      noAction = false;
+    }
+  }
+
+  // Block lower decisions also gated by confidence
+  var blockItems = displayItems.filter(function(i) {
+    return i.text && i.text.indexOf('evita') >= 0 && i.text.indexOf('pierna') >= 0;
+  });
+  if (blockItems.length > 0 && confScore < 0.6) {
+    // Soften to "caution" instead of "avoid"
+    blockItems.forEach(function(item) {
+      item.text = item.text.replace('evita', 'cuidado con');
+      item.col = 'var(--y)';
+      item.icon = '~';
+    });
+  }
+
+  // ── P4 + P7: Inaction preference + Adaptation opportunity detection ──
+  var noAction = false;
+  var noActionReason = '';
+  var allPositive = items.every(function(i) { return i.icon === '✓'; });
+
+  // P7: Detect progression windows BEFORE defaulting to "no action"
+  // HRV rebound + low local fatigue + positive trend = adaptation opportunity
+  var hrvRebound = hrv && hrv.pctVsBase > 5 && hrv.trendSlope && hrv.trendSlope > 0;
+  var lowLocalFat = upperScore >= 75 && lowerScore >= 70;
+  var lowSystemic = systemic < 25;
+  var progressionWindow = (hrvRebound || hrvState === 'elevated') && lowLocalFat && lowSystemic && confScore >= 0.6;
+
+  if (progressionWindow && allPositive) {
+    noAction = false;
+    rec = 'Ventana de progresión — considera aumentar carga o densidad';
+    recCol = 'var(--g)';
+    displayItems.unshift({icon:'✓', col:'var(--g)', text:'HRV elevada + fatiga baja = condiciones óptimas para progresar'});
+    displayItems = displayItems.slice(0,3);
+  } else if (allPositive && confScore >= 0.6) {
+    noAction = true;
+    noActionReason = 'normal';
+    rec = 'Sin cambios — mantén programación normal';
+    recCol = 'var(--fg3)';
+  } else if (confScore < 0.4) {
+    // P2: Insufficient data is different from "no changes"
+    noAction = true;
+    noActionReason = 'insufficient';
+    rec = 'Sin señal suficiente — mantén programación normal';
+    recCol = 'var(--fg4)';
+  } else if (contradictory && !warnings.length) {
+    // Contradictory but no clear warning = stay quiet
+    noAction = true;
+    noActionReason = 'contradictory';
+    rec = 'Señales mixtas — mantén plan y usa sensaciones';
+    recCol = 'var(--fg3)';
+  }
+
+  return {
+    items: displayItems,
+    extraWarning: extraWarning,
+    allItems: items,
+    recommendation: rec,
+    recommendationColor: recCol,
+    noAction: noAction,
+    noActionReason: noActionReason,
+    contradictory: contradictory,
+    contradictoryNote: contradictoryNote,
+    confidence: confScore,
+    confidenceLabel: confLabel,
+    confidenceNote: confNote,
+    whyConf: whyConf,
+    upperScore: upperScore,
+    lowerScore: lowerScore,
+    cardioScore: cardioScore,
+    hrvState: hrvState,
+    available: !!fatigue
+  };
+}
+
 function safe(fn,name){try{fn();}catch(e){console.error(name+':',e.message);}}
 function showS(id){
   document.querySelectorAll('.screen').forEach(function(s){s.classList.remove('active');});
-  var t=document.getElementById(id);if(t)t.classList.add('active');
+  var t=safeDOM(id);if(t)t.classList.add('active');
   document.querySelectorAll('.ni').forEach(function(n){n.classList.remove('active');});
   var map={'s-hoy':'ni-hoy','s-fatiga':'ni-fatiga','s-mav':'ni-mav','s-log':'ni-log','s-datos':'ni-datos','s-plan':'ni-plan'};
-  var btn=document.getElementById(map[id]);if(btn)btn.classList.add('active');
-  window.scrollTo(0,0);try{var m=document.querySelector(".main");if(m)m.scrollTop=0;document.documentElement.scrollTop=0;document.body.scrollTop=0;}catch(e){}setTimeout(function(){try{var m=document.querySelector(".main");if(m)m.scrollTop=0;window.scrollTo(0,0);}catch(e){}},50);
+  var btn=safeDOM(map[id]);if(btn)btn.classList.add('active');
+  window.scrollTo(0,0);try{document.querySelector(".main").scrollTop=0;document.documentElement.scrollTop=0;document.body.scrollTop=0;}catch(e){}
   if(id==='s-mav'){safe(renderWeekZones,'rz');safe(renderMAV,'rm');safe(renderProgressionPanel,'rp');safe(renderE1RMPanel,'re');safe(renderEffectiveSets,'ref');}
   if(id==='s-log'){safe(renderLog,'rl');}
   if(id==='s-fatiga'){safe(renderFatigueSignals,'rs');safe(renderMuscleFatigue,'rmf');safe(renderInterferencePanel,'ri');safe(renderDensityPanel,'rd');safe(renderConfidencePanel,'rc');safe(renderValidationPanel,'rv');}
@@ -3404,15 +4147,15 @@ function toast(title,msg,icon,ms=3500){const el=document.createElement('div');el
 // ══ INIT ══
 function init(){
   checkWeekReset();loadPersisted();
-  if(S.int.aid){const e=document.getElementById('intAid');if(e)e.value=S.int.aid;}
-  if(S.int.key){const e=document.getElementById('intKey');if(e)e.value='••••••••••••••••';}
+  if(S.int.aid){const e=safeDOM('intAid');if(e)e.value=S.int.aid;}
+  if(S.int.key){const e=safeDOM('intKey');if(e)e.value='••••••••••••••••';}
   if(S.int.ok)setIntStatus('ok');
   safe(function(){selectMeso(S.currentMeso||1);},'meso');
-  if(S.hevy?.key){const e=document.getElementById('hevyKey');if(e)e.value='••••••••••••••••';const st=document.getElementById('hevyStatus');if(st)st.innerHTML='<span class="sdot-sm sdot-g"></span><span style="color:var(--g);">Conectado</span>';}
-  if(S.claude.key){const e=document.getElementById('claudeKey');if(e)e.value='sk-ant-...guardada';}
+  if(S.hevy?.key){const e=safeDOM('hevyKey');if(e)e.value='••••••••••••••••';const st=safeDOM('hevyStatus');if(st)st.innerHTML='<span class="sdot-sm sdot-g"></span><span style="color:var(--g);">Conectado</span>';}
+  if(S.claude.key){const e=safeDOM('claudeKey');if(e)e.value='sk-ant-...guardada';}
   S.weekDays.forEach(day=>{document.querySelectorAll('.wd').forEach(el=>{if(el.querySelector('.wd-n')?.textContent===day)el.classList.add('done');});});
-  const sc=document.getElementById('wkScore');if(sc)sc.textContent=S.weekDays.size+'/6';
-  if(S.metrics.hrv7?.length){S._wellnessHistory=S.metrics.hrv7.map(d=>({id:d.date,hrv:d.v,restingHR:d.rhr,sleepSecs:d.sleep?parseFloat(d.sleep)*3600:null}));}
+  const sc=safeDOM('wkScore');if(sc)sc.textContent=S.weekDays.size+'/6';
+  if(S.metrics.hrv7?.length){S._wellnessHistory=S.metrics.hrv7.map(d=>({id:d.date,hrv:d.v,restingHR:d.rhr,sleepSecs:d.sleep?safeNum(d.sleep)*3600:null}));}
   runEngines();updateMetrics();renderHRV();renderMAV();renderLog();renderActivities();renderWeekZones();
   // Auto-sync if keys saved — restore session without re-entering keys
   if(S.int.aid&&S.int.key){setTimeout(()=>fetchIntervals(),800);}
