@@ -49,14 +49,14 @@ body::after{content:'';position:fixed;inset:0;z-index:9999;pointer-events:none;b
 .st-delta{font-family:'Geist Mono',monospace;font-size:10px;margin-top:3px;}.up{color:var(--g);}.dn{color:var(--r);}.nt{color:var(--fg3);}
 /* READINESS */
 .rsys-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin:8px 18px 0;}
-.rsys-card{background:var(--bg2);border:1px solid var(--line);border-radius:var(--radius);padding:13px;position:relative;overflow:hidden;}
+.rsys-card{background:var(--bg2);border:1px solid var(--line);border-radius:var(--radius);padding:13px;position:relative;overflow:visible;min-height:110px;}
 .rsys-card::before{content:'';position:absolute;top:0;left:0;right:0;height:2px;transition:background .5s;}
 .rsys-card.ok::before{background:var(--g);}.rsys-card.warn::before{background:var(--y);}.rsys-card.bad::before{background:var(--r);}.rsys-card.idle::before{background:var(--fg4);}
-.rsys-card.ok .rsys-val{color:var(--g);}.rsys-card.warn .rsys-val{color:var(--y);}.rsys-card.bad .rsys-val{color:var(--r);}
-.rsys-name{font-family:'Geist Mono',monospace;font-size:9px;letter-spacing:2px;text-transform:uppercase;color:var(--fg3);margin-bottom:5px;}
+.rsys-card.ok .rsys-val{color:var(--g);font-size:28px;line-height:1.1;}.rsys-card.warn .rsys-val{color:var(--y);}.rsys-card.bad .rsys-val{color:var(--r);}
+.rsys-name{font-family:'Geist Mono',monospace;font-size:9px;letter-spacing:2px;text-transform:uppercase;color:var(--fg3);margin-bottom:5px;;margin-bottom:2px;}
 .rsys-val{font-family:'Instrument Serif',serif;font-size:26px;line-height:1;margin-bottom:2px;}
 .rsys-lbl{font-size:11px;color:var(--fg2);margin-bottom:5px;}
-.rsys-sigs{list-style:none;padding:0;margin:0;}.rsys-sigs li{font-size:10px;padding:1px 0;}
+.rsys-sigs{list-style:none;padding:0;margin:4px 0 0;font-size:11px;}.rsys-sigs li{font-size:10px;padding:1px 0;}
 /* FATIGUE HERO */
 .fe-hero{margin:8px 18px 10px;background:var(--bg2);border:1px solid var(--line);border-radius:16px;padding:18px;position:relative;overflow:hidden;}
 .fe-hero::before{content:'';position:absolute;inset:0;opacity:.035;transition:opacity .5s;}
@@ -242,6 +242,8 @@ textarea.field{resize:vertical;min-height:60px;}
               <option>D7 — Descanso</option>
             </select>
           </div>
+          <div><label class="fg-label">Body Battery (0-100)</label><input class="field" type="number" id="bbToday" placeholder="ej. 72" min="0" max="100" oninput="runEngines()"></div>
+          <div><label class="fg-label">Energía subjetiva (0-10)</label><input class="field" type="number" id="energyToday" placeholder="0-10" min="0" max="10" oninput="runEngines()"></div>
           <div><label class="fg-label">Rodilla (0-10)</label><input class="field" type="number" id="kneeToday" placeholder="0" min="0" max="10" oninput="runEngines()"></div>
           <div><label class="fg-label">DOMS tren sup (0-10)</label><input class="field" type="number" id="domsUpper" placeholder="0" min="0" max="10" oninput="runEngines()"></div>
           <div><label class="fg-label">DOMS tren inf (0-10)</label><input class="field" type="number" id="domsLower" placeholder="0" min="0" max="10" oninput="runEngines()"></div>
@@ -799,6 +801,14 @@ const EXERCISE_INTELLIGENCE = {
   // ── LOWER — Adductors ──
   'aductor':             {p:['Aductores'],s:[],ax:0.05,ecc:0.9,sys:0.25,kn:0.15,lb:0.05,sfr:0.90,hl:30,pat:'isolation',stimQ:0.82,lenMult:1.08,tags:['adductor','rehab']},
   'abducción':           {p:['Aductores'],s:[],ax:0.05,ecc:0.8,sys:0.2,kn:0.1,lb:0.04,sfr:0.92,hl:28,pat:'isolation',stimQ:0.78,lenMult:1.00,tags:['abductor','rehab']},
+  'adductor':            {p:['Aductores'],s:[],ax:0.05,ecc:0.9,sys:0.25,kn:0.15,lb:0.05,sfr:0.90,hl:30,pat:'isolation',stimQ:0.82,lenMult:1.08,tags:['adductor']},
+  'adductor machine':    {p:['Aductores'],s:[],ax:0.05,ecc:0.9,sys:0.25,kn:0.15,lb:0.05,sfr:0.90,hl:30,pat:'isolation',stimQ:0.82,lenMult:1.08,tags:['adductor','machine']},
+  'hip adduction':       {p:['Aductores'],s:[],ax:0.05,ecc:0.9,sys:0.25,kn:0.15,lb:0.05,sfr:0.90,hl:30,pat:'isolation',stimQ:0.82,lenMult:1.08,tags:['adductor']},
+  'máquina aductor':     {p:['Aductores'],s:[],ax:0.05,ecc:0.9,sys:0.25,kn:0.15,lb:0.05,sfr:0.90,hl:30,pat:'isolation',stimQ:0.82,lenMult:1.08,tags:['adductor','machine']},
+  'sumo squat':          {p:['Aductores'],s:['Glúteo','Cuádriceps'],ax:0.5,ecc:1.0,sys:0.6,kn:0.4,lb:0.4,sfr:0.80,hl:50,pat:'squat',stimQ:0.82,lenMult:1.05,tags:['bilateral','adductor']},
+  'copa':                {p:['Aductores'],s:['Glúteo','Cuádriceps'],ax:0.5,ecc:1.0,sys:0.6,kn:0.4,lb:0.4,sfr:0.80,hl:50,pat:'squat',stimQ:0.82,lenMult:1.05,tags:['bilateral','adductor']},
+  'copenhagen plank':    {p:['Aductores'],s:['Core'],ax:0.3,ecc:0.9,sys:0.3,kn:0.2,lb:0.2,sfr:0.88,hl:32,pat:'isolation',stimQ:0.85,lenMult:1.05,tags:['adductor','unilateral','rehab']},
+  'plancha copenhagen':  {p:['Aductores'],s:['Core'],ax:0.3,ecc:0.9,sys:0.3,kn:0.2,lb:0.2,sfr:0.88,hl:32,pat:'isolation',stimQ:0.85,lenMult:1.05,tags:['adductor','rehab']},
   // ── UPPER — Push horizontal ──
   'press de banca':      {p:['Pectoral'],s:['Tríceps','Deltoides'],ax:0.12,ecc:1.15,sys:0.65,kn:0.0,lb:0.22,sfr:0.85,hl:48,pat:'push-h',stimQ:0.88,lenMult:1.05,tags:['bilateral','compound']},
   'bench press':         {p:['Pectoral'],s:['Tríceps','Deltoides'],ax:0.12,ecc:1.15,sys:0.65,kn:0.0,lb:0.22,sfr:0.85,hl:48,pat:'push-h',stimQ:0.88,lenMult:1.05,tags:['bilateral']},
@@ -849,8 +859,10 @@ const EXERCISE_INTELLIGENCE = {
 // Returns full exercise data with all physiological fields
 function getExDB(name){
   const lower=(name||'').toLowerCase();
-  for(const [k,d] of Object.entries(EXERCISE_INTELLIGENCE)){
-    if(lower.includes(k))return d;
+  // Match longest key first — more specific match wins over generic
+  const keys=Object.keys(EXERCISE_INTELLIGENCE).sort(function(a,b){return b.length-a.length;});
+  for(var i=0;i<keys.length;i++){
+    if(lower.includes(keys[i]))return EXERCISE_INTELLIGENCE[keys[i]];
   }
   return null;
 }
@@ -2344,9 +2356,14 @@ function RecommendationEngine(fatigue,interference){
 
 // ══ MAIN ORCHESTRATOR ══
 function runEngines(){
-  const knee=safeNum(safeDOM('kneeToday')?.value)||0;
-  const domsUp=safeNum(safeDOM('domsUpper')?.value)||0;
-  const domsLow=safeNum(safeDOM('domsLower')?.value)||0;
+  const knee=safeNum(safeDOM('kneeToday')&&safeDOM('kneeToday').value)||0;
+  const domsUp=safeNum(safeDOM('domsUpper')&&safeDOM('domsUpper').value)||0;
+  const domsLow=safeNum(safeDOM('domsLower')&&safeDOM('domsLower').value)||0;
+  const bbManual=safeNum(safeDOM('bbToday')&&safeDOM('bbToday').value)||0;
+  const energyManual=safeNum(safeDOM('energyToday')&&safeDOM('energyToday').value)||0;
+  // Override API Body Battery with manual input if provided
+  if(bbManual>0)S.metrics.bb=bbManual;
+  if(energyManual>0)S.metrics.energySubj=energyManual;
 
   // ── Engine execution order (dependencies matter) ──
   // 1. HRV first — needed by ConfidenceEngine and FatigueEngine
@@ -3076,7 +3093,7 @@ function renderMAV(){
     else if(current<=eMRV){col='var(--y)';zone='MAV→MRV';}
     else{col='var(--r)';zone=`Sobre MRV (+${current-eMRV}s)`;}
     const dyn=isReduced?`<div style="font-size:10px;color:var(--y);margin-top:2px;">⚠ MRV dinámico: ${mrv}→${eMRV} (×${eff.mult})</div>`:'';
-    return`<div class="mav-row"><div class="mav-header"><div class="mav-muscle">${muscle}${(function(){var f=safeArr(S._hevyRecent).filter(function(s){return s.age<7*864e5&&s.muscleSets&&s.muscleSets[muscle]>0;}).length;return f>0?"<span style=\"font-size:9px;color:"+(f>=2?"var(--g)":"var(--y)")+";margin-left:5px;font-family:monospace;\">"+(f>=2?"F2":"F1")+"</span>":"";}())}</div><div class="mav-nums"><span style="color:${col};font-weight:600;">${current}s</span> · MEV${mev} MAV${mavBase} MRV<span style="color:${isReduced?'var(--y)':'inherit'}">${eMRV}</span></div></div><div class="mav-track"><div class="mav-mev" style="width:${mevPct}%"></div><div class="mav-fill" style="width:${fillPct}%;background:${col};"></div><div class="mav-mrv" style="left:${mrvPct}%"></div></div><div class="mav-zone" style="color:${col};">${zone}</div>${dyn}</div>`;
+    return`<div class="mav-row"><div class="mav-header"><div class="mav-muscle">${muscle}${(function(){var f=safeArr(S._hevyRecent).filter(function(s){return s.isThisWeek&&s.primaryMuscleSets&&(s.primaryMuscleSets[muscle]||0)>=2;}).length;return f>0?"<span style=\"font-size:9px;color:"+(f>=2?"var(--g)":"var(--y)")+";margin-left:5px;font-family:monospace;\">"+f+"×/sem</span>":"";}())}</div><div class="mav-nums"><span style="color:${col};font-weight:600;">${current}s</span> · MEV${mev} MAV${mavBase} MRV<span style="color:${isReduced?'var(--y)':'inherit'}">${eMRV}</span></div></div><div class="mav-track"><div class="mav-mev" style="width:${mevPct}%"></div><div class="mav-fill" style="width:${fillPct}%;background:${col};"></div><div class="mav-mrv" style="left:${mrvPct}%"></div></div><div class="mav-zone" style="color:${col};">${zone}</div>${dyn}</div>`;
   }).join('');
   if(mav&&mav.reasons.length&&multCard&&multList){multCard.style.display='block';multList.innerHTML=mav.reasons.map(r=>`<div style="font-size:12px;color:var(--fg2);padding:4px 0;border-bottom:1px solid var(--line);">${r}</div>`).join('')+`<div style="font-family:'Geist Mono',monospace;font-size:11px;color:var(--c);padding:6px 0 0;">Global ×${mav.global}</div>`;}
   else if(multCard)multCard.style.display='none';
@@ -3305,7 +3322,7 @@ async function fetchHevy(){
       const isThisWeek=wDate>=weekStart;
       const age=now-wDate;
       const isRecent=age<7*24*3600000; // 7 days for F2 weekly counting (was 72h)
-      const muscleSets={};// key: muscle, value: set count (using ExDB)
+      const muscleSets={};const primaryMuscleSets={};// key: muscle, value: set count
 
       (w.exercises||[]).forEach(ex=>{
         const exName=ex.title||ex.exercise_template_title||ex.name||'';
@@ -3314,7 +3331,7 @@ async function fetchHevy(){
         const nSets=sets.length;
         if(!nSets)return;
         if(exData){
-          exData.p.forEach(m=>{muscleSets[m]=(muscleSets[m]||0)+nSets;});
+          exData.p.forEach(m=>{muscleSets[m]=(muscleSets[m]||0)+nSets;primaryMuscleSets[m]=(primaryMuscleSets[m]||0)+nSets;});
           exData.s.forEach(m=>{muscleSets[m]=(muscleSets[m]||0)+nSets*0.4;});
         }
         // Volume tracking — primary muscles only (Israetel/Schoenfeld standard)
@@ -3324,7 +3341,8 @@ async function fetchHevy(){
         }
       });
 
-      if(isRecent&&Object.keys(muscleSets).length>0){
+      if(isRecent){
+        // Save session even if no exercises recognized — for frequency counting
         // FIX: classify by dominant group — if neither >60% it's mixed
         const upperSets=Object.entries(muscleSets).filter(([m])=>UPPER_M.includes(m)).reduce((s,[,v])=>s+v,0);
         const lowerSets=Object.entries(muscleSets).filter(([m])=>LOWER_M.includes(m)).reduce((s,[,v])=>s+v,0);
@@ -3394,7 +3412,7 @@ async function fetchHevy(){
         recentHevySess.push({
           date:wDate, age,
           hasUpper:isUpperDom, hasLower:isLowerDom,
-          muscleSets, muscles,
+          muscleSets, primaryMuscleSets, muscles, isThisWeek,
           sRPE,
           rpe: garminRPE,        // systemic RPE (Garmin) → used for sRPE + autonomic fatigue
           hevyRPE: hevyAvgRPE,   // local RPE (Hevy sets) → used for muscular stimulus
