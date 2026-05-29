@@ -3524,8 +3524,8 @@ async function fetchHevy(){
         }
         // Volume tracking — primary muscles only (Israetel/Schoenfeld standard)
         if(isThisWeek&&exData){
-          const workingSets3=(ex.sets||[]).filter(s=>safeInt(s.reps||0)>0).length;
-          if(workingSets3>0)exData.p.forEach(m=>{S.weeklyVol[m]=(S.weeklyVol[m]||0)+workingSets3;});
+          var workingSets3=(ex.sets||[]).filter(function(s){return safeInt(s.reps||0)>0;}).length;
+          if(workingSets3>0)exData.p.forEach(function(m){S.weeklyVol[m]=(S.weeklyVol[m]||0)+workingSets3;});
         }
       });
 
@@ -3669,10 +3669,10 @@ function getWeeklyVolForOffset(offset){
       const exData=getExDB(ex.title||ex.exercise_template_title||ex.name||'');
       if(!exData)return;
       // Count working sets only (primary muscles only — Israetel/Schoenfeld standard)
-      const workingSets=(ex.sets||[]).filter(s=>safeInt(s.reps||0)>0);
+      var workingSets=(ex.sets||[]).filter(function(s){return safeInt(s.reps||0)>0;});
       if(!workingSets.length)return;
       // Primary muscles only for volume counting
-      exData.p.forEach(m=>{vol[m]=(vol[m]||0)+workingSets.length;});
+      exData.p.forEach(function(m){vol[m]=(vol[m]||0)+workingSets.length;});
     });
   });
   return vol;
