@@ -49,14 +49,14 @@ body::after{content:'';position:fixed;inset:0;z-index:9999;pointer-events:none;b
 .st-delta{font-family:'Geist Mono',monospace;font-size:10px;margin-top:3px;}.up{color:var(--g);}.dn{color:var(--r);}.nt{color:var(--fg3);}
 /* READINESS */
 .rsys-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin:8px 18px 0;}
-.rsys-card{background:var(--bg2);border:1px solid var(--line);border-radius:var(--radius);padding:13px;position:relative;overflow:visible;min-height:110px;}
+.rsys-card{background:var(--bg2);border:1px solid var(--line);border-radius:var(--radius);padding:13px;position:relative;overflow:hidden;}
 .rsys-card::before{content:'';position:absolute;top:0;left:0;right:0;height:2px;transition:background .5s;}
 .rsys-card.ok::before{background:var(--g);}.rsys-card.warn::before{background:var(--y);}.rsys-card.bad::before{background:var(--r);}.rsys-card.idle::before{background:var(--fg4);}
-.rsys-card.ok .rsys-val{color:var(--g);font-size:28px;line-height:1.1;}.rsys-card.warn .rsys-val{color:var(--y);}.rsys-card.bad .rsys-val{color:var(--r);}
-.rsys-name{font-family:'Geist Mono',monospace;font-size:9px;letter-spacing:2px;text-transform:uppercase;color:var(--fg3);margin-bottom:5px;;margin-bottom:2px;}
+.rsys-card.ok .rsys-val{color:var(--g);}.rsys-card.warn .rsys-val{color:var(--y);}.rsys-card.bad .rsys-val{color:var(--r);}
+.rsys-name{font-family:'Geist Mono',monospace;font-size:9px;letter-spacing:2px;text-transform:uppercase;color:var(--fg3);margin-bottom:5px;}
 .rsys-val{font-family:'Instrument Serif',serif;font-size:26px;line-height:1;margin-bottom:2px;}
 .rsys-lbl{font-size:11px;color:var(--fg2);margin-bottom:5px;}
-.rsys-sigs{list-style:none;padding:0;margin:4px 0 0;font-size:11px;}.rsys-sigs li{font-size:10px;padding:1px 0;}
+.rsys-sigs{list-style:none;padding:0;margin:0;}.rsys-sigs li{font-size:10px;padding:1px 0;}
 /* FATIGUE HERO */
 .fe-hero{margin:8px 18px 10px;background:var(--bg2);border:1px solid var(--line);border-radius:16px;padding:18px;position:relative;overflow:hidden;}
 .fe-hero::before{content:'';position:absolute;inset:0;opacity:.035;transition:opacity .5s;}
@@ -242,17 +242,11 @@ textarea.field{resize:vertical;min-height:60px;}
               <option>D7 — Descanso</option>
             </select>
           </div>
-          <div><label class="fg-label">Body Battery (0-100)</label><input class="field" type="number" id="bbToday" placeholder="ej. 72" min="0" max="100" oninput="runEngines()"></div>
-          <div><label class="fg-label">Energía subjetiva (0-10)</label><input class="field" type="number" id="energyToday" placeholder="0-10" min="0" max="10" oninput="runEngines()"></div>
           <div><label class="fg-label">Rodilla (0-10)</label><input class="field" type="number" id="kneeToday" placeholder="0" min="0" max="10" oninput="runEngines()"></div>
           <div><label class="fg-label">DOMS tren sup (0-10)</label><input class="field" type="number" id="domsUpper" placeholder="0" min="0" max="10" oninput="runEngines()"></div>
           <div><label class="fg-label">DOMS tren inf (0-10)</label><input class="field" type="number" id="domsLower" placeholder="0" min="0" max="10" oninput="runEngines()"></div>
         </div>
-        <div class="fg2">
-          <div><label class="fg-label">Lumbar (0-10)</label><input class="field" type="number" id="lumbarToday" placeholder="0" min="0" max="10" oninput="runEngines()"></div>
-          <div><label class="fg-label">Aquiles/gemelo (0-10)</label><input class="field" type="number" id="achillesToday" placeholder="0" min="0" max="10" oninput="runEngines()"></div>
-        </div>
-        <div class="fg"><label class="fg-label">Dolor o molestia (texto)</label><input class="field" type="text" id="painToday" placeholder="ej. lumbar leve..."></div>
+        <div class="fg"><label class="fg-label">Dolor o molestia</label><input class="field" type="text" id="painToday" placeholder="ej. lumbar leve..."></div>
         <div class="fg"><label class="fg-label">Sensaciones + notas</label><textarea class="field" id="notesToday" placeholder="Piernas cargadas, espalda bien..."></textarea></div>
         <button class="btn btn-p btn-full" onclick="analyzeDay()">Analizar día con IA</button>
       </div>
@@ -493,15 +487,7 @@ textarea.field{resize:vertical;min-height:60px;}
           <div><label class="fg-label">Rodilla post (0-10)</label><input class="field" type="number" id="logKnee" placeholder="0" min="0" max="10"></div>
         </div>
         <div class="fg"><label class="fg-label">Notas</label><textarea class="field" id="logNotes" placeholder="¿Qué mejoró? ¿Alguna molestia?..."></textarea></div>
-        <div class="fg" style="margin-bottom:10px;">
-  <label class="fg-label">¿Seguiste la recomendación ATLAS?</label>
-  <div style="display:flex;gap:8px;margin-top:6px;">
-    <button onclick="setRecFollow('si')" id="rf-si" style="flex:1;padding:7px;border-radius:8px;font-size:12px;background:var(--bg3);color:var(--fg3);border:1px solid var(--line);cursor:pointer;">✓ Sí</button>
-    <button onclick="setRecFollow('parcial')" id="rf-parcial" style="flex:1;padding:7px;border-radius:8px;font-size:12px;background:var(--bg3);color:var(--fg3);border:1px solid var(--line);cursor:pointer;">~ Parcial</button>
-    <button onclick="setRecFollow('no')" id="rf-no" style="flex:1;padding:7px;border-radius:8px;font-size:12px;background:var(--bg3);color:var(--fg3);border:1px solid var(--line);cursor:pointer;">✗ No</button>
-  </div>
-</div>
-<button class="btn btn-p btn-full" onclick="saveLog()">Guardar sesión</button>
+        <button class="btn btn-p btn-full" onclick="saveLog()">Guardar sesión</button>
       </div>
     </div>
     <div class="card" style="margin-top:10px;">
@@ -813,14 +799,6 @@ const EXERCISE_INTELLIGENCE = {
   // ── LOWER — Adductors ──
   'aductor':             {p:['Aductores'],s:[],ax:0.05,ecc:0.9,sys:0.25,kn:0.15,lb:0.05,sfr:0.90,hl:30,pat:'isolation',stimQ:0.82,lenMult:1.08,tags:['adductor','rehab']},
   'abducción':           {p:['Aductores'],s:[],ax:0.05,ecc:0.8,sys:0.2,kn:0.1,lb:0.04,sfr:0.92,hl:28,pat:'isolation',stimQ:0.78,lenMult:1.00,tags:['abductor','rehab']},
-  'adductor':            {p:['Aductores'],s:[],ax:0.05,ecc:0.9,sys:0.25,kn:0.15,lb:0.05,sfr:0.90,hl:30,pat:'isolation',stimQ:0.82,lenMult:1.08,tags:['adductor']},
-  'adductor machine':    {p:['Aductores'],s:[],ax:0.05,ecc:0.9,sys:0.25,kn:0.15,lb:0.05,sfr:0.90,hl:30,pat:'isolation',stimQ:0.82,lenMult:1.08,tags:['adductor','machine']},
-  'hip adduction':       {p:['Aductores'],s:[],ax:0.05,ecc:0.9,sys:0.25,kn:0.15,lb:0.05,sfr:0.90,hl:30,pat:'isolation',stimQ:0.82,lenMult:1.08,tags:['adductor']},
-  'máquina aductor':     {p:['Aductores'],s:[],ax:0.05,ecc:0.9,sys:0.25,kn:0.15,lb:0.05,sfr:0.90,hl:30,pat:'isolation',stimQ:0.82,lenMult:1.08,tags:['adductor','machine']},
-  'sumo squat':          {p:['Aductores'],s:['Glúteo','Cuádriceps'],ax:0.5,ecc:1.0,sys:0.6,kn:0.4,lb:0.4,sfr:0.80,hl:50,pat:'squat',stimQ:0.82,lenMult:1.05,tags:['bilateral','adductor']},
-  'copa':                {p:['Aductores'],s:['Glúteo','Cuádriceps'],ax:0.5,ecc:1.0,sys:0.6,kn:0.4,lb:0.4,sfr:0.80,hl:50,pat:'squat',stimQ:0.82,lenMult:1.05,tags:['bilateral','adductor']},
-  'copenhagen plank':    {p:['Aductores'],s:['Core'],ax:0.3,ecc:0.9,sys:0.3,kn:0.2,lb:0.2,sfr:0.88,hl:32,pat:'isolation',stimQ:0.85,lenMult:1.05,tags:['adductor','unilateral','rehab']},
-  'plancha copenhagen':  {p:['Aductores'],s:['Core'],ax:0.3,ecc:0.9,sys:0.3,kn:0.2,lb:0.2,sfr:0.88,hl:32,pat:'isolation',stimQ:0.85,lenMult:1.05,tags:['adductor','rehab']},
   // ── UPPER — Push horizontal ──
   'press de banca':      {p:['Pectoral'],s:['Tríceps','Deltoides'],ax:0.12,ecc:1.15,sys:0.65,kn:0.0,lb:0.22,sfr:0.85,hl:48,pat:'push-h',stimQ:0.88,lenMult:1.05,tags:['bilateral','compound']},
   'bench press':         {p:['Pectoral'],s:['Tríceps','Deltoides'],ax:0.12,ecc:1.15,sys:0.65,kn:0.0,lb:0.22,sfr:0.85,hl:48,pat:'push-h',stimQ:0.88,lenMult:1.05,tags:['bilateral']},
@@ -871,10 +849,8 @@ const EXERCISE_INTELLIGENCE = {
 // Returns full exercise data with all physiological fields
 function getExDB(name){
   const lower=(name||'').toLowerCase();
-  // Match longest key first — more specific match wins over generic
-  const keys=Object.keys(EXERCISE_INTELLIGENCE).sort(function(a,b){return b.length-a.length;});
-  for(var i=0;i<keys.length;i++){
-    if(lower.includes(keys[i]))return EXERCISE_INTELLIGENCE[keys[i]];
+  for(const [k,d] of Object.entries(EXERCISE_INTELLIGENCE)){
+    if(lower.includes(k))return d;
   }
   return null;
 }
@@ -1887,16 +1863,9 @@ function ProgressionEngine(workouts, hevyRecent, muscleFatigue, fatigue, metrics
 
       if(!bestE1RM) return;
       if(!exHistory[name]) exHistory[name] = [];
-      // RPE per set tracking
-      var rpeVals = workingSets.map(function(s){return safeNum(s.rpe||s.rpe_rating||0);}).filter(function(v){return v>0;});
-      var avgRPE = rpeVals.length ? Math.round(rpeVals.reduce(function(a,b){return a+b;},0)/rpeVals.length*10)/10 : null;
-      var lastSetRPE = rpeVals.length ? rpeVals[rpeVals.length-1] : null;
       exHistory[name].push({
         date, e1rm: bestE1RM, kg: bestKg, reps: bestReps,
-        conf: e1RMConfidence(bestReps, null),
-        avgRPE: avgRPE,
-        lastSetRPE: lastSetRPE,
-        sets: workingSets.length
+        conf: e1RMConfidence(bestReps, null)
       });
     });
   });
@@ -1932,51 +1901,10 @@ function ProgressionEngine(workouts, hevyRecent, muscleFatigue, fatigue, metrics
     // Stagnation detection: stable for 4+ sessions = plateau
     const isStagnant = trend === 'stable' && recent.length >= 4;
 
-    // RPE multi-window drift — more robust than single 3-session window
-    // Short: 3 sessions (acute load), Medium: 5 sessions (trend)
-    var allRPE = recent.filter(function(s){return s.avgRPE!=null;}).map(function(s){return s.avgRPE;});
-    var rpeLast   = recent[recent.length-1] ? recent[recent.length-1].avgRPE : null;
-    var rpeLastSet = recent[recent.length-1] ? recent[recent.length-1].lastSetRPE : null;
-
-    function avgArr(arr,n){
-      var sl=arr.slice(-n).filter(function(v){return v!=null;});
-      return sl.length?Math.round(sl.reduce(function(a,b){return a+b;},0)/sl.length*10)/10:null;
-    }
-    var avgRPE3  = avgArr(allRPE, 3);
-    var avgRPE5  = avgArr(allRPE, 5);
-    var avgRPE10 = avgArr(allRPE, 10);
-
-    // Short-term drift: current vs 3-session baseline
-    var rpeDriftShort  = (rpeLast!=null&&avgRPE3!=null) ? Math.round((rpeLast-avgRPE3)*10)/10 : null;
-    // Medium-term drift: current vs 5-session baseline (less noisy)
-    var rpeDriftMedium = (rpeLast!=null&&avgRPE5!=null) ? Math.round((rpeLast-avgRPE5)*10)/10 : null;
-    // Use medium drift as primary if available (more stable)
-    var rpeDrift = rpeDriftMedium!=null ? rpeDriftMedium : rpeDriftShort;
-
-    // performancePerceivedDifficulty: e1RM change / RPE change
-    // Captures adaptation quality — not just load or RPE in isolation
-    // e1RM↑ + RPE↓ = strong adaptation (best case)
-    // e1RM↑ + RPE↑ = progressing but costly
-    // e1RM= + RPE↑ = fatigue accumulation
-    // e1RM↓ + RPE↑ = negative response
-    var ppd = null;
-    var ppdLabel = null;
-    if(pctChange!=null && rpeDrift!=null) {
-      if(pctChange > 1  && rpeDrift < -0.5) { ppd='strong';   ppdLabel='Adaptación fuerte';}
-      else if(pctChange > 0  && rpeDrift > 0.5)  { ppd='costly';   ppdLabel='Progresión costosa';}
-      else if(Math.abs(pctChange)<=1 && rpeDrift > 0.5) { ppd='fatigue';  ppdLabel='Acumulación fatiga';}
-      else if(pctChange < -1 && rpeDrift > 0.5)  { ppd='negative'; ppdLabel='Respuesta negativa';}
-      else if(pctChange > 0  && rpeDrift <= 0)    { ppd='clean';    ppdLabel='Progresión limpia';}
-    }
-
     exTrends[name] = {
       latest: latest.e1rm, baseline, slope: Math.round(slope*10)/10,
       pctChange, trend, isStagnant, sessions: recent.length,
-      lastKg: latest.kg, lastReps: latest.reps,
-      avgRPE: rpeLast, lastSetRPE: rpeLastSet,
-      avgRPE3, avgRPE5, avgRPE10,
-      rpeDrift, rpeDriftShort, rpeDriftMedium,
-      ppd, ppdLabel
+      lastKg: latest.kg, lastReps: latest.reps
     };
   });
 
@@ -2416,14 +2344,9 @@ function RecommendationEngine(fatigue,interference){
 
 // ══ MAIN ORCHESTRATOR ══
 function runEngines(){
-  const knee=safeNum(safeDOM('kneeToday')&&safeDOM('kneeToday').value)||0;
-  const domsUp=safeNum(safeDOM('domsUpper')&&safeDOM('domsUpper').value)||0;
-  const domsLow=safeNum(safeDOM('domsLower')&&safeDOM('domsLower').value)||0;
-  const bbManual=safeNum(safeDOM('bbToday')&&safeDOM('bbToday').value)||0;
-  const energyManual=safeNum(safeDOM('energyToday')&&safeDOM('energyToday').value)||0;
-  // Override API Body Battery with manual input if provided
-  if(bbManual>0)S.metrics.bb=bbManual;
-  if(energyManual>0)S.metrics.energySubj=energyManual;
+  const knee=safeNum(safeDOM('kneeToday')?.value)||0;
+  const domsUp=safeNum(safeDOM('domsUpper')?.value)||0;
+  const domsLow=safeNum(safeDOM('domsLower')?.value)||0;
 
   // ── Engine execution order (dependencies matter) ──
   // 1. HRV first — needed by ConfidenceEngine and FatigueEngine
@@ -2710,9 +2633,7 @@ function renderE1RMPanel(){
       </div>
       <div style="text-align:right;flex-shrink:0;">
         <div style="font-family:'Geist Mono',monospace;color:var(--fg);">${t.latest}kg e1RM</div>
-        <div style="font-family:'Geist Mono',monospace;font-size:10px;color:${trendCol};">${trendIcon} ${t.pctChange>=0?'+':''}${t.pctChange}%${t.avgRPE!=null?' · RPE '+t.avgRPE:''}</div>
-          ${t.ppdLabel?`<div style="font-size:9px;color:${t.ppd==='strong'||t.ppd==='clean'?'var(--g)':t.ppd==='negative'?'var(--r)':'var(--y)'};">${t.ppdLabel}</div>`:''}
-          ${t.rpeDrift!=null&&Math.abs(t.rpeDrift)>0.8?`<div style="font-size:9px;color:var(--fg4);">drift ${t.rpeDrift>0?'+':''}${t.rpeDrift} (${t.rpeDriftShort!=null?'3s:'+t.rpeDriftShort:''})</div>`:''}
+        <div style="font-family:'Geist Mono',monospace;font-size:10px;color:${trendCol};">${trendIcon} ${t.pctChange>=0?'+':''}${t.pctChange}% · ${t.slope>=0?'+':''}${t.slope}kg/ses</div>
       </div>
     </div>`;
   }).join('');
@@ -3155,7 +3076,7 @@ function renderMAV(){
     else if(current<=eMRV){col='var(--y)';zone='MAV→MRV';}
     else{col='var(--r)';zone=`Sobre MRV (+${current-eMRV}s)`;}
     const dyn=isReduced?`<div style="font-size:10px;color:var(--y);margin-top:2px;">⚠ MRV dinámico: ${mrv}→${eMRV} (×${eff.mult})</div>`:'';
-    return`<div class="mav-row"><div class="mav-header"><div class="mav-muscle">${muscle}${(function(){var f=safeArr(S._hevyRecent).filter(function(s){return s.isThisWeek&&s.primaryMuscleSets&&(s.primaryMuscleSets[muscle]||0)>=2;}).length;return f>0?"<span style=\"font-size:9px;color:"+(f>=2?"var(--g)":"var(--y)")+";margin-left:5px;font-family:monospace;\">"+f+"×/sem</span>":"";}())}</div><div class="mav-nums"><span style="color:${col};font-weight:600;">${current}s</span> · MEV${mev} MAV${mavBase} MRV<span style="color:${isReduced?'var(--y)':'inherit'}">${eMRV}</span></div></div><div class="mav-track"><div class="mav-mev" style="width:${mevPct}%"></div><div class="mav-fill" style="width:${fillPct}%;background:${col};"></div><div class="mav-mrv" style="left:${mrvPct}%"></div></div><div class="mav-zone" style="color:${col};">${zone}</div>${dyn}</div>`;
+    return`<div class="mav-row"><div class="mav-header"><div class="mav-muscle">${muscle}${(function(){var f=safeArr(S._hevyRecent).filter(function(s){return s.age<7*864e5&&s.muscleSets&&s.muscleSets[muscle]>0;}).length;return f>0?"<span style=\"font-size:9px;color:"+(f>=2?"var(--g)":"var(--y)")+";margin-left:5px;font-family:monospace;\">"+(f>=2?"F2":"F1")+"</span>":"";}())}</div><div class="mav-nums"><span style="color:${col};font-weight:600;">${current}s</span> · MEV${mev} MAV${mavBase} MRV<span style="color:${isReduced?'var(--y)':'inherit'}">${eMRV}</span></div></div><div class="mav-track"><div class="mav-mev" style="width:${mevPct}%"></div><div class="mav-fill" style="width:${fillPct}%;background:${col};"></div><div class="mav-mrv" style="left:${mrvPct}%"></div></div><div class="mav-zone" style="color:${col};">${zone}</div>${dyn}</div>`;
   }).join('');
   if(mav&&mav.reasons.length&&multCard&&multList){multCard.style.display='block';multList.innerHTML=mav.reasons.map(r=>`<div style="font-size:12px;color:var(--fg2);padding:4px 0;border-bottom:1px solid var(--line);">${r}</div>`).join('')+`<div style="font-family:'Geist Mono',monospace;font-size:11px;color:var(--c);padding:6px 0 0;">Global ×${mav.global}</div>`;}
   else if(multCard)multCard.style.display='none';
@@ -3248,155 +3169,42 @@ function calcSRPE(){
   if(zEl)zEl.textContent=srpe<200?'Ligera':srpe<350?'Moderada':srpe<600?'Alta':'MUY ALTA';
 }
 
-var _recFollow = null;
-function setRecFollow(val){
-  _recFollow = val;
-  ['si','parcial','no'].forEach(function(v){
-    var btn = safeDOM('rf-'+v);
-    if(!btn) return;
-    var active = v === val;
-    btn.style.background = active ? (v==='si'?'var(--g)':v==='parcial'?'var(--y)':'var(--r)') : 'var(--bg3)';
-    btn.style.color = active ? '#000' : 'var(--fg3)';
-    btn.style.fontWeight = active ? '600' : '400';
-  });
-}
-
 function saveLog(){
-  const sess=safeDOM('logSess')&&safeDOM('logSess').value;
-  const dur=safeDOM('logDur')&&safeDOM('logDur').value;
-  const rpe=safeDOM('logRPE')&&safeDOM('logRPE').value;
-  const knee=safeDOM('logKnee')&&safeDOM('logKnee').value;
-  const notes=safeDOM('logNotes')&&safeDOM('logNotes').value;
+  const sess=safeDOM('logSess')?.value;const dur=safeDOM('logDur')?.value;const rpe=safeDOM('logRPE')?.value;const knee=safeDOM('logKnee')?.value;const notes=safeDOM('logNotes')?.value;
   if(!sess){toast('Sin sesión','Selecciona una sesión','⚠️');return;}
   const srpe=dur&&rpe?Math.round(safeNum(rpe)*safeNum(dur)):0;
-  const today=new Date();
-  const ds=String(today.getDate()).padStart(2,'0')+'/'+String(today.getMonth()+1).padStart(2,'0')+'/'+today.getFullYear();
-
-  // ── Read Estado hoy inputs ──
-  const kneeToday=safeNum(safeDOM('kneeToday')&&safeDOM('kneeToday').value)||0;
-  const domsUp=safeNum(safeDOM('domsUpper')&&safeDOM('domsUpper').value)||0;
-  const domsLow=safeNum(safeDOM('domsLower')&&safeDOM('domsLower').value)||0;
-  const bbToday=safeNum(safeDOM('bbToday')&&safeDOM('bbToday').value)||0;
-  const energyToday=safeNum(safeDOM('energyToday')&&safeDOM('energyToday').value)||0;
-  const lumbarToday=safeNum(safeDOM('lumbarToday')&&safeDOM('lumbarToday').value)||0;
-  const achillesToday=safeNum(safeDOM('achillesToday')&&safeDOM('achillesToday').value)||0;
-  const painToday=(safeDOM('painToday')&&safeDOM('painToday').value)||'';
-  const notesToday=(safeDOM('notesToday')&&safeDOM('notesToday').value)||'';
-
-  // ── Volume per muscle from this session (from Hevy if available) ──
-  var sessionMuscleSets={};
-  var sessionEffectiveSets={};
-  if(S._hevyRecent&&S._hevyRecent.length){
-    var todaySess2=S._hevyRecent.find(function(s){return s.age<3*3600000;});
-    if(todaySess2&&todaySess2.muscleSets)sessionMuscleSets=todaySess2.muscleSets;
-  }
-  if(S._effectiveSets&&S._effectiveSets.muscles){
-    Object.entries(S._effectiveSets.muscles).forEach(function(e){
-      sessionEffectiveSets[e[0]]=Math.round(safeNum(e[1].effective)*10)/10;
-    });
-  }
-
-  // ── Local fatigue snapshot per muscle ──
-  var muscleFatigueSnap={};
-  if(S._muscleFatigue){
-    Object.entries(S._muscleFatigue).forEach(function(e){
-      var v=e[1];
-      muscleFatigueSnap[e[0]]=typeof v==='object'?Math.round(safeNum(v.value)):Math.round(safeNum(v));
-    });
-  }
-
-  // ── e1RM snapshot (weekly) ──
-  var e1rmSnap={};
-  if(S._progression&&S._progression.exTrends){
-    Object.entries(S._progression.exTrends).forEach(function(e){
-      if(e[1].sessions>=2)e1rmSnap[e[0]]=e[1].latest;
-    });
-  }
-
-  // ── Opportunity window flag ──
-  var opportunityWindow=S._decision&&!S._decision.noAction&&
-    S._decision.recommendation&&S._decision.recommendation.indexOf('progresión')>=0;
-
-  // ── Build structured entry: context / decision / outcome ──
-  S.logs.unshift({
-    sess, dur, rpe, srpe, date:ds,
-    knee: safeNum(knee)||kneeToday||0,
-    notes: notes||(notesToday||''),
-    // Context — physiological state
-    context:{
-      hrv: S.metrics.hrv||null,
-      sleep: S.metrics.sleep||null,
-      rhr: S.metrics.rhr||null,
-      bb: bbToday||S.metrics.bb||null,
-      energy: energyToday||null,
-      weight: S.metrics.weight||null,
-      domsUpper: domsUp||null,
-      domsLower: domsLow||null,
-      knee: kneeToday||null,
-      lumbar: lumbarToday||null,
-      achilles: achillesToday||null,
-      pain: painToday||null,
-      readiness: S._readiness?S._readiness.overall:null,
-      fatigue: S._fatigue?Math.round(S._fatigue.systemic):null,
-      performance: S._performance?S._performance.potential:null,
-    },
-    // Decision — what system recommended and what was done
-    decision:{
-      atlasRec: S._decision?S._decision.recommendation:null,
-      atlasConf: S._decision?S._decision.confidenceLabel:null,
-      followed: _recFollow||null,
-      opportunityWindow: opportunityWindow||false,
-    },
-    // Volume/stimulus — training data
-    volume:{
-      muscleSets: sessionMuscleSets,
-      effectiveSets: sessionEffectiveSets,
-      muscleFatigue: muscleFatigueSnap,
-    },
-    // Weekly snapshot (at time of logging)
-    weekly:{
-      vol: Object.assign({},S.weeklyVol),
-      e1rm: e1rmSnap,
-    },
-    // Flat fields for backwards compat and quick access
-    hrv: S.metrics.hrv||null,
-    sleep: S.metrics.sleep||null,
-    bb: bbToday||S.metrics.bb||null,
-    domsUpper: domsUp||null,
-    domsLower: domsLow||null,
-    lumbar: lumbarToday||null,
-    achilles: achillesToday||null,
-    pain: painToday||null,
-    readiness: S._readiness?S._readiness.overall:null,
-    fatigue: S._fatigue?Math.round(S._fatigue.systemic):null,
-    recFollow: _recFollow||null,
-    atlasRec: S._decision?S._decision.recommendation:null,
-  });
-
+  const today=new Date();const ds=`${String(today.getDate()).padStart(2,'0')}/${String(today.getMonth()+1).padStart(2,'0')}/${today.getFullYear()}`;
+  S.logs.unshift({sess,dur,rpe,knee,notes,srpe,date:ds});
   const sm={'D1':{'Pectoral':8,'Deltoides':6,'Tríceps':5,'Core':3},'D2':{'Cuádriceps':7,'Glúteo':5,'Aductores':3,'Gemelos/Sóleo':4},'D4':{'Dorsal':7,'Bíceps':5,'Tríceps':2,'Core':3},'D5':{'Isquiotibiales':7,'Glúteo':7,'Gemelos/Sóleo':3,'Aductores':2}};
-  const k=['D1','D2','D4','D5'].find(function(k){return sess.includes(k);});
-  if(k)Object.entries(sm[k]).forEach(function(entry){var m=entry[0],s=entry[1];S.weeklyVol[m]=(S.weeklyVol[m]||0)+s;});
+  const k=['D1','D2','D4','D5'].find(k=>sess.includes(k));
+  if(k)Object.entries(sm[k]).forEach(([m,s])=>{S.weeklyVol[m]=(S.weeklyVol[m]||0)+s;});
   S.weekDays.add(sess.split('—')[0].trim());
   const sc=safeDOM('wkScore');if(sc)sc.textContent=S.weekDays.size+'/6';
-  document.querySelectorAll('.wd').forEach(function(el){if(el.querySelector('.wd-n')&&el.querySelector('.wd-n').textContent===sess.split('—')[0].trim())el.classList.add('done');});
+  document.querySelectorAll('.wd').forEach(el=>{if(el.querySelector('.wd-n')?.textContent===sess.split('—')[0].trim())el.classList.add('done');});
   save();renderLog();renderMAV();runEngines();
 
-  // Record performance outcome for Response Validation
-  const e1rmDeltas={};
-  if(S._progression&&S._progression.exTrends){
-    Object.entries(S._progression.exTrends).forEach(function(entry){
-      var name=entry[0],trend=entry[1];
-      if(trend.sessions>=2&&trend.slope!==0){
-        e1rmDeltas[name]={predicted:trend.baseline,actual:trend.latest,delta:Math.round((trend.latest-trend.baseline)*10)/10,pctDelta:trend.pctChange};
+  // ── Record performance outcome for Response Validation ──
+  // Compute e1RM deltas: current session vs previous best
+  const e1rmDeltas = {};
+  if(S._progression?.exTrends){
+    Object.entries(S._progression.exTrends).forEach(([name, trend])=>{
+      if(trend.sessions >= 2 && trend.slope !== 0){
+        e1rmDeltas[name] = {
+          predicted: trend.baseline,
+          actual: trend.latest,
+          delta: Math.round((trend.latest - trend.baseline)*10)/10,
+          pctDelta: trend.pctChange
+        };
       }
     });
   }
-  storePerformanceOutcome({sess,rpe:safeNum(rpe)||0,sRPE:srpe,knee:safeNum(knee)||0,notes,e1rmDeltas});
-  toast('Sesión guardada',sess+' · sRPE '+srpe,'✅');
-  ['logDur','logRPE','logKnee','logNotes'].forEach(function(id){var e=safeDOM(id);if(e)e.value='';});
-  if(safeDOM('logSess'))safeDOM('logSess').value='';
-  _recFollow=null;setRecFollow(null);
-  calcSRPE();
+  storePerformanceOutcome({
+    sess, rpe:safeNum(rpe)||0, sRPE:srpe,
+    knee:safeNum(knee)||0, notes, e1rmDeltas
+  });
+  toast('Sesión guardada',`${sess} · sRPE ${srpe}`,'✅');
+  ['logDur','logRPE','logKnee','logNotes'].forEach(id=>{const e=safeDOM(id);if(e)e.value='';});
+  safeDOM('logSess').value='';calcSRPE();
 }
 
 function changeLogWeek(dir){S.logWeekOffset=(S.logWeekOffset||0)+dir;if(S.logWeekOffset>0)S.logWeekOffset=0;renderLog();}
@@ -3409,10 +3217,7 @@ function renderLog(){
   if(nBtn)nBtn.style.opacity=offset>=0?'0.3':'1';
   const filtered=safeArr(S.logs).filter(l=>{if(!l.date)return offset===0;const parts=l.date.split('/');const d=parts.length===3?new Date(parts[2],parts[1]-1,parts[0]):new Date(l.date);if(isNaN(d))return offset===0;return d>=start&&d<=endFull;});
   if(!filtered.length){el.innerHTML=`<div class="empty"><div class="empty-icon">📋</div><div class="empty-title">Sin sesiones</div><div class="empty-msg">${offset===0?'Registra tu primera sesión':'Sin sesiones esta semana'}</div></div>`;return;}
-  el.innerHTML=filtered.slice().reverse().map(l=>`<div class="log-row"><div class="log-left"><div class="log-name">${l.sess||'Sesión'}</div><div class="log-meta">${l.date} · ${l.dur||'—'}min${l.notes?' · '+l.notes.slice(0,35)+'…':''}</div></div><div class="log-chips"><span class="chip ${safeNum(l.rpe)>=8?'chip-r':safeNum(l.rpe)>=6?'chip-y':'chip-g'}">RPE ${l.rpe||'—'}</span><span class="chip chip-c">sRPE ${l.srpe||'—'}</span>${safeNum(l.knee)>0?`<span class="chip chip-r">Rodilla ${l.knee}</span>`:''}</div>
-          ${(l.domsUpper||l.domsLower||l.bb||l.energy||l.hrv||l.sleep)?`<div style="font-size:10px;color:var(--fg4);margin-top:3px;display:flex;flex-wrap:wrap;gap:8px;">${l.hrv?`HRV ${l.hrv}ms`:``}${l.sleep?` · Sueño ${l.sleep}h`:``}${l.bb?` · BB ${l.bb}`:``}${l.domsUpper?` · DOMS sup ${l.domsUpper}/10`:``}${l.domsLower?` · DOMS inf ${l.domsLower}/10`:``}${l.energy?` · Energía ${l.energy}/10`:``}${l.pain?` · ⚠ ${l.pain}`:``}</div>`:''}
-          ${l.notes?`<div style="font-size:10px;color:var(--fg3);margin-top:2px;">${l.notes}</div>`:''}
-        </div></div>`).join('');
+  el.innerHTML=filtered.slice().reverse().map(l=>`<div class="log-row"><div class="log-left"><div class="log-name">${l.sess||'Sesión'}</div><div class="log-meta">${l.date} · ${l.dur||'—'}min${l.notes?' · '+l.notes.slice(0,35)+'…':''}</div></div><div class="log-chips"><span class="chip ${safeNum(l.rpe)>=8?'chip-r':safeNum(l.rpe)>=6?'chip-y':'chip-g'}">RPE ${l.rpe||'—'}</span><span class="chip chip-c">sRPE ${l.srpe||'—'}</span>${safeNum(l.knee)>0?`<span class="chip chip-r">Rodilla ${l.knee}</span>`:''}</div></div>`).join('');
 }
 
 // ══ INTERVALS FETCH ══
@@ -3500,7 +3305,7 @@ async function fetchHevy(){
       const isThisWeek=wDate>=weekStart;
       const age=now-wDate;
       const isRecent=age<7*24*3600000; // 7 days for F2 weekly counting (was 72h)
-      const muscleSets={};const primaryMuscleSets={};// key: muscle, value: set count
+      const muscleSets={};// key: muscle, value: set count (using ExDB)
 
       (w.exercises||[]).forEach(ex=>{
         const exName=ex.title||ex.exercise_template_title||ex.name||'';
@@ -3509,7 +3314,7 @@ async function fetchHevy(){
         const nSets=sets.length;
         if(!nSets)return;
         if(exData){
-          exData.p.forEach(m=>{muscleSets[m]=(muscleSets[m]||0)+nSets;primaryMuscleSets[m]=(primaryMuscleSets[m]||0)+nSets;});
+          exData.p.forEach(m=>{muscleSets[m]=(muscleSets[m]||0)+nSets;});
           exData.s.forEach(m=>{muscleSets[m]=(muscleSets[m]||0)+nSets*0.4;});
         }
         // Volume tracking — primary muscles only (Israetel/Schoenfeld standard)
@@ -3519,8 +3324,7 @@ async function fetchHevy(){
         }
       });
 
-      if(isRecent){
-        // Save session even if no exercises recognized — for frequency counting
+      if(isRecent&&Object.keys(muscleSets).length>0){
         // FIX: classify by dominant group — if neither >60% it's mixed
         const upperSets=Object.entries(muscleSets).filter(([m])=>UPPER_M.includes(m)).reduce((s,[,v])=>s+v,0);
         const lowerSets=Object.entries(muscleSets).filter(([m])=>LOWER_M.includes(m)).reduce((s,[,v])=>s+v,0);
@@ -3590,7 +3394,7 @@ async function fetchHevy(){
         recentHevySess.push({
           date:wDate, age,
           hasUpper:isUpperDom, hasLower:isLowerDom,
-          muscleSets, primaryMuscleSets, muscles, isThisWeek,
+          muscleSets, muscles,
           sRPE,
           rpe: garminRPE,        // systemic RPE (Garmin) → used for sRPE + autonomic fatigue
           hevyRPE: hevyAvgRPE,   // local RPE (Hevy sets) → used for muscular stimulus
@@ -3666,7 +3470,6 @@ function getWeeklyVolForOffset(offset){
     });
   });
   return vol;
-  safe(buildWeeklyAdaptationSnapshot,'wsnap');
 }
 function changeWeek(dir){S.weekOffset=(S.weekOffset||0)+dir;if(S.weekOffset>0)S.weekOffset=0;updateWeekSelector();renderMAV();renderWeekZones();}
 function updateWeekSelector(){const offset=S.weekOffset||0;const {start,end}=getWeekBounds(offset);const fmt=d=>d.toLocaleDateString('es-ES',{day:'numeric',month:'short'});const lEl=safeDOM('weekLabel'),nBtn=safeDOM('weekNextBtn'),nEl=safeDOM('mavWeekNote');if(lEl)lEl.textContent=offset===0?'Esta semana':offset===-1?'Semana pasada':`${fmt(start)} – ${fmt(end)}`;if(nBtn)nBtn.style.opacity=offset>=0?'0.3':'1';if(nEl)nEl.textContent=offset===0?'':`${fmt(start)} – ${fmt(end)}`;const mT=safeDOM('mavBarsTitle');if(mT)mT.textContent=offset===0?'Volumen semana':`Volumen · ${fmt(start)}`;}
@@ -4325,209 +4128,6 @@ function DecisionEngine(fatigue, hrv, muscleFatigue, interference, metrics, prog
   };
 }
 
-
-// ══ WEEKLY ADAPTATION SNAPSHOT ══
-// Purpose: Store HOW the body responded to training, not what the training was.
-// Hevy stores the workouts. ATLAS stores the adaptation response.
-// Format: context → stimulus → fatigue → performance change
-// Runs on week reset and on demand.
-// Storage: localStorage 'atlas_weekly_v1' (separate from main state)
-
-function getWeekKey(){
-  var d = new Date();
-  var jan1 = new Date(d.getFullYear(), 0, 1);
-  var week = Math.ceil(((d - jan1) / 864e5 + jan1.getDay() + 1) / 7);
-  return d.getFullYear() + '-W' + String(week).padStart(2,'0');
-}
-
-function buildWeeklyAdaptationSnapshot(){
-  var weekKey = getWeekKey();
-  var d = new Date();
-  var startDate = new Date(d);
-  startDate.setDate(d.getDate() - d.getDay() + 1); // Monday
-  var startStr = startDate.toISOString().split('T')[0];
-
-  // ── Muscle-level adaptation ──
-  var muscles = {};
-  var mavData = S._mav ? S._mav.muscles : null;
-  var mfData  = S._muscleFatigue || {};
-  var effData = S._effectiveSets ? S._effectiveSets.muscles : null;
-
-  var muscleList = ['Cuádriceps','Isquiotibiales','Glúteo','Gemelos/Sóleo',
-                    'Pectoral','Dorsal','Deltoides','Bíceps','Tríceps','Aductores','Core'];
-
-  muscleList.forEach(function(m) {
-    var directSets = safeNum(S.weeklyVol && S.weeklyVol[m], 0);
-    var mf = mfData[m];
-    var fatigue = mf && typeof mf === 'object' ? safeNum(mf.value, 0) : safeNum(mf, 0);
-    var effSets = effData && effData[m] ? safeNum(effData[m].effective, 0) : 0;
-
-    // MAV state
-    var mavState = 'below';
-    if (mavData && mavData[m]) {
-      var mv = mavData[m];
-      if (directSets >= mv.effectiveMRV) mavState = 'above';
-      else if (directSets >= mv.mev) mavState = mv.effectiveMAV && directSets >= mv.effectiveMAV ? 'inside' : 'below-mav';
-    }
-
-    // e1RM change for muscles with tracked exercises
-    var e1rmChange = 0;
-    if (S._progression && S._progression.exTrends) {
-      var exForMuscle = Object.values(S._progression.exTrends).filter(function(t) {
-        return t.primaryMuscle === m || (t.muscles && t.muscles.indexOf(m) >= 0);
-      });
-      if (exForMuscle.length) {
-        e1rmChange = Math.round(exForMuscle.reduce(function(s,t){return s+safeNum(t.pctChange);},0) / exForMuscle.length * 10) / 10;
-      }
-    }
-
-    // Readiness average this week (from logs)
-    var weekLogs = safeArr(S.logs).filter(function(l) {
-      return l.date && l.context && l.context.readiness != null;
-    }).slice(0, 7);
-    var readinessAvg = weekLogs.length ?
-      Math.round(weekLogs.reduce(function(s,l){return s+safeNum(l.context.readiness);},0) / weekLogs.length) : null;
-
-    // Average RIR from Hevy sessions this week for this muscle
-    var rirVals = [];
-    safeArr(S._hevyRecent).filter(function(s){
-      return s.isThisWeek && s.muscleSets && safeNum(s.muscleSets[m])>=2;
-    }).forEach(function(sess){
-      safeArr(sess.exercises).forEach(function(ex){
-        var exData = getExDB(ex.title||'');
-        if(!exData) return;
-        if(exData.p.indexOf(m)<0) return;
-        safeArr(ex.sets).forEach(function(st){
-          var rpe = safeNum(st.rpe||st.rpe_rating||0);
-          if(rpe>0) rirVals.push(Math.max(0, 10-rpe));
-        });
-      });
-    });
-    var avgRIR = rirVals.length ? Math.round(rirVals.reduce(function(a,b){return a+b;},0)/rirVals.length*10)/10 : null;
-
-    // Stimulus/Fatigue ratio for this muscle
-    // stimulus = effectiveSets (quality-weighted), fatigue = local fatigue %
-    var sfRatio = (effSets > 0 && fatigue > 0) ? Math.round(effSets / (fatigue/100) * 10) / 10 : null;
-
-    // Progression velocity — % e1RM change weighted across exercises for this muscle
-    var progVelocity = e1rmChange; // already % change
-
-    // Plateau detection — weeks without improvement
-    var plateauWeeks = 0;
-    try {
-      var prevSnaps = JSON.parse(localStorage.getItem('atlas_weekly_v1')||'[]');
-      plateauWeeks = 0;
-      for(var pi=0; pi<prevSnaps.length && pi<12; pi++){
-        var prev = prevSnaps[pi];
-        if(prev && prev.muscles && prev.muscles[m] && safeNum(prev.muscles[m].e1rmChange) <= 0.5) {
-          plateauWeeks++;
-        } else break;
-      }
-    } catch(e){}
-
-    muscles[m] = {
-      directSets: directSets,
-      effectiveSets: Math.round(effSets * 10) / 10,
-      fatigue: Math.round(fatigue),
-      mavState: mavState,
-      e1rmChange: e1rmChange,
-      readinessAvg: readinessAvg,
-      avgRIR: avgRIR,
-      sfRatio: sfRatio,
-      progressVelocity: progVelocity,
-      plateauWeeks: plateauWeeks
-    };
-  });
-
-  // ── Pattern-level adaptation ──
-  var PATTERNS = {
-    'squat':  ['Cuádriceps','Glúteo'],
-    'hinge':  ['Isquiotibiales','Glúteo'],
-    'push-h': ['Pectoral','Tríceps'],
-    'push-v': ['Deltoides','Tríceps'],
-    'pull-v': ['Dorsal','Bíceps'],
-    'pull-h': ['Dorsal','Bíceps']
-  };
-  var patterns = {};
-  Object.entries(PATTERNS).forEach(function(entry) {
-    var pat = entry[0], ms = entry[1];
-    var totalSets = ms.reduce(function(s,m){return s + safeNum(muscles[m]&&muscles[m].directSets,0);},0);
-    var avgFatigue = Math.round(ms.reduce(function(s,m){return s + safeNum(muscles[m]&&muscles[m].fatigue,0);},0) / ms.length);
-    var avgE1rm = Math.round(ms.reduce(function(s,m){return s + safeNum(muscles[m]&&muscles[m].e1rmChange,0);},0) / ms.length * 10) / 10;
-    patterns[pat] = { sets: totalSets, fatigue: avgFatigue, e1rmChange: avgE1rm };
-  });
-
-  // ── Exercise-level adaptation (top exercises only) ──
-  var exercises = {};
-  if (S._progression && S._progression.exTrends) {
-    Object.entries(S._progression.exTrends)
-      .sort(function(a,b){return b[1].sessions - a[1].sessions;})
-      .slice(0, 12)
-      .forEach(function(entry) {
-        var name = entry[0], t = entry[1];
-        exercises[name] = {
-          sessions: t.sessions,
-          bestE1RM: t.latest,
-          trend: t.pctChange,
-          isStagnant: t.isStagnant || false,
-          plateauWeeks: t.isStagnant ? 1 : 0,
-          avgRPE: t.avgRPE||null,
-          lastSetRPE: t.lastSetRPE||null,
-          rpeDrift: t.rpeDrift||null,
-          ppd: t.ppd||null,
-          ppdLabel: t.ppdLabel||null
-        };
-      });
-  }
-
-  // ── Context averages for the week ──
-  var weekLogsAll = safeArr(S.logs).slice(0, 14);
-  var hrvAvg = null, sleepAvg = null;
-  var hrvVals = weekLogsAll.filter(function(l){return l.hrv||l.context&&l.context.hrv;}).map(function(l){return safeNum(l.hrv||l.context.hrv);});
-  var slpVals = weekLogsAll.filter(function(l){return l.sleep||l.context&&l.context.sleep;}).map(function(l){return safeNum(l.sleep||l.context.sleep);});
-  if (hrvVals.length) hrvAvg = Math.round(hrvVals.reduce(function(a,b){return a+b;},0)/hrvVals.length);
-  if (slpVals.length) sleepAvg = Math.round(slpVals.reduce(function(a,b){return a+b;},0)/slpVals.length*10)/10;
-
-  var snapshot = {
-    weekKey: weekKey,
-    startDate: startDate,
-    muscles: muscles,
-    patterns: patterns,
-    exercises: exercises,
-    context: {
-      hrvAvg: hrvAvg,
-      sleepAvg: sleepAvg,
-      ctl: S.metrics.ctl||null,
-      atl: S.metrics.atl||null,
-      tsb: S.metrics.tsb||null
-    },
-    sessionsLogged: safeArr(S.logs).filter(function(l){return l.date;}).length,
-    recFollowRate: (function(){
-      var recent = safeArr(S.logs).slice(0,10).filter(function(l){return l.recFollow;});
-      var yes = recent.filter(function(l){return l.recFollow==='si';}).length;
-      return recent.length ? Math.round(yes/recent.length*100) : null;
-    }())
-  };
-
-  // Save to separate localStorage key
-  try {
-    var existing = [];
-    var raw = localStorage.getItem('atlas_weekly_v1');
-    if (raw) existing = JSON.parse(raw);
-    if (!Array.isArray(existing)) existing = [];
-    // Replace current week if exists, else prepend
-    var idx = existing.findIndex(function(s){return s.weekKey === weekKey;});
-    if (idx >= 0) existing[idx] = snapshot;
-    else existing.unshift(snapshot);
-    // Keep last 52 weeks
-    existing = existing.slice(0, 52);
-    localStorage.setItem('atlas_weekly_v1', JSON.stringify(existing));
-  } catch(e) { console.error('weekly snapshot:', e.message); }
-
-  S._weeklySnap = snapshot;
-  return snapshot;
-}
-
 function safe(fn,name){try{fn();}catch(e){console.error(name+':',e.message);}}
 function showS(id){
   document.querySelectorAll('.screen').forEach(function(s){s.classList.remove('active');});
@@ -4556,7 +4156,7 @@ function init(){
   S.weekDays.forEach(day=>{document.querySelectorAll('.wd').forEach(el=>{if(el.querySelector('.wd-n')?.textContent===day)el.classList.add('done');});});
   const sc=safeDOM('wkScore');if(sc)sc.textContent=S.weekDays.size+'/6';
   if(S.metrics.hrv7?.length){S._wellnessHistory=S.metrics.hrv7.map(d=>({id:d.date,hrv:d.v,restingHR:d.rhr,sleepSecs:d.sleep?safeNum(d.sleep)*3600:null}));}
-  runEngines();updateMetrics();renderHRV();renderMAV();renderLog();renderActivities();renderWeekZones();safe(buildWeeklyAdaptationSnapshot,'wsnap');
+  runEngines();updateMetrics();renderHRV();renderMAV();renderLog();renderActivities();renderWeekZones();
   // Auto-sync if keys saved — restore session without re-entering keys
   if(S.int.aid&&S.int.key){setTimeout(()=>fetchIntervals(),800);}
   if(S.hevy?.key){setTimeout(()=>fetchHevy(),1200);}
