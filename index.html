@@ -3539,6 +3539,32 @@ function showValidation(){
   }else{html+='<div style="font-size:11px;color:var(--fg4);">Necesita '+(opp.need||2)+' ventanas más</div>';}
   html+='</div>';
 
+  // P2: Exercise Response — profitability classification
+  var exResp=ExerciseResponseEngine();
+  html+='<div style="padding:10px;background:var(--bg3);border-radius:8px;margin-top:8px;">';
+  html+='<div style="font-size:11px;color:var(--fg3);font-family:monospace;margin-bottom:6px;">RENTABILIDAD POR EJERCICIO</div>';
+  if(exResp.available){
+    exResp.exercises.forEach(function(e){
+      html+='<div style="display:flex;justify-content:space-between;font-size:11px;padding:2px 0;"><span style="color:var(--fg2);">'+e.name.slice(0,24)+'</span><span style="color:'+e.col+';">'+e.label+' ('+(e.gain>=0?'+':'')+e.gain+'%)</span></div>';
+    });
+  }else{html+='<div style="font-size:11px;color:var(--fg4);">Necesita '+(exResp.need||'más datos')+'</div>';}
+  html+='</div>';
+
+  // P1: Observed MAV/MRV
+  var obsMAV=ObservedMAVEngine();
+  html+='<div style="padding:10px;background:var(--bg3);border-radius:8px;margin-top:8px;">';
+  html+='<div style="font-size:11px;color:var(--fg3);font-family:monospace;margin-bottom:6px;">MAV/MRV OBSERVADO (TU CUERPO)</div>';
+  if(obsMAV.available){
+    var anyM=false;
+    Object.keys(obsMAV.muscles).forEach(function(m){
+      var o=obsMAV.muscles[m];
+      if(o.observedMAV||o.observedMRV){anyM=true;html+='<div style="font-size:11px;color:var(--fg2);padding:2px 0;">'+m+': MAV~'+(o.observedMAV||'?')+' MRV~'+(o.observedMRV||'?')+' <span style="color:var(--fg4);">('+o.dataPoints+'sem)</span></div>';}
+    });
+    if(!anyM)html+='<div style="font-size:11px;color:var(--fg4);">Acumulando — aún sin patrón claro</div>';
+    html+='<div style="font-size:10px;color:var(--fg4);margin-top:4px;">'+obsMAV.weeks+' semanas de datos · vs tablas estáticas</div>';
+  }else{html+='<div style="font-size:11px;color:var(--fg4);">Necesita '+(obsMAV.need||4)+' semanas más ('+(obsMAV.weeks||0)+'/4)</div>';}
+  html+='</div>';
+
   panel.innerHTML=html;
 }
 function exportAllData(){
@@ -4395,6 +4421,59 @@ function OpportunityValidationEngine(){
     available:true,total:windows.length,
     validRate:total?Math.round(validated/total*100):null
   };
+}
+
+// ══ P1: OBSERVED MAV/MRV ENGINE ══
+// Learns real MAV from weekly snapshots. Does NOT replace static tables until enough data.
+// Logic: find volume that produced best e1RM gain with acceptable fatigue (Israetel framework)
+function ObservedMAVEngine(){
+  var snaps=[];try{snaps=JSON.parse(localStorage.getItem('atlas_weekly_v1')||'[]');}catch(e){}
+  if(snaps.length<4)return{available:false,need:4-snaps.length,weeks:snaps.length};
+  var muscleList=['Cuádriceps','Isquiotibiales','Glúteo','Gemelos/Sóleo','Pectoral','Dorsal','Deltoides','Bíceps','Tríceps'];
+  var observed={};
+  muscleList.forEach(function(m){
+    var points=snaps.filter(function(s){return s.muscles&&s.muscles[m]&&s.muscles[m].directSets>0;}).map(function(s){return{sets:s.muscles[m].directSets,gain:safeNum(s.muscles[m].e1rmChange),fatigue:safeNum(s.muscles[m].fatigue)};});
+    if(points.length<4)return;
+    // Best week: highest e1RM gain
+    var best=points.slice().sort(function(a,b){return b.gain-a.gain;})[0];
+    // Weeks where gain stalled but volume was high = approaching MRV
+    var stalled=points.filter(function(p){return p.gain<=0.5&&p.fatigue>55;});
+    var avgStallSets=stalled.length?Math.round(stalled.reduce(function(s,p){return s+p.sets;},0)/stalled.length):null;
+    observed[m]={
+      observedMAV:best.gain>0.5?best.sets:null,
+      observedMRV:avgStallSets,
+      dataPoints:points.length,
+      bestGainSets:best.sets,
+      bestGain:best.gain
+    };
+  });
+  return{available:true,weeks:snaps.length,muscles:observed};
+}
+
+// ══ P2: EXERCISE RESPONSE ENGINE ══
+// Classifies exercises by profitability: e1RM gain vs fatigue cost. Real data, not generic rankings.
+function ExerciseResponseEngine(){
+  if(!S._progression||!S._progression.exTrends)return{available:false};
+  var ex=S._progression.exTrends;
+  var names=Object.keys(ex).filter(function(n){return ex[n].sessions>=3;});
+  if(names.length<2)return{available:false,need:'3+ sesiones por ejercicio'};
+  var classified=[];
+  names.forEach(function(n){
+    var t=ex[n];
+    var gain=safeNum(t.pctChange);
+    var fatCost=safeNum(t.fatigueCost,0);
+    var rpeDrift=safeNum(t.rpeDrift,0);
+    // Profitability: high gain + low fatigue cost + stable/declining RPE = very profitable
+    var score=gain*2-(fatCost>0?fatCost*0.3:0)-(rpeDrift>0?rpeDrift*2:0);
+    var label,col;
+    if(gain>1.5&&rpeDrift<=0){label='Muy rentable';col='var(--g)';}
+    else if(gain>0.5){label='Rentable';col='var(--c)';}
+    else if(gain>=-0.5){label='Neutro';col='var(--y)';}
+    else{label='Poco rentable';col='var(--r)';}
+    classified.push({name:n,label:label,col:col,gain:gain,sessions:t.sessions,score:score});
+  });
+  classified.sort(function(a,b){return b.score-a.score;});
+  return{available:true,exercises:classified.slice(0,15)};
 }
 function safe(fn,name){try{fn();}catch(e){console.error(name+':',e.message);}}
 function showS(id){
