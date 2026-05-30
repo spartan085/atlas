@@ -246,7 +246,15 @@ textarea.field{resize:vertical;min-height:60px;}
           <div><label class="fg-label">DOMS tren sup (0-10)</label><input class="field" type="number" id="domsUpper" placeholder="0" min="0" max="10" oninput="runEngines()"></div>
           <div><label class="fg-label">DOMS tren inf (0-10)</label><input class="field" type="number" id="domsLower" placeholder="0" min="0" max="10" oninput="runEngines()"></div>
         </div>
-        <div class="fg"><label class="fg-label">Dolor o molestia</label><input class="field" type="text" id="painToday" placeholder="ej. lumbar leve..."></div>
+        <div class="fg2">
+          <div><label class="fg-label">Lumbar (0-10)</label><input class="field" type="number" id="lumbarToday" placeholder="0" min="0" max="10" oninput="runEngines()"></div>
+          <div><label class="fg-label">Aquiles (0-10)</label><input class="field" type="number" id="achillesToday" placeholder="0" min="0" max="10" oninput="runEngines()"></div>
+        </div>
+        <div class="fg2">
+          <div><label class="fg-label">Body Battery</label><input class="field" type="number" id="bbToday" placeholder="0-100" min="0" max="100" oninput="runEngines()"></div>
+          <div><label class="fg-label">Energía (0-10)</label><input class="field" type="number" id="energyToday" placeholder="0-10" min="0" max="10" oninput="runEngines()"></div>
+        </div>
+        <div class="fg"><label class="fg-label">Dolor / molestia</label><input class="field" type="text" id="painToday" placeholder="ej. lumbar leve..."></div>
         <div class="fg"><label class="fg-label">Sensaciones + notas</label><textarea class="field" id="notesToday" placeholder="Piernas cargadas, espalda bien..."></textarea></div>
         <button class="btn btn-p btn-full" onclick="analyzeDay()">Analizar día con IA</button>
       </div>
@@ -487,7 +495,15 @@ textarea.field{resize:vertical;min-height:60px;}
           <div><label class="fg-label">Rodilla post (0-10)</label><input class="field" type="number" id="logKnee" placeholder="0" min="0" max="10"></div>
         </div>
         <div class="fg"><label class="fg-label">Notas</label><textarea class="field" id="logNotes" placeholder="¿Qué mejoró? ¿Alguna molestia?..."></textarea></div>
-        <button class="btn btn-p btn-full" onclick="saveLog()">Guardar sesión</button>
+        <div class="fg" style="margin-bottom:10px;">
+  <label class="fg-label">¿Seguiste la recomendación ATLAS?</label>
+  <div style="display:flex;gap:8px;margin-top:6px;">
+    <button onclick="setRecFollow('si')" id="rf-si" style="flex:1;padding:7px;border-radius:8px;font-size:12px;background:var(--bg3);color:var(--fg3);border:1px solid var(--line);cursor:pointer;">✓ Sí</button>
+    <button onclick="setRecFollow('parcial')" id="rf-parcial" style="flex:1;padding:7px;border-radius:8px;font-size:12px;background:var(--bg3);color:var(--fg3);border:1px solid var(--line);cursor:pointer;">~ Parcial</button>
+    <button onclick="setRecFollow('no')" id="rf-no" style="flex:1;padding:7px;border-radius:8px;font-size:12px;background:var(--bg3);color:var(--fg3);border:1px solid var(--line);cursor:pointer;">✗ No</button>
+  </div>
+</div>
+<button class="btn btn-p btn-full" onclick="saveLog()">Guardar sesión</button>
       </div>
     </div>
     <div class="card" style="margin-top:10px;">
@@ -522,6 +538,10 @@ textarea.field{resize:vertical;min-height:60px;}
           <button class="btn btn-g btn-sm" onclick="disconnectIntervals()">Borrar</button>
         </div>
         <button class="btn btn-g btn-full btn-sm" style="margin-top:8px;" onclick="showDebug()">🔍 Debug datos crudos</button>
+        <button class="btn btn-g btn-full btn-sm" style="margin-top:8px;" onclick="exportAllData()">📤 Exportar datos (JSON)</button>
+        <button class="btn btn-g btn-full btn-sm" style="margin-top:8px;" onclick="showValidation()">📊 Validación ATLAS</button>
+        <div id="validationPanel" style="display:none;margin-top:10px;"></div>
+        <button class="btn btn-g btn-full btn-sm" style="margin-top:8px;" onclick="exportAllData()">📤 Exportar datos (JSON)</button>
       </div>
     </div>
     <div class="card">
@@ -1853,9 +1873,12 @@ function ProgressionEngine(workouts, hevyRecent, muscleFatigue, fatigue, metrics
 
       // Get best set (highest e1RM) for this exercise in this session
       let bestE1RM = null, bestKg = 0, bestReps = 0;
+      var _rpeVals = [];
       (ex.sets||[]).forEach(s => {
         const kg = safeNum(s.weight_kg||s.weight||0);
         const reps = safeInt(s.reps||0);
+        var _rpe = safeNum(s.rpe||s.rpe_rating||0);
+        if(_rpe > 0) _rpeVals.push(_rpe);
         if(!kg||!reps) return;
         const e1rm = calc1RM(kg, reps);
         if(e1rm > (bestE1RM||0)){ bestE1RM = e1rm; bestKg = kg; bestReps = reps; }
@@ -1863,9 +1886,12 @@ function ProgressionEngine(workouts, hevyRecent, muscleFatigue, fatigue, metrics
 
       if(!bestE1RM) return;
       if(!exHistory[name]) exHistory[name] = [];
+      var _avgRPE = _rpeVals.length ? Math.round(_rpeVals.reduce(function(a,b){return a+b;},0)/_rpeVals.length*10)/10 : null;
+      var _lastRPE = _rpeVals.length ? _rpeVals[_rpeVals.length-1] : null;
       exHistory[name].push({
         date, e1rm: bestE1RM, kg: bestKg, reps: bestReps,
-        conf: e1RMConfidence(bestReps, null)
+        conf: e1RMConfidence(bestReps, null),
+        avgRPE: _avgRPE, lastSetRPE: _lastRPE
       });
     });
   });
@@ -1901,10 +1927,27 @@ function ProgressionEngine(workouts, hevyRecent, muscleFatigue, fatigue, metrics
     // Stagnation detection: stable for 4+ sessions = plateau
     const isStagnant = trend === 'stable' && recent.length >= 4;
 
+    // Multi-window RPE + PPD
+    var _allRPE=recent.filter(function(s){return s.avgRPE!=null;}).map(function(s){return s.avgRPE;});
+    var _rpeCur=recent[recent.length-1]?recent[recent.length-1].avgRPE:null;
+    var _rpeLast=recent[recent.length-1]?recent[recent.length-1].lastSetRPE:null;
+    function _rAvg(a,n){var sl=a.slice(-n).filter(function(v){return v!=null;});return sl.length?Math.round(sl.reduce(function(x,y){return x+y;},0)/sl.length*10)/10:null;}
+    var _avg3=_rAvg(_allRPE,3),_avg5=_rAvg(_allRPE,5),_avg10=_rAvg(_allRPE,10);
+    var _drift=(_rpeCur!=null&&_avg5!=null)?Math.round((_rpeCur-_avg5)*10)/10:((_rpeCur!=null&&_avg3!=null)?Math.round((_rpeCur-_avg3)*10)/10:null);
+    var _ppd=null,_ppdLabel=null;
+    if(pctChange!=null&&_drift!=null){
+      if(pctChange>1&&_drift<-0.5){_ppd='strong';_ppdLabel='Adaptación fuerte';}
+      else if(pctChange>0&&_drift>0.5){_ppd='costly';_ppdLabel='Progresión costosa';}
+      else if(Math.abs(pctChange)<=1&&_drift>0.5){_ppd='fatigue';_ppdLabel='Acumulación fatiga';}
+      else if(pctChange<-1&&_drift>0.5){_ppd='negative';_ppdLabel='Respuesta negativa';}
+      else if(pctChange>0&&_drift<=0){_ppd='clean';_ppdLabel='Progresión limpia';}
+    }
     exTrends[name] = {
       latest: latest.e1rm, baseline, slope: Math.round(slope*10)/10,
       pctChange, trend, isStagnant, sessions: recent.length,
-      lastKg: latest.kg, lastReps: latest.reps
+      lastKg: latest.kg, lastReps: latest.reps,
+      avgRPE:_rpeCur, lastSetRPE:_rpeLast, avgRPE3:_avg3, avgRPE5:_avg5, avgRPE10:_avg10,
+      rpeDrift:_drift, ppd:_ppd, ppdLabel:_ppdLabel
     };
   });
 
@@ -2633,7 +2676,8 @@ function renderE1RMPanel(){
       </div>
       <div style="text-align:right;flex-shrink:0;">
         <div style="font-family:'Geist Mono',monospace;color:var(--fg);">${t.latest}kg e1RM</div>
-        <div style="font-family:'Geist Mono',monospace;font-size:10px;color:${trendCol};">${trendIcon} ${t.pctChange>=0?'+':''}${t.pctChange}% · ${t.slope>=0?'+':''}${t.slope}kg/ses</div>
+        <div style="font-family:'Geist Mono',monospace;font-size:10px;color:${trendCol};">${trendIcon} ${t.pctChange>=0?'+':''}${t.pctChange}%${t.avgRPE?' · RPE '+t.avgRPE:''}</div>
+          ${t.ppdLabel?`<div style="font-size:9px;color:${t.ppd==='strong'||t.ppd==='clean'?'var(--g)':t.ppd==='negative'?'var(--r)':'var(--y)'};">${t.ppdLabel}${t.rpeDrift!=null?' (drift '+(t.rpeDrift>0?'+':'')+t.rpeDrift+')':''}</div>`:''}
       </div>
     </div>`;
   }).join('');
@@ -3174,7 +3218,18 @@ function saveLog(){
   if(!sess){toast('Sin sesión','Selecciona una sesión','⚠️');return;}
   const srpe=dur&&rpe?Math.round(safeNum(rpe)*safeNum(dur)):0;
   const today=new Date();const ds=`${String(today.getDate()).padStart(2,'0')}/${String(today.getMonth()+1).padStart(2,'0')}/${today.getFullYear()}`;
-  S.logs.unshift({sess,dur,rpe,knee,notes,srpe,date:ds});
+  var domsUp=safeNum(safeDOM('domsUpper')&&safeDOM('domsUpper').value)||null;
+  var domsLow=safeNum(safeDOM('domsLower')&&safeDOM('domsLower').value)||null;
+  var lumbarV=safeNum(safeDOM('lumbarToday')&&safeDOM('lumbarToday').value)||null;
+  var achillesV=safeNum(safeDOM('achillesToday')&&safeDOM('achillesToday').value)||null;
+  var painV=(safeDOM('painToday')&&safeDOM('painToday').value)||null;
+  var sessMF={};if(S._muscleFatigue){Object.keys(S._muscleFatigue).forEach(function(m){var v=S._muscleFatigue[m];sessMF[m]=typeof v==='object'?Math.round(safeNum(v.value)):Math.round(safeNum(v));});}
+  S.logs.unshift({sess,dur,rpe,srpe,date:ds,knee:knee||null,notes:notes||null,
+    domsUpper:domsUp,domsLower:domsLow,lumbar:lumbarV,achilles:achillesV,pain:painV,
+    hrv:S.metrics.hrv||null,sleep:S.metrics.sleep||null,rhr:S.metrics.rhr||null,weight:S.metrics.weight||null,
+    readiness:S._readiness?S._readiness.overall:null,fatigue:S._fatigue?Math.round(S._fatigue.systemic):null,
+    muscleFatigue:Object.keys(sessMF).length?sessMF:null,
+    recFollow:_recFollow||null,atlasRec:S._decision?S._decision.recommendation:null});
   const sm={'D1':{'Pectoral':8,'Deltoides':6,'Tríceps':5,'Core':3},'D2':{'Cuádriceps':7,'Glúteo':5,'Aductores':3,'Gemelos/Sóleo':4},'D4':{'Dorsal':7,'Bíceps':5,'Tríceps':2,'Core':3},'D5':{'Isquiotibiales':7,'Glúteo':7,'Gemelos/Sóleo':3,'Aductores':2}};
   const k=['D1','D2','D4','D5'].find(k=>sess.includes(k));
   if(k)Object.entries(sm[k]).forEach(([m,s])=>{S.weeklyVol[m]=(S.weeklyVol[m]||0)+s;});
@@ -3204,7 +3259,7 @@ function saveLog(){
   });
   toast('Sesión guardada',`${sess} · sRPE ${srpe}`,'✅');
   ['logDur','logRPE','logKnee','logNotes'].forEach(id=>{const e=safeDOM(id);if(e)e.value='';});
-  safeDOM('logSess').value='';calcSRPE();
+  if(safeDOM('logSess'))safeDOM('logSess').value='';_recFollow=null;setRecFollow(null);calcSRPE();
 }
 
 function changeLogWeek(dir){S.logWeekOffset=(S.logWeekOffset||0)+dir;if(S.logWeekOffset>0)S.logWeekOffset=0;renderLog();}
@@ -3305,7 +3360,7 @@ async function fetchHevy(){
       const isThisWeek=wDate>=weekStart;
       const age=now-wDate;
       const isRecent=age<7*24*3600000; // 7 days for F2 weekly counting (was 72h)
-      const muscleSets={};// key: muscle, value: set count (using ExDB)
+      const muscleSets={};const primaryMuscleSets={};// key: muscle, value: set count
 
       (w.exercises||[]).forEach(ex=>{
         const exName=ex.title||ex.exercise_template_title||ex.name||'';
@@ -3314,7 +3369,7 @@ async function fetchHevy(){
         const nSets=sets.length;
         if(!nSets)return;
         if(exData){
-          exData.p.forEach(m=>{muscleSets[m]=(muscleSets[m]||0)+nSets;});
+          exData.p.forEach(m=>{muscleSets[m]=(muscleSets[m]||0)+nSets;primaryMuscleSets[m]=(primaryMuscleSets[m]||0)+nSets;});
           exData.s.forEach(m=>{muscleSets[m]=(muscleSets[m]||0)+nSets*0.4;});
         }
         // Volume tracking — primary muscles only (Israetel/Schoenfeld standard)
@@ -3394,7 +3449,7 @@ async function fetchHevy(){
         recentHevySess.push({
           date:wDate, age,
           hasUpper:isUpperDom, hasLower:isLowerDom,
-          muscleSets, muscles,
+          muscleSets, primaryMuscleSets, muscles,
           sRPE,
           rpe: garminRPE,        // systemic RPE (Garmin) → used for sRPE + autonomic fatigue
           hevyRPE: hevyAvgRPE,   // local RPE (Hevy sets) → used for muscular stimulus
@@ -3444,6 +3499,86 @@ function manualUpdate(){
   const pain=safeDOM('manPain')?.value;
   if(pain){const e=safeDOM('painToday');if(e)e.value=pain;}
   runEngines();updateMetrics();
+}
+
+
+function showValidation(){
+  var panel=safeDOM('validationPanel');if(!panel)return;
+  if(panel.style.display==='none'){panel.style.display='block';}else{panel.style.display='none';return;}
+  var audit=DecisionAuditEngine();
+  var scoring=ValidationScoringEngine();
+  var opp=OpportunityValidationEngine();
+  var html='';
+
+  // Decision audit
+  html+='<div style="padding:10px;background:var(--bg3);border-radius:8px;margin-bottom:8px;">';
+  html+='<div style="font-size:11px;color:var(--fg3);font-family:monospace;margin-bottom:6px;">ADHERENCIA A RECOMENDACIONES</div>';
+  if(audit.available){
+    html+='<div style="font-size:12px;color:var(--fg2);">Seguidas: <span style="color:var(--g);">'+audit.followRate+'%</span> · Parcial: <span style="color:var(--y);">'+audit.partialRate+'%</span> · Ignoradas: <span style="color:var(--r);">'+audit.ignoreRate+'%</span></div>';
+    html+='<div style="font-size:10px;color:var(--fg4);margin-top:4px;">Basado en '+audit.total+' sesiones</div>';
+    if(audit.ignoredRecs.length){html+='<div style="font-size:10px;color:var(--y);margin-top:6px;">⚠ Ignoras a menudo: '+audit.ignoredRecs.join(' · ')+'</div>';}
+  }else{html+='<div style="font-size:11px;color:var(--fg4);">Registra sesiones con recFollow para ver datos</div>';}
+  html+='</div>';
+
+  // Validation scoring
+  html+='<div style="padding:10px;background:var(--bg3);border-radius:8px;margin-bottom:8px;">';
+  html+='<div style="font-size:11px;color:var(--fg3);font-family:monospace;margin-bottom:6px;">CALIDAD DE PREDICCIÓN</div>';
+  if(scoring.available){
+    html+='<div style="font-size:12px;color:var(--fg2);">Acertadas: <span style="color:var(--g);">'+scoring.accurateRate+'%</span></div>';
+    html+='<div style="font-size:11px;color:var(--fg3);margin-top:3px;">Sobreprotectoras: '+scoring.overprotectiveRate+'% · Fatiga no detectada: '+scoring.missedRate+'%</div>';
+    html+='<div style="font-size:10px;color:var(--fg4);margin-top:4px;">'+scoring.total+' sesiones evaluadas</div>';
+  }else{html+='<div style="font-size:11px;color:var(--fg4);">Necesita '+(scoring.need||3)+' sesiones más</div>';}
+  html+='</div>';
+
+  // Opportunity validation
+  html+='<div style="padding:10px;background:var(--bg3);border-radius:8px;">';
+  html+='<div style="font-size:11px;color:var(--fg3);font-family:monospace;margin-bottom:6px;">VENTANAS DE PROGRESIÓN</div>';
+  if(opp.available){
+    html+='<div style="font-size:12px;color:var(--fg2);">Validadas: <span style="color:'+(opp.validRate>=60?'var(--g)':'var(--y)')+';">'+(opp.validRate!=null?opp.validRate+'%':'—')+'</span></div>';
+    html+='<div style="font-size:10px;color:var(--fg4);margin-top:4px;">'+opp.total+' ventanas detectadas · ¿rendiste bien cuando ATLAS lo sugirió?</div>';
+  }else{html+='<div style="font-size:11px;color:var(--fg4);">Necesita '+(opp.need||2)+' ventanas más</div>';}
+  html+='</div>';
+
+  panel.innerHTML=html;
+}
+function exportAllData(){
+  try{
+    var payload={
+      exported:new Date().toISOString(),
+      version:'ATLAS v6.0 Validation',
+      profile:'Carlos',
+      metrics:S.metrics||{},
+      logs:S.logs||[],
+      weeklyVol:S.weeklyVol||{},
+      currentMeso:S.currentMeso||1,
+      weeklySnapshots:(function(){try{return JSON.parse(localStorage.getItem('atlas_weekly_v1')||'[]');}catch(e){return [];}})(),
+      rvlSnapshots:(function(){try{return JSON.parse(localStorage.getItem('atlas_rvl_v1')||'[]');}catch(e){return [];}})()
+    };
+    var blob=new Blob([JSON.stringify(payload,null,2)],{type:'application/json'});
+    var url=URL.createObjectURL(blob);
+    var a=document.createElement('a');
+    a.href=url;
+    a.download='atlas_export_'+new Date().toISOString().split('T')[0]+'.json';
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    setTimeout(function(){URL.revokeObjectURL(url);},100);
+    toast('Datos exportados',payload.logs.length+' logs · '+payload.weeklySnapshots.length+' semanas','✅');
+  }catch(e){
+    toast('Error exportando',e.message,'⚠️');
+  }
+}
+
+function exportAllData(){
+  try{
+    var payload={exported:new Date().toISOString(),version:'ATLAS v6.0 Validation',profile:'Carlos',metrics:S.metrics||{},logs:S.logs||[],weeklyVol:S.weeklyVol||{},currentMeso:S.currentMeso||1,
+      weeklySnapshots:(function(){try{return JSON.parse(localStorage.getItem('atlas_weekly_v1')||'[]');}catch(e){return [];}})(),
+      rvlSnapshots:(function(){try{return JSON.parse(localStorage.getItem('atlas_rvl_v1')||'[]');}catch(e){return [];}})()};
+    var blob=new Blob([JSON.stringify(payload,null,2)],{type:'application/json'});
+    var url=URL.createObjectURL(blob);var a=document.createElement('a');a.href=url;a.download='atlas_export_'+new Date().toISOString().split('T')[0]+'.json';document.body.appendChild(a);a.click();document.body.removeChild(a);
+    setTimeout(function(){URL.revokeObjectURL(url);},100);
+    toast('Datos exportados',payload.logs.length+' logs · '+payload.weeklySnapshots.length+' semanas','✅');
+  }catch(e){toast('Error',e.message,'⚠️');}
 }
 function showDebug(){const el=safeDOM('debugPanel'),c=safeDOM('debugContent');if(!el||!c)return;el.style.display='block';c.textContent=JSON.stringify({raw_wellness:S._rawWellness,hrv_engine:S._hrv,fatigue:{...S._fatigue,signals:Object.fromEntries(Object.entries(S._fatigue?.signals||{}).slice(0,8))},muscle_fatigue:S._muscleFatigue,interference:S._interference,mav:S._mav?{global:S._mav.global,reasons:S._mav.reasons}:null,recs:S._recs?.actions?.map(a=>a.id),hevy_recent:S._hevyRecent?.map(s=>({name:s.name,muscles:s.muscles,hasUpper:s.hasUpper,hasLower:s.hasLower,muscleSets:s.muscleSets,sRPE:s.sRPE,rpe:s.rpe}))},null,2);}
 
@@ -4128,6 +4263,139 @@ function DecisionEngine(fatigue, hrv, muscleFatigue, interference, metrics, prog
   };
 }
 
+
+var _recFollow=null;
+function setRecFollow(val){
+  _recFollow=val;
+  ['si','parcial','no'].forEach(function(v){
+    var btn=safeDOM('rf-'+v);if(!btn)return;
+    var active=v===val;
+    btn.style.background=active?(v==='si'?'var(--g)':v==='parcial'?'var(--y)':'var(--r)'):'var(--bg3)';
+    btn.style.color=active?'#000':'var(--fg3)';
+    btn.style.fontWeight=active?'600':'400';
+  });
+}
+
+function getWeekKey(){var d=new Date();var jan1=new Date(d.getFullYear(),0,1);var wk=Math.ceil(((d-jan1)/864e5+jan1.getDay()+1)/7);return d.getFullYear()+'-W'+String(wk).padStart(2,'0');}
+function buildWeeklyAdaptationSnapshot(){
+  var weekKey=getWeekKey();
+  var muscleList=['Cuádriceps','Isquiotibiales','Glúteo','Gemelos/Sóleo','Pectoral','Dorsal','Deltoides','Bíceps','Tríceps','Aductores','Core'];
+  var mfData=S._muscleFatigue||{};var effData=S._effectiveSets?S._effectiveSets.muscles:null;
+  var muscles={};
+  muscleList.forEach(function(m){
+    var directSets=safeNum(S.weeklyVol&&S.weeklyVol[m],0);
+    var mf=mfData[m];var fatigue=mf&&typeof mf==='object'?safeNum(mf.value,0):safeNum(mf,0);
+    var effSets=effData&&effData[m]?safeNum(effData[m].effective,0):0;
+    var e1rmChange=0;if(S._progression&&S._progression.exTrends){var ks=Object.keys(S._progression.exTrends).filter(function(n){var t=S._progression.exTrends[n];return t.primaryMuscle===m||(t.muscles&&t.muscles.indexOf(m)>=0);});if(ks.length){e1rmChange=Math.round(ks.reduce(function(s,n){return s+safeNum(S._progression.exTrends[n].pctChange);},0)/ks.length*10)/10;}}
+    var sfRatio=(effSets>0&&fatigue>0)?Math.round(effSets/Math.max(0.25,fatigue/100)*10)/10:null;
+    // avgRIR from Hevy sessions this week for this muscle
+    var rirVals=[];
+    safeArr(S._hevyRecent).filter(function(s){return s.isThisWeek&&s.primaryMuscleSets&&safeNum(s.primaryMuscleSets[m])>=2;}).forEach(function(sess){
+      safeArr(sess.exercises).forEach(function(ex){
+        var ed=getExDB(ex.title||'');if(!ed||ed.p.indexOf(m)<0)return;
+        safeArr(ex.sets).forEach(function(st){var rpe=safeNum(st.rpe||st.rpe_rating||0);if(rpe>0)rirVals.push(Math.max(0,10-rpe));});
+      });
+    });
+    var avgRIR=rirVals.length?Math.round(rirVals.reduce(function(a,b){return a+b;},0)/rirVals.length*10)/10:null;
+    // plateauWeeks: consecutive prior weeks with e1rmChange <= 0.5
+    var plateauWeeks=0;try{var pv=JSON.parse(localStorage.getItem('atlas_weekly_v1')||'[]');for(var pi=0;pi<pv.length&&pi<12;pi++){if(pv[pi]&&pv[pi].muscles&&pv[pi].muscles[m]&&safeNum(pv[pi].muscles[m].e1rmChange)<=0.5)plateauWeeks++;else break;}}catch(e){}
+    var mavState='below';if(S._mav&&S._mav.muscles&&S._mav.muscles[m]){var mv=S._mav.muscles[m];if(directSets>=mv.effectiveMRV)mavState='above';else if(mv.effectiveMAV&&directSets>=mv.effectiveMAV)mavState='inside';else if(directSets>=mv.mev)mavState='below-mav';}
+    muscles[m]={directSets:directSets,effectiveSets:Math.round(effSets*10)/10,fatigue:Math.round(fatigue),e1rmChange:e1rmChange,sfRatio:sfRatio,avgRIR:avgRIR,plateauWeeks:plateauWeeks,mavState:mavState};
+  });
+  var exercises={};if(S._progression&&S._progression.exTrends){Object.keys(S._progression.exTrends).sort(function(a,b){return S._progression.exTrends[b].sessions-S._progression.exTrends[a].sessions;}).slice(0,12).forEach(function(name){var t=S._progression.exTrends[name];exercises[name]={sessions:t.sessions,bestE1RM:t.latest,trend:t.pctChange,isStagnant:t.isStagnant||false,avgRPE3:t.avgRPE3||null,avgRPE5:t.avgRPE5||null,lastSetRPE:t.lastSetRPE||null,ppd:t.ppd||null,ppdLabel:t.ppdLabel||null};});}
+  var rl=safeArr(S.logs).slice(0,10).filter(function(l){return l.recFollow;});
+  var recFollowRate=rl.length?Math.round(rl.filter(function(l){return l.recFollow==='si';}).length/rl.length*100):null;
+  // Running storage (observation only — no scores yet, per directive)
+  var running=null;
+  var acts=safeArr(S.metrics.activities).filter(function(a){var t=a.type||a.sport_type||'';return ['Run','VirtualRun','TrailRun'].indexOf(t)>=0;});
+  if(acts.length){
+    var totalDist=0,totalLoad=0,z=[0,0,0,0,0];
+    acts.forEach(function(a){
+      totalDist+=safeNum(a.distance,0)/1000;
+      totalLoad+=safeNum(a.icu_training_load,0);
+      var zt=a.icu_zone_times||a.icu_hr_zone_times||[];
+      for(var i=0;i<5;i++)z[i]+=safeNum(zt[i],0)/60;
+    });
+    running={runs:acts.length,totalKm:Math.round(totalDist*10)/10,totalLoad:Math.round(totalLoad),
+      zoneMinutes:{z1:Math.round(z[0]),z2:Math.round(z[1]),z3:Math.round(z[2]),z4:Math.round(z[3]),z5:Math.round(z[4])}};
+  }
+  var snapshot={weekKey:weekKey,muscles:muscles,exercises:exercises,patterns:(typeof patterns!=='undefined'?patterns:null),running:running,recFollowRate:recFollowRate};
+  try{var ex=[];var raw=localStorage.getItem('atlas_weekly_v1');if(raw)ex=JSON.parse(raw);if(!Array.isArray(ex))ex=[];var idx=ex.findIndex(function(s){return s.weekKey===weekKey;});if(idx>=0)ex[idx]=snapshot;else ex.unshift(snapshot);localStorage.setItem('atlas_weekly_v1',JSON.stringify(ex.slice(0,52)));}catch(e){}
+  S._weeklySnap=snapshot;
+}
+
+// ══ P5: DECISION AUDIT ENGINE ══
+// Reads recFollow from logs. Answers: does ATLAS help decisions?
+function DecisionAuditEngine(){
+  var logs=safeArr(S.logs).filter(function(l){return l.recFollow;});
+  if(!logs.length)return{available:false};
+  var yes=logs.filter(function(l){return l.recFollow==='si';}).length;
+  var partial=logs.filter(function(l){return l.recFollow==='parcial';}).length;
+  var no=logs.filter(function(l){return l.recFollow==='no';}).length;
+  var total=logs.length;
+  // Which recommendations get ignored most
+  var recMap={};
+  logs.forEach(function(l){
+    if(!l.atlasRec)return;
+    var key=l.atlasRec.slice(0,40);
+    if(!recMap[key])recMap[key]={followed:0,ignored:0};
+    if(l.recFollow==='no')recMap[key].ignored++;else recMap[key].followed++;
+  });
+  var ignoredOften=Object.keys(recMap).filter(function(k){return recMap[k].ignored>recMap[k].followed&&recMap[k].ignored>=2;});
+  return{
+    available:true,total:total,
+    followRate:Math.round(yes/total*100),
+    partialRate:Math.round(partial/total*100),
+    ignoreRate:Math.round(no/total*100),
+    ignoredRecs:ignoredOften.slice(0,3)
+  };
+}
+
+// ══ P2: VALIDATION SCORING ENGINE ══
+// Compares ATLAS recommendation vs actual outcome (RPE, readiness next day)
+function ValidationScoringEngine(){
+  var logs=safeArr(S.logs).filter(function(l){return l.atlasRec&&l.fatigue!=null;});
+  if(logs.length<3)return{available:false,need:3-logs.length};
+  var overprotective=0,accurate=0,missed=0;
+  logs.forEach(function(l){
+    var rec=(l.atlasRec||'').toLowerCase();
+    var rpe=safeNum(l.rpe,0);
+    var wasCautious=rec.indexOf('evita')>=0||rec.indexOf('reduce')>=0||rec.indexOf('recuperación')>=0||rec.indexOf('moderada')>=0;
+    var wasGo=rec.indexOf('progresión')>=0||rec.indexOf('completo')>=0||rec.indexOf('óptim')>=0;
+    // Cautious rec but session felt easy (low RPE) = overprotective
+    if(wasCautious&&rpe>0&&rpe<=6)overprotective++;
+    // Go rec but session was very hard (high RPE) = missed fatigue
+    else if(wasGo&&rpe>=9)missed++;
+    else if(rpe>0)accurate++;
+  });
+  var scored=overprotective+accurate+missed;
+  return{
+    available:true,total:scored,
+    accurateRate:scored?Math.round(accurate/scored*100):0,
+    overprotectiveRate:scored?Math.round(overprotective/scored*100):0,
+    missedRate:scored?Math.round(missed/scored*100):0
+  };
+}
+
+// ══ P7: OPPORTUNITY VALIDATION ENGINE ══
+// When ATLAS flagged progression window, did performance actually improve?
+function OpportunityValidationEngine(){
+  var logs=safeArr(S.logs);
+  var windows=logs.filter(function(l){return l.atlasRec&&l.atlasRec.toLowerCase().indexOf('progresión')>=0;});
+  if(windows.length<2)return{available:false,need:2-windows.length};
+  var validated=0,failed=0;
+  windows.forEach(function(l){
+    var rpe=safeNum(l.rpe,0);
+    // Window + low/moderate RPE = validated (could push)
+    if(rpe>0&&rpe<=7.5)validated++;
+    else if(rpe>=9)failed++;
+  });
+  var total=validated+failed;
+  return{
+    available:true,total:windows.length,
+    validRate:total?Math.round(validated/total*100):null
+  };
+}
 function safe(fn,name){try{fn();}catch(e){console.error(name+':',e.message);}}
 function showS(id){
   document.querySelectorAll('.screen').forEach(function(s){s.classList.remove('active');});
@@ -4156,7 +4424,7 @@ function init(){
   S.weekDays.forEach(day=>{document.querySelectorAll('.wd').forEach(el=>{if(el.querySelector('.wd-n')?.textContent===day)el.classList.add('done');});});
   const sc=safeDOM('wkScore');if(sc)sc.textContent=S.weekDays.size+'/6';
   if(S.metrics.hrv7?.length){S._wellnessHistory=S.metrics.hrv7.map(d=>({id:d.date,hrv:d.v,restingHR:d.rhr,sleepSecs:d.sleep?safeNum(d.sleep)*3600:null}));}
-  runEngines();updateMetrics();renderHRV();renderMAV();renderLog();renderActivities();renderWeekZones();
+  runEngines();updateMetrics();renderHRV();renderMAV();renderLog();renderActivities();renderWeekZones();safe(buildWeeklyAdaptationSnapshot,'wsnap');
   // Auto-sync if keys saved — restore session without re-entering keys
   if(S.int.aid&&S.int.key){setTimeout(()=>fetchIntervals(),800);}
   if(S.hevy?.key){setTimeout(()=>fetchHevy(),1200);}
