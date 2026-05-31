@@ -479,6 +479,10 @@ textarea.field{resize:vertical;min-height:60px;}
 
 <!-- LOG -->
 <div class="screen" id="s-log">
+  <div style="padding:0 0 6px;">
+    <button onclick="toggleManualLog()" id="manualLogToggle" style="width:100%;padding:9px;border-radius:9px;font-size:12px;background:var(--bg3);color:var(--fg3);border:1px solid var(--line);cursor:pointer;">+ Registrar sesión manual (no Hevy/Garmin)</button>
+  </div>
+  <div id="manualLogCard" style="display:none;">
   <div class="card">
       <div class="card-hdr"><span class="t-md">sRPE en tiempo real</span><span class="chip chip-c" id="srpeZone">—</span></div>
       <div class="card-body">
@@ -507,6 +511,7 @@ textarea.field{resize:vertical;min-height:60px;}
 </div>
 <button class="btn btn-p btn-full" onclick="saveLog()">Guardar sesión</button>
       </div>
+    </div>
     </div>
     <div class="card" style="margin-top:10px;">
       <div class="card-hdr"><span class="t-md">Historial</span>
@@ -3283,7 +3288,7 @@ function renderLog(){
   if(nBtn)nBtn.style.opacity=offset>=0?'0.3':'1';
   const filtered=safeArr(S.logs).filter(l=>{if(!l.date)return offset===0;const parts=l.date.split('/');const d=parts.length===3?new Date(parts[2],parts[1]-1,parts[0]):new Date(l.date);if(isNaN(d))return offset===0;return d>=start&&d<=endFull;});
   if(!filtered.length){el.innerHTML=`<div class="empty"><div class="empty-icon">📋</div><div class="empty-title">Sin sesiones</div><div class="empty-msg">${offset===0?'Registra tu primera sesión':'Sin sesiones esta semana'}</div></div>`;return;}
-  el.innerHTML=filtered.slice().reverse().map(l=>`<div class="log-row" style="flex-direction:column;align-items:stretch;gap:6px;"><div style="display:flex;justify-content:space-between;align-items:flex-start;"><div class="log-left"><div class="log-name">${l._auto?'🔄 ':''}${l.sess||'Sesión'}</div><div class="log-meta">${l.date} · ${l.dur||'—'}min${l.notes?' · '+l.notes.slice(0,35)+'…':''}</div></div><div class="log-chips"><span class="chip ${safeNum(l.rpe)>=8?'chip-r':safeNum(l.rpe)>=6?'chip-y':'chip-g'}">RPE ${l.rpe||'—'}</span><span class="chip chip-c">sRPE ${l.srpe||'—'}</span>${safeNum(l.knee)>0?`<span class="chip chip-r">Rodilla ${l.knee}</span>`:''}</div></div>${(l.hevyRPE||l.hrv||l.effectiveSets)?`<div style="font-size:10px;color:var(--fg4);display:flex;flex-wrap:wrap;gap:6px;">${l.hevyRPE?`RPE Hevy ${l.hevyRPE}`:''}${l.garminRPE?` · Garmin ${l.garminRPE}`:''}${l.hrv?` · HRV ${l.hrv}`:''}${l.readiness?` · Readiness ${l.readiness}`:''}</div>`:''}${l._hevyId?`<div style="display:flex;gap:5px;align-items:center;"><span style="font-size:10px;color:var(--fg3);">¿Seguiste plan?</span><button onclick="setLogRecFollow('${l._hevyId}','si')" style="flex:1;padding:4px;border-radius:6px;font-size:10px;background:${l.recFollow==='si'?'var(--g)':'var(--bg3)'};color:${l.recFollow==='si'?'#000':'var(--fg3)'};border:1px solid var(--line);">Sí</button><button onclick="setLogRecFollow('${l._hevyId}','parcial')" style="flex:1;padding:4px;border-radius:6px;font-size:10px;background:${l.recFollow==='parcial'?'var(--y)':'var(--bg3)'};color:${l.recFollow==='parcial'?'#000':'var(--fg3)'};border:1px solid var(--line);">Parcial</button><button onclick="setLogRecFollow('${l._hevyId}','no')" style="flex:1;padding:4px;border-radius:6px;font-size:10px;background:${l.recFollow==='no'?'var(--r)':'var(--bg3)'};color:${l.recFollow==='no'?'#000':'var(--fg3)'};border:1px solid var(--line);">No</button></div>`:''}</div>`).join('');
+  el.innerHTML=filtered.slice().reverse().map(l=>`<div class="log-row" style="flex-direction:column;align-items:stretch;gap:6px;"><div style="display:flex;justify-content:space-between;align-items:flex-start;"><div class="log-left"><div class="log-name">${l._cardio?'🏃 ':l._auto?'🏋️ ':''}${l.sess||'Sesión'}</div><div class="log-meta">${l.date} · ${l.dur||'—'}min${l.distanceKm?' · '+l.distanceKm+'km':''}${l.notes?' · '+l.notes.slice(0,30)+'…':''}</div></div><div class="log-chips"><span class="chip ${safeNum(l.rpe)>=8?'chip-r':safeNum(l.rpe)>=6?'chip-y':'chip-g'}">RPE ${l.rpe||'—'}</span><span class="chip chip-c">sRPE ${l.srpe||'—'}</span>${safeNum(l.knee)>0?`<span class="chip chip-r">Rodilla ${l.knee}</span>`:''}</div></div>${(l.hevyRPE||l.hrv||l.effectiveSets)?`<div style="font-size:10px;color:var(--fg4);display:flex;flex-wrap:wrap;gap:6px;">${l.hevyRPE?`RPE Hevy ${l.hevyRPE}`:''}${l.garminRPE?` · Garmin ${l.garminRPE}`:''}${l.hrv?` · HRV ${l.hrv}`:''}${l.readiness?` · Readiness ${l.readiness}`:''}</div>`:''}${(l._hevyId||l._intId)?`<div style="display:flex;gap:5px;align-items:center;"><span style="font-size:10px;color:var(--fg3);">¿Seguiste plan?</span><button onclick="setLogRecFollow('${l._hevyId||l._intId}','si')" style="flex:1;padding:4px;border-radius:6px;font-size:10px;background:${l.recFollow==='si'?'var(--g)':'var(--bg3)'};color:${l.recFollow==='si'?'#000':'var(--fg3)'};border:1px solid var(--line);">Sí</button><button onclick="setLogRecFollow('${l._hevyId||l._intId}','parcial')" style="flex:1;padding:4px;border-radius:6px;font-size:10px;background:${l.recFollow==='parcial'?'var(--y)':'var(--bg3)'};color:${l.recFollow==='parcial'?'#000':'var(--fg3)'};border:1px solid var(--line);">Parcial</button><button onclick="setLogRecFollow('${l._hevyId||l._intId}','no')" style="flex:1;padding:4px;border-radius:6px;font-size:10px;background:${l.recFollow==='no'?'var(--r)':'var(--bg3)'};color:${l.recFollow==='no'?'#000':'var(--fg3)'};border:1px solid var(--line);">No</button></div>`:''}</div>`).join('');
 }
 
 // ══ INTERVALS FETCH ══
@@ -3339,7 +3344,7 @@ async function fetchIntervals(){
     if(S.metrics.atl==null&&latestBio.atl!=null)S.metrics.atl=Math.round(latestBio.atl);
     if(S.metrics.tsb==null&&latestBio.ctl!=null&&latestBio.atl!=null)S.metrics.tsb=Math.round(latestBio.ctl-latestBio.atl);
     try{const atR=await fetch(`https://intervals.icu/api/v1/athlete/${aid}`,{headers:H,mode:'cors'});if(atR.ok){const at=await atR.json();if(!S.metrics.weight&&at.icu_weight)S.metrics.weight=safeNum(at.icu_weight.toFixed(1));if(!S.metrics.restingHR&&at.icu_resting_hr)S.metrics.restingHR=at.icu_resting_hr;if(!S.metrics.vo2max&&at.icu_vo2max)S.metrics.vo2max=Math.round(at.icu_vo2max*10)/10;if(S.metrics.ctl==null&&at.ctl!=null)S.metrics.ctl=Math.round(at.ctl);if(S.metrics.atl==null&&at.atl!=null)S.metrics.atl=Math.round(at.atl);if(S.metrics.tsb==null&&at.form!=null)S.metrics.tsb=Math.round(at.form);}}catch(e){}
-    S.metrics.activities=activities;
+    S.metrics.activities=activities;safe(autoLogHevySessions,'alh');
     S._activitiesByDate={};activities.forEach(a=>{const d=(a.start_date_local||'').split('T')[0];if(d){if(!S._activitiesByDate[d])S._activitiesByDate[d]=[];S._activitiesByDate[d].push(a);}});
     S.metrics.weightHistory=wSorted.filter(d=>d.weight||(d.fieldValues||{})['BodyFatPercent']).map(d=>({date:d.id,w:d.weight?safeNum(d.weight.toFixed(1)):null,fat:d.fatPercent||(d.fieldValues||{})['BodyFatPercent']||null}));
     S.int.ok=true;save();setIntStatus('ok');
@@ -4595,17 +4600,54 @@ function autoLogHevySessions(){
     });
     changed=true;
   });
+  // ── AUTO-LOG RUNS/CARDIO FROM INTERVALS ──
+  var acts=safeArr(S.metrics.activities);
+  acts.forEach(function(a){
+    var type=a.type||a.sport_type||'';
+    // Only cardio activities (runs, rides, etc) — strength comes from Hevy
+    if(['Run','VirtualRun','TrailRun','Ride','VirtualRide','Walk','Hike','Swim'].indexOf(type)<0)return;
+    var aDate=new Date(a.start_date_local||a.start_date||0);
+    if(isNaN(aDate.getTime()))return;
+    var ds=(aDate.getMonth()+1<10?'0':'')+(aDate.getMonth()+1)+'/'+(aDate.getDate()<10?'0':'')+aDate.getDate()+'/'+aDate.getFullYear();
+    var logId='int_'+(a.id||a.name||type)+'_'+ds;
+    var existing=S.logs.find(function(l){return l._intId===logId;});
+    if(existing)return;
+    var durMin=a.moving_time?Math.round(a.moving_time/60):(a.elapsed_time?Math.round(a.elapsed_time/60):null);
+    var rpe=safeNum(a.icu_rpe,0)||null;
+    var load=safeNum(a.icu_training_load,0)||null;
+    var distKm=a.distance?Math.round(a.distance/100)/10:null;
+    var nm=a.name||type;
+    S.logs.unshift({
+      _intId:logId,_auto:true,_cardio:true,
+      sess:nm, dur:durMin, rpe:rpe,
+      srpe:(rpe&&durMin)?rpe*durMin:null,
+      load:load, distanceKm:distKm, actType:type,
+      date:ds,
+      hrv:S.metrics.hrv||null,sleep:S.metrics.sleep||null,
+      readiness:S._readiness?S._readiness.overall:null,
+      knee:null, recFollow:null,
+      atlasRec:S._decision?S._decision.recommendation:null
+    });
+    changed=true;
+  });
   if(changed){save();safe(renderLog,'rl');}
 }
 
 // Set recFollow on an auto-logged session (one-tap from the row)
-function setLogRecFollow(hevyId,val){
-  var log=safeArr(S.logs).find(function(l){return l._hevyId===hevyId;});
+function setLogRecFollow(logKey,val){
+  var log=safeArr(S.logs).find(function(l){return l._hevyId===logKey||l._intId===logKey;});
   if(!log)return;
   log.recFollow=val;
   save();
   safe(renderLog,'rl');
   safe(function(){if(typeof buildWeeklyAdaptationSnapshot==='function')buildWeeklyAdaptationSnapshot();},'ws');
+}
+
+function toggleManualLog(){
+  var card=safeDOM('manualLogCard');var btn=safeDOM('manualLogToggle');
+  if(!card)return;
+  if(card.style.display==='none'){card.style.display='block';if(btn)btn.textContent='− Ocultar registro manual';}
+  else{card.style.display='none';if(btn)btn.textContent='+ Registrar sesión manual (no Hevy/Garmin)';}
 }
 function safe(fn,name){try{fn();}catch(e){console.error(name+':',e.message);}}
 function showS(id){
