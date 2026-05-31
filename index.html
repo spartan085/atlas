@@ -703,8 +703,16 @@ function save(){
   var cutoff90=new Date(Date.now()-90*864e5).toISOString().split('T')[0];
 
   // Prune logs: keep last 90 days, max 150 entries
+  // Parse DD/MM/YYYY properly (string compare with ISO cutoff was deleting valid logs)
+  var cutoff90ms=Date.now()-90*864e5;
   var prunedLogs=safeArr(S.logs)
-    .filter(function(l){return l&&l.date&&l.date>=cutoff90;})
+    .filter(function(l){
+      if(!l)return false;
+      if(!l.date)return true; // keep undated entries
+      var p=String(l.date).split('/');
+      var d=p.length===3?new Date(p[2],p[1]-1,p[0]).getTime():new Date(l.date).getTime();
+      return isNaN(d)?true:d>=cutoff90ms;
+    })
     .slice(-150);
 
   // Prune RVL snapshots in localStorage
@@ -4615,6 +4623,7 @@ function autoLogHevySessions(){
   S._hevyRecent.forEach(function(hs){
     // Build a stable ID from name + date to avoid duplicates
     var hsDate=new Date(hs.date);
+    if(isNaN(hsDate.getTime()))return;
     var ds=String(hsDate.getDate()).padStart(2,'0')+'/'+String(hsDate.getMonth()+1).padStart(2,'0')+'/'+hsDate.getFullYear();
     var logId='hevy_'+hs.name+'_'+ds;
     // Already logged?
