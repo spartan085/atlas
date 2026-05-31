@@ -479,7 +479,7 @@ textarea.field{resize:vertical;min-height:60px;}
 
 <!-- LOG -->
 <div class="screen" id="s-log">
-  <div class="card" style="margin-top:8px;">
+  <div class="card">
       <div class="card-hdr"><span class="t-md">sRPE en tiempo real</span><span class="chip chip-c" id="srpeZone">—</span></div>
       <div class="card-body">
         <div class="srpe-wrap"><svg viewBox="0 0 100 100"><circle class="srpe-track" cx="50" cy="50" r="40"/><circle class="srpe-fill" id="srpeRing" cx="50" cy="50" r="40" stroke="#06b6d4" stroke-dasharray="251.2" stroke-dashoffset="251.2"/></svg><div class="srpe-center"><div class="srpe-num" id="srpeNum">—</div><div class="srpe-lbl">sRPE</div></div></div>
@@ -487,9 +487,7 @@ textarea.field{resize:vertical;min-height:60px;}
           <div><label class="fg-label">Sesión</label>
             <select class="field" id="logSess" style="font-size:12px;">
               <option value="">Seleccionar...</option>
-              <optgroup label="Plan">
               <option>D1 — Torso Empuje + Core</option><option>D2 — Pierna A · Cuád/Glúteo</option><option>D3 — Cardio Z2</option><option>D4 — Torso Tirón + Core</option><option>D5 — Pierna B · Isquio/Glúteo</option><option>D6 — Z2 + Movilidad</option>
-              </optgroup>
             </select>
           </div>
           <div><label class="fg-label">Duración (min)</label><input class="field" type="number" id="logDur" placeholder="60" oninput="calcSRPE()"></div>
@@ -529,7 +527,7 @@ textarea.field{resize:vertical;min-height:60px;}
 <!-- DATOS -->
 <div class="screen" id="s-datos">
   <div class="pad">
-    <div class="card">
+    <div class="card" style="margin-top:14px;">
       <div class="card-hdr"><div><div class="t-md">Intervals.icu</div><div style="font-size:11px;color:var(--fg2);margin-top:2px;">HRV · CTL · ATL · Wellness · Nutrición</div></div><div class="status-dot" id="intStatus"><span class="sdot-sm sdot-k"></span><span style="color:var(--fg3);">Sin conectar</span></div></div>
       <div class="card-body">
         <div class="info c" style="margin-bottom:12px;">Intervals.icu → Settings → API → copia Athlete ID y genera API Key.</div>
@@ -602,7 +600,7 @@ textarea.field{resize:vertical;min-height:60px;}
 <!-- PLAN -->
 <div class="screen" id="s-plan">
   <div class="pad">
-    <div class="card">
+    <div class="card" style="margin-bottom:10px;">
       <div class="card-hdr"><span class="t-md">Mesociclo</span></div>
       <div class="card-body">
         <div style="display:flex;gap:6px;margin-bottom:10px;">
@@ -3191,7 +3189,7 @@ function renderStrengthLoad(elId,labelId,acts,offset){
     const mismatch=hevySess?.mismatchNote?`<div style="font-size:9px;color:var(--y);margin-top:1px;">${hevySess.mismatchNote}</div>`:'';
     return`<div style="padding:7px 0;border-bottom:1px solid var(--line);font-size:11px;">
       <div style="display:flex;justify-content:space-between;align-items:flex-start;">
-        <div><div style="font-weight:500;">${(hevySess&&hevySess.name)?hevySess.name:(a.name||a.type)}</div><div style="color:var(--fg3);font-size:10px;">${date} · ${dur?dur+'min':''}</div></div>
+        <div><div style="font-weight:500;">${a.name||a.type}</div><div style="color:var(--fg3);font-size:10px;">${date} · ${dur?dur+'min':''}</div></div>
         <div style="text-align:right;">
           <div style="font-family:'Geist Mono',monospace;color:${rpeCol};">${garminRPEStr}</div>
           ${hevyRPEStr?`<div style="font-family:'Geist Mono',monospace;font-size:10px;color:var(--p);">${hevyRPEStr}</div>`:''}
@@ -3216,7 +3214,7 @@ function calcSRPE(){
 }
 
 function saveLog(){
-  var sess=safeDOM('logSess')?.value;if(sess&&sess.indexOf('HEVY:')===0)sess=sess.slice(5);const dur=safeDOM('logDur')?.value;const rpe=safeDOM('logRPE')?.value;const knee=safeDOM('logKnee')?.value;const notes=safeDOM('logNotes')?.value;
+  const sess=safeDOM('logSess')?.value;const dur=safeDOM('logDur')?.value;const rpe=safeDOM('logRPE')?.value;const knee=safeDOM('logKnee')?.value;const notes=safeDOM('logNotes')?.value;
   if(!sess){toast('Sin sesión','Selecciona una sesión','⚠️');return;}
   const srpe=dur&&rpe?Math.round(safeNum(rpe)*safeNum(dur)):0;
   const today=new Date();const ds=`${String(today.getDate()).padStart(2,'0')}/${String(today.getMonth()+1).padStart(2,'0')}/${today.getFullYear()}`;
@@ -3467,7 +3465,7 @@ async function fetchHevy(){
       }
     });
 
-    S._hevyRecent=recentHevySess;safe(populateLogSessions,'pls');
+    S._hevyRecent=recentHevySess;
     S.hevy={workouts,totalWorkouts:data.workout_count||workouts.length,key};
     save();
     const hSt=safeDOM('hevyStatus');if(hSt)hSt.innerHTML='<span class="sdot-sm sdot-g"></span><span style="color:var(--g);">Conectado</span>';
@@ -4477,63 +4475,6 @@ function ExerciseResponseEngine(){
   classified.sort(function(a,b){return b.score-a.score;});
   return{available:true,exercises:classified.slice(0,15)};
 }
-
-// ══ AUTOSAVE ESTADO HOY ══
-// Persist daily-state inputs so they survive app close (keyed by date)
-var ESTADO_FIELDS=['manHRV','manBB','manSleep','manRHR','manDomsUpper','manDomsLower','manPain',
-  'bbToday','energyToday','domsUpper','domsLower','lumbarToday','achillesToday','kneeToday','painToday','notesToday'];
-function estadoKey(){return 'atlas_estado_'+new Date().toISOString().split('T')[0];}
-function saveEstado(){
-  var data={};
-  ESTADO_FIELDS.forEach(function(id){var el=safeDOM(id);if(el&&el.value)data[id]=el.value;});
-  try{localStorage.setItem(estadoKey(),JSON.stringify(data));}catch(e){}
-}
-function loadEstado(){
-  try{
-    var raw=localStorage.getItem(estadoKey());
-    if(!raw)return;
-    var data=JSON.parse(raw);
-    ESTADO_FIELDS.forEach(function(id){var el=safeDOM(id);if(el&&data[id]!=null)el.value=data[id];});
-  }catch(e){}
-  // Prune estado keys older than 7 days
-  try{
-    var cutoff=new Date(Date.now()-7*864e5).toISOString().split('T')[0];
-    for(var i=localStorage.length-1;i>=0;i--){
-      var k=localStorage.key(i);
-      if(k&&k.indexOf('atlas_estado_')===0&&k.replace('atlas_estado_','')<cutoff)localStorage.removeItem(k);
-    }
-  }catch(e){}
-}
-function wireEstadoAutosave(){
-  ESTADO_FIELDS.forEach(function(id){
-    var el=safeDOM(id);
-    if(el&&!el._autoWired){el._autoWired=true;el.addEventListener('input',saveEstado);el.addEventListener('change',saveEstado);}
-  });
-}
-
-// ══ POPULATE LOG SELECTOR WITH HEVY SESSIONS ══
-function populateLogSessions(){
-  var sel=safeDOM('logSess');if(!sel)return;
-  var oldGroup=sel.querySelector('optgroup[label="Hoy (Hevy)"]');
-  if(oldGroup)oldGroup.remove();
-  var hevy=safeArr(S._hevyRecent);
-  // Only TODAY's sessions (age < 24h)
-  var today=hevy.filter(function(s){return (s.age||999999999)<24*3600000;});
-  if(!today.length)return;
-  var grp=document.createElement('optgroup');
-  grp.label='Hoy (Hevy)';
-  today.forEach(function(s){
-    var nm=s.name||'Entrenamiento';
-    var opt=document.createElement('option');
-    opt.value=nm;
-    opt.textContent='Hevy: '+nm;
-    grp.appendChild(opt);
-  });
-  // Insert at top, before Plan
-  var planGrp=sel.querySelector('optgroup[label="Plan"]');
-  if(planGrp)sel.insertBefore(grp,planGrp);
-  else sel.appendChild(grp);
-}
 function safe(fn,name){try{fn();}catch(e){console.error(name+':',e.message);}}
 function showS(id){
   document.querySelectorAll('.screen').forEach(function(s){s.classList.remove('active');});
@@ -4541,13 +4482,11 @@ function showS(id){
   document.querySelectorAll('.ni').forEach(function(n){n.classList.remove('active');});
   var map={'s-hoy':'ni-hoy','s-fatiga':'ni-fatiga','s-mav':'ni-mav','s-log':'ni-log','s-datos':'ni-datos','s-plan':'ni-plan'};
   var btn=safeDOM(map[id]);if(btn)btn.classList.add('active');
-  if(id==='s-hoy'){safe(wireEstadoAutosave,'we');safe(loadEstado,'le');}
-  if(id==='s-log'){safe(populateLogSessions,'pls');}
-  try{var _m=document.querySelector(".main");if(_m)_m.scrollTop=0;window.scrollTo(0,0);document.documentElement.scrollTop=0;document.body.scrollTop=0;}catch(e){}setTimeout(function(){try{var _m2=document.querySelector(".main");if(_m2)_m2.scrollTop=0;window.scrollTo(0,0);}catch(e){}},60);
+  window.scrollTo(0,0);try{document.querySelector(".main").scrollTop=0;document.documentElement.scrollTop=0;document.body.scrollTop=0;}catch(e){}
   if(id==='s-mav'){safe(renderWeekZones,'rz');safe(renderMAV,'rm');safe(renderProgressionPanel,'rp');safe(renderE1RMPanel,'re');safe(renderEffectiveSets,'ref');}
   if(id==='s-log'){safe(renderLog,'rl');}
   if(id==='s-fatiga'){safe(renderFatigueSignals,'rs');safe(renderMuscleFatigue,'rmf');safe(renderInterferencePanel,'ri');safe(renderDensityPanel,'rd');safe(renderConfidencePanel,'rc');safe(renderValidationPanel,'rv');}
-  if(id==='s-datos'){safe(renderValidationDashboard,'rvd');safe(wireEstadoAutosave,'we');safe(loadEstado,'le');}if(id==='s-plan'){safe(function(){selectMeso(S.currentMeso||1);},'meso');}
+  if(id==='s-datos'){safe(renderValidationDashboard,'rvd');}if(id==='s-plan'){safe(function(){selectMeso(S.currentMeso||1);},'meso');}
 }
 async function syncAll(){if(S.int.aid&&S.int.key)await fetchIntervals();if(S.hevy?.key)await fetchHevy();}
 function toast(title,msg,icon,ms=3500){const el=document.createElement('div');el.className='toast';el.innerHTML=`<div class="toast-t">${icon||'ℹ️'} ${title}</div>${msg?`<div class="toast-m">${msg}</div>`:''}`;document.body.appendChild(el);setTimeout(()=>el.remove(),ms);}
@@ -4558,7 +4497,6 @@ function init(){
   if(S.int.aid){const e=safeDOM('intAid');if(e)e.value=S.int.aid;}
   if(S.int.key){const e=safeDOM('intKey');if(e)e.value='••••••••••••••••';}
   if(S.int.ok)setIntStatus('ok');
-  safe(loadEstado,'le');safe(wireEstadoAutosave,'we');
   safe(function(){selectMeso(S.currentMeso||1);},'meso');
   if(S.hevy?.key){const e=safeDOM('hevyKey');if(e)e.value='••••••••••••••••';const st=safeDOM('hevyStatus');if(st)st.innerHTML='<span class="sdot-sm sdot-g"></span><span style="color:var(--g);">Conectado</span>';}
   if(S.claude.key){const e=safeDOM('claudeKey');if(e)e.value='sk-ant-...guardada';}
