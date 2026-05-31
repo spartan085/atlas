@@ -479,7 +479,7 @@ textarea.field{resize:vertical;min-height:60px;}
 
 <!-- LOG -->
 <div class="screen" id="s-log">
-  <div style="padding:0 0 6px;">
+  <div style="padding:14px 18px 6px;">
     <button onclick="toggleManualLog()" id="manualLogToggle" style="width:100%;padding:9px;border-radius:9px;font-size:12px;background:var(--bg3);color:var(--fg3);border:1px solid var(--line);cursor:pointer;">+ Registrar sesión manual (no Hevy/Garmin)</button>
   </div>
   <div id="manualLogCard" style="display:none;">
@@ -4615,7 +4615,7 @@ function autoLogHevySessions(){
   S._hevyRecent.forEach(function(hs){
     // Build a stable ID from name + date to avoid duplicates
     var hsDate=new Date(hs.date);
-    var ds=(hsDate.getMonth()+1<10?'0':'')+(hsDate.getMonth()+1)+'/'+(hsDate.getDate()<10?'0':'')+hsDate.getDate()+'/'+hsDate.getFullYear();
+    var ds=String(hsDate.getDate()).padStart(2,'0')+'/'+String(hsDate.getMonth()+1).padStart(2,'0')+'/'+hsDate.getFullYear();
     var logId='hevy_'+hs.name+'_'+ds;
     // Already logged?
     var existing=S.logs.find(function(l){return l._hevyId===logId;});
@@ -4653,7 +4653,7 @@ function autoLogHevySessions(){
     if(['Run','VirtualRun','TrailRun','Ride','VirtualRide','Walk','Hike','Swim'].indexOf(type)<0)return;
     var aDate=new Date(a.start_date_local||a.start_date||0);
     if(isNaN(aDate.getTime()))return;
-    var ds=(aDate.getMonth()+1<10?'0':'')+(aDate.getMonth()+1)+'/'+(aDate.getDate()<10?'0':'')+aDate.getDate()+'/'+aDate.getFullYear();
+    var ds=String(aDate.getDate()).padStart(2,'0')+'/'+String(aDate.getMonth()+1).padStart(2,'0')+'/'+aDate.getFullYear();
     var logId='int_'+(a.id||a.name||type)+'_'+ds;
     var existing=S.logs.find(function(l){return l._intId===logId;});
     if(existing)return;
