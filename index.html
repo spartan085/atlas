@@ -3288,7 +3288,7 @@ function renderLog(){
   if(nBtn)nBtn.style.opacity=offset>=0?'0.3':'1';
   const filtered=safeArr(S.logs).filter(l=>{if(!l.date)return offset===0;const parts=l.date.split('/');const d=parts.length===3?new Date(parts[2],parts[1]-1,parts[0]):new Date(l.date);if(isNaN(d))return offset===0;return d>=start&&d<=endFull;});
   if(!filtered.length){el.innerHTML=`<div class="empty"><div class="empty-icon">📋</div><div class="empty-title">Sin sesiones</div><div class="empty-msg">${offset===0?'Registra tu primera sesión':'Sin sesiones esta semana'}</div></div>`;return;}
-  el.innerHTML=filtered.slice().reverse().map(l=>`<div class="log-row" style="flex-direction:column;align-items:stretch;gap:6px;"><div style="display:flex;justify-content:space-between;align-items:flex-start;"><div class="log-left"><div class="log-name">${l._cardio?'🏃 ':l._auto?'🏋️ ':''}${l.sess||'Sesión'}</div><div class="log-meta">${l.date} · ${l.dur||'—'}min${l.distanceKm?' · '+l.distanceKm+'km':''}${l.notes?' · '+l.notes.slice(0,30)+'…':''}</div></div><div class="log-chips"><span class="chip ${safeNum(l.rpe)>=8?'chip-r':safeNum(l.rpe)>=6?'chip-y':'chip-g'}">RPE ${l.rpe||'—'}</span><span class="chip chip-c">sRPE ${l.srpe||'—'}</span>${safeNum(l.knee)>0?`<span class="chip chip-r">Rodilla ${l.knee}</span>`:''}</div></div>${(l.hevyRPE||l.hrv||l.effectiveSets)?`<div style="font-size:10px;color:var(--fg4);display:flex;flex-wrap:wrap;gap:6px;">${l.hevyRPE?`RPE Hevy ${l.hevyRPE}`:''}${l.garminRPE?` · Garmin ${l.garminRPE}`:''}${l.hrv?` · HRV ${l.hrv}`:''}${l.readiness?` · Readiness ${l.readiness}`:''}</div>`:''}${(l._hevyId||l._intId)?`<div style="display:flex;gap:5px;align-items:center;"><span style="font-size:10px;color:var(--fg3);">¿Seguiste plan?</span><button onclick="setLogRecFollow('${l._hevyId||l._intId}','si')" style="flex:1;padding:4px;border-radius:6px;font-size:10px;background:${l.recFollow==='si'?'var(--g)':'var(--bg3)'};color:${l.recFollow==='si'?'#000':'var(--fg3)'};border:1px solid var(--line);">Sí</button><button onclick="setLogRecFollow('${l._hevyId||l._intId}','parcial')" style="flex:1;padding:4px;border-radius:6px;font-size:10px;background:${l.recFollow==='parcial'?'var(--y)':'var(--bg3)'};color:${l.recFollow==='parcial'?'#000':'var(--fg3)'};border:1px solid var(--line);">Parcial</button><button onclick="setLogRecFollow('${l._hevyId||l._intId}','no')" style="flex:1;padding:4px;border-radius:6px;font-size:10px;background:${l.recFollow==='no'?'var(--r)':'var(--bg3)'};color:${l.recFollow==='no'?'#000':'var(--fg3)'};border:1px solid var(--line);">No</button></div>`:''}</div>`).join('');
+  el.innerHTML=filtered.slice().reverse().map(l=>{var _logD=parseDate(l.date);var _recent=_logD&&(Date.now()-_logD)<36*3600000;var _pending=_recent&&(l._hevyId||l._intId)&&(!l.outcome||!l.recFollow);return `<div class="log-row" style="flex-direction:column;align-items:stretch;gap:6px;${_pending?'border-left:3px solid var(--y);padding-left:8px;':''}"><div style="display:flex;justify-content:space-between;align-items:flex-start;"><div class="log-left"><div class="log-name">${l._cardio?'🏃 ':l._auto?'🏋️ ':''}${l.sess||'Sesión'}</div><div class="log-meta">${l.date} · ${l.dur||'—'}min${l.distanceKm?' · '+l.distanceKm+'km':''}${l.notes?' · '+l.notes.slice(0,30)+'…':''}</div></div><div class="log-chips"><span class="chip ${safeNum(l.rpe)>=8?'chip-r':safeNum(l.rpe)>=6?'chip-y':'chip-g'}">RPE ${l.rpe||'—'}</span><span class="chip chip-c">sRPE ${l.srpe||'—'}</span>${safeNum(l.knee)>0?`<span class="chip chip-r">Rodilla ${l.knee}</span>`:''}</div></div>${(l.hevyRPE||l.hrv||l.effectiveSets)?`<div style="font-size:10px;color:var(--fg4);display:flex;flex-wrap:wrap;gap:6px;">${l.hevyRPE?`RPE Hevy ${l.hevyRPE}`:''}${l.garminRPE?` · Garmin ${l.garminRPE}`:''}${l.hrv?` · HRV ${l.hrv}`:''}${l.readiness?` · Readiness ${l.readiness}`:''}</div>`:''}${(l._hevyId||l._intId)?`<div style="display:flex;gap:5px;align-items:center;"><span style="font-size:10px;color:var(--fg3);">¿Seguiste plan?</span><button onclick="setLogRecFollow('${l._hevyId||l._intId}','si')" style="flex:1;padding:4px;border-radius:6px;font-size:10px;background:${l.recFollow==='si'?'var(--g)':'var(--bg3)'};color:${l.recFollow==='si'?'#000':'var(--fg3)'};border:1px solid var(--line);">Sí</button><button onclick="setLogRecFollow('${l._hevyId||l._intId}','parcial')" style="flex:1;padding:4px;border-radius:6px;font-size:10px;background:${l.recFollow==='parcial'?'var(--y)':'var(--bg3)'};color:${l.recFollow==='parcial'?'#000':'var(--fg3)'};border:1px solid var(--line);">Parcial</button><button onclick="setLogRecFollow('${l._hevyId||l._intId}','no')" style="flex:1;padding:4px;border-radius:6px;font-size:10px;background:${l.recFollow==='no'?'var(--r)':'var(--bg3)'};color:${l.recFollow==='no'?'#000':'var(--fg3)'};border:1px solid var(--line);">No</button></div><div style="display:flex;gap:5px;align-items:center;margin-top:4px;"><span style="font-size:10px;color:var(--fg3);">vs esperado</span><button onclick="setSessionOutcome('${l._hevyId||l._intId}','better')" style="flex:1;padding:4px;border-radius:6px;font-size:10px;background:${l.outcome==='better'?'var(--g)':'var(--bg3)'};color:${l.outcome==='better'?'#000':'var(--fg3)'};border:1px solid var(--line);">Mejor</button><button onclick="setSessionOutcome('${l._hevyId||l._intId}','expected')" style="flex:1;padding:4px;border-radius:6px;font-size:10px;background:${l.outcome==='expected'?'var(--c)':'var(--bg3)'};color:${l.outcome==='expected'?'#000':'var(--fg3)'};border:1px solid var(--line);">Igual</button><button onclick="setSessionOutcome('${l._hevyId||l._intId}','worse')" style="flex:1;padding:4px;border-radius:6px;font-size:10px;background:${l.outcome==='worse'?'var(--r)':'var(--bg3)'};color:${l.outcome==='worse'?'#000':'var(--fg3)'};border:1px solid var(--line);">Peor</button></div>`:''}</div>`;}).join('');
 }
 
 // ══ INTERVALS FETCH ══
@@ -4407,7 +4407,52 @@ function buildWeeklyAdaptationSnapshot(){
     running={runs:acts.length,totalKm:Math.round(totalDist*10)/10,totalLoad:Math.round(totalLoad),
       zoneMinutes:{z1:Math.round(z[0]),z2:Math.round(z[1]),z3:Math.round(z[2]),z4:Math.round(z[3]),z5:Math.round(z[4])}};
   }
-  var snapshot={weekKey:weekKey,muscles:muscles,exercises:exercises,patterns:(typeof patterns!=='undefined'?patterns:null),running:running,recFollowRate:recFollowRate};
+  // ── WEEKLY PEAKS (peaks matter more than averages, esp. for knee) ──
+  var weekLogs=safeArr(S.logs).filter(function(l){var d=parseDate(l.date);return d&&(Date.now()-d)<7*864e5;});
+  function peakOf(field){var vals=weekLogs.map(function(l){return safeNum(l[field],0);}).filter(function(v){return v>0;});return vals.length?Math.max.apply(null,vals):0;}
+  function peakMuscleFat(){var mx=0;weekLogs.forEach(function(l){if(l.muscleFatigue)Object.keys(l.muscleFatigue).forEach(function(m){var v=safeNum(l.muscleFatigue[m],0);if(v>mx)mx=v;});});return mx;}
+  var peaks={
+    systemicFatigue:peakOf('fatigue'),
+    upperDOMS:peakOf('domsUpper'),
+    lowerDOMS:peakOf('domsLower'),
+    knee:peakOf('knee'),
+    lumbar:peakOf('lumbar'),
+    achilles:peakOf('achilles'),
+    muscleFatigue:peakMuscleFat()
+  };
+  // ── HRV STABILITY (CV + zScore, not just mean) ──
+  var hrvSeries=safeArr(S.metrics.hrv7).filter(function(v){return safeNum(v,0)>0;}).map(function(v){return safeNum(v);});
+  var hrvStability=null;
+  if(hrvSeries.length>=3){
+    var hMean=hrvSeries.reduce(function(a,b){return a+b;},0)/hrvSeries.length;
+    var hSD=Math.sqrt(hrvSeries.reduce(function(s,v){return s+(v-hMean)*(v-hMean);},0)/hrvSeries.length);
+    var cur=hrvSeries[hrvSeries.length-1];
+    hrvStability={avgHRV:Math.round(hMean*10)/10,cvHRV:Math.round(hSD/hMean*1000)/10,zScore:hSD>0?Math.round((cur-hMean)/hSD*100)/100:0};
+  }
+  // ── WEIGHT TREND (7d/28d means + velocity kg/week) ──
+  var wHist=safeArr(S.metrics.weightHistory).filter(function(w){return w&&safeNum(w.kg||w.weight||w.value,0)>0;});
+  var weightTrend=null;
+  if(wHist.length>=2){
+    function wAvg(days){var cut=Date.now()-days*864e5;var vals=wHist.filter(function(w){var d=parseDate(w.date)||new Date(w.date).getTime();return d&&d>cut;}).map(function(w){return safeNum(w.kg||w.weight||w.value);});return vals.length?vals.reduce(function(a,b){return a+b;},0)/vals.length:null;}
+    var w7=wAvg(7),w28=wAvg(28);
+    weightTrend={avgWeight7d:w7?Math.round(w7*10)/10:null,avgWeight28d:w28?Math.round(w28*10)/10:null,weightVelocity:(w7&&w28)?Math.round((w7-w28)/4*100)/100:null};
+  }
+  // ── READINESS STABILITY (consistency matters) ──
+  var readSeries=weekLogs.map(function(l){return safeNum(l.readiness,0);}).filter(function(v){return v>0;});
+  var outcomeLogs=weekLogs.filter(function(l){return l.outcome;});
+  var sessionOutcomes=outcomeLogs.length?{
+    better:outcomeLogs.filter(function(l){return l.outcome==='better';}).length,
+    expected:outcomeLogs.filter(function(l){return l.outcome==='expected';}).length,
+    worse:outcomeLogs.filter(function(l){return l.outcome==='worse';}).length,
+    total:outcomeLogs.length
+  }:null;
+  var readinessStability=null;
+  if(readSeries.length>=2){
+    var rMean=readSeries.reduce(function(a,b){return a+b;},0)/readSeries.length;
+    var rSD=Math.sqrt(readSeries.reduce(function(s,v){return s+(v-rMean)*(v-rMean);},0)/readSeries.length);
+    readinessStability={avgReadiness:Math.round(rMean),cvReadiness:rMean>0?Math.round(rSD/rMean*1000)/10:0};
+  }
+  var snapshot={weekKey:weekKey,muscles:muscles,exercises:exercises,patterns:(typeof patterns!=='undefined'?patterns:null),running:running,recFollowRate:recFollowRate,peaks:peaks,hrvStability:hrvStability,weightTrend:weightTrend,readinessStability:readinessStability,sessionOutcomes:sessionOutcomes};
   try{var ex=[];var raw=localStorage.getItem('atlas_weekly_v1');if(raw)ex=JSON.parse(raw);if(!Array.isArray(ex))ex=[];var idx=ex.findIndex(function(s){return s.weekKey===weekKey;});if(idx>=0)ex[idx]=snapshot;else ex.unshift(snapshot);localStorage.setItem('atlas_weekly_v1',JSON.stringify(ex.slice(0,52)));}catch(e){}
   S._weeklySnap=snapshot;
 }
@@ -4634,6 +4679,15 @@ function autoLogHevySessions(){
 }
 
 // Set recFollow on an auto-logged session (one-tap from the row)
+
+// Session outcome vs expectation (manual, one-tap) — validates ATLAS predictions
+function setSessionOutcome(logKey,val){
+  var log=safeArr(S.logs).find(function(l){return l._hevyId===logKey||l._intId===logKey;});
+  if(!log)return;
+  log.outcome=val;
+  save();
+  safe(renderLog,'rl');
+}
 function setLogRecFollow(logKey,val){
   var log=safeArr(S.logs).find(function(l){return l._hevyId===logKey||l._intId===logKey;});
   if(!log)return;
