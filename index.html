@@ -967,8 +967,8 @@ function FatigueEngine(metrics,logs,hevyRecent,domsUpper,domsLower,knee){
 
   // ── MECHANICAL (sRPE-based) ──
   let mechanical=0;
-  const r48=logs.filter(l=>{const d=parseDate(l.date);return d&&(now-d)<48*3600000;});
-  const r72=logs.filter(l=>{const d=parseDate(l.date);return d&&(now-d)<72*3600000;});
+  const r48=logs.filter(l=>{const d=parseDate(l.date);return d&&(now-d)<48*3600000&&!l._auto;});
+  const r72=logs.filter(l=>{const d=parseDate(l.date);return d&&(now-d)<72*3600000&&!l._auto;});
   let srpe48=r48.reduce((s,l)=>s+(safeNum(l.srpe)||0),0);
   let srpe72=r72.reduce((s,l)=>s+(safeNum(l.srpe)||0),0);
   hevyRecent.forEach(s=>{if(s.sRPE==null)return;if(s.age<48*3600000)srpe48+=s.sRPE;if(s.age<72*3600000)srpe72+=s.sRPE;});
