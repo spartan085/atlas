@@ -1013,8 +1013,17 @@ function FatigueEngine(metrics,logs,hevyRecent,domsUpper,domsLower,knee){
     if(!sess.muscleSets)return{isUpper:false,isLower:false};
     const uS=Object.entries(sess.muscleSets).filter(([m])=>UPPER_M.includes(m)).reduce((s,[,v])=>s+v,0);
     const lS=Object.entries(sess.muscleSets).filter(([m])=>LOWER_M.includes(m)).reduce((s,[,v])=>s+v,0);
+    const cS=safeNum(sess.muscleSets['Core'],0);
+    // MAJOR lower = quads/hams/glutes (drive systemic+axial fatigue, 48-96h recovery).
+    // Calves/adductors recover fast (24-48h) and don't constitute a "leg session" for frequency.
+    const MAJOR_LOWER=['Cuádriceps','Isquiotibiales','Glúteo'];
+    const majorLS=Object.entries(sess.muscleSets).filter(([m])=>MAJOR_LOWER.includes(m)).reduce((s,[,v])=>s+v,0);
+    const allS=uS+lS+cS||1;
+    if(cS/allS>0.5)return{isUpper:false,isLower:false,isCore:true};
     const total=uS+lS||1;
-    return{isUpper:uS/total>0.6,isLower:lS/total>0.6};
+    // isLower requires MAJOR lower dominance, not just calves
+    const totalForLower=uS+majorLS+cS||1;
+    return{isUpper:uS/total>0.6,isLower:majorLS/totalForLower>0.5};
   }
 
   const mf=S._muscleFatigue||{};
@@ -3274,7 +3283,7 @@ function renderLog(){
   if(nBtn)nBtn.style.opacity=offset>=0?'0.3':'1';
   const filtered=safeArr(S.logs).filter(l=>{if(!l.date)return offset===0;const parts=l.date.split('/');const d=parts.length===3?new Date(parts[2],parts[1]-1,parts[0]):new Date(l.date);if(isNaN(d))return offset===0;return d>=start&&d<=endFull;});
   if(!filtered.length){el.innerHTML=`<div class="empty"><div class="empty-icon">📋</div><div class="empty-title">Sin sesiones</div><div class="empty-msg">${offset===0?'Registra tu primera sesión':'Sin sesiones esta semana'}</div></div>`;return;}
-  el.innerHTML=filtered.slice().reverse().map(l=>`<div class="log-row"><div class="log-left"><div class="log-name">${l.sess||'Sesión'}</div><div class="log-meta">${l.date} · ${l.dur||'—'}min${l.notes?' · '+l.notes.slice(0,35)+'…':''}</div></div><div class="log-chips"><span class="chip ${safeNum(l.rpe)>=8?'chip-r':safeNum(l.rpe)>=6?'chip-y':'chip-g'}">RPE ${l.rpe||'—'}</span><span class="chip chip-c">sRPE ${l.srpe||'—'}</span>${safeNum(l.knee)>0?`<span class="chip chip-r">Rodilla ${l.knee}</span>`:''}</div></div>`).join('');
+  el.innerHTML=filtered.slice().reverse().map(l=>`<div class="log-row" style="flex-direction:column;align-items:stretch;gap:6px;"><div style="display:flex;justify-content:space-between;align-items:flex-start;"><div class="log-left"><div class="log-name">${l._auto?'🔄 ':''}${l.sess||'Sesión'}</div><div class="log-meta">${l.date} · ${l.dur||'—'}min${l.notes?' · '+l.notes.slice(0,35)+'…':''}</div></div><div class="log-chips"><span class="chip ${safeNum(l.rpe)>=8?'chip-r':safeNum(l.rpe)>=6?'chip-y':'chip-g'}">RPE ${l.rpe||'—'}</span><span class="chip chip-c">sRPE ${l.srpe||'—'}</span>${safeNum(l.knee)>0?`<span class="chip chip-r">Rodilla ${l.knee}</span>`:''}</div></div>${(l.hevyRPE||l.hrv||l.effectiveSets)?`<div style="font-size:10px;color:var(--fg4);display:flex;flex-wrap:wrap;gap:6px;">${l.hevyRPE?`RPE Hevy ${l.hevyRPE}`:''}${l.garminRPE?` · Garmin ${l.garminRPE}`:''}${l.hrv?` · HRV ${l.hrv}`:''}${l.readiness?` · Readiness ${l.readiness}`:''}</div>`:''}${l._hevyId?`<div style="display:flex;gap:5px;align-items:center;"><span style="font-size:10px;color:var(--fg3);">¿Seguiste plan?</span><button onclick="setLogRecFollow('${l._hevyId}','si')" style="flex:1;padding:4px;border-radius:6px;font-size:10px;background:${l.recFollow==='si'?'var(--g)':'var(--bg3)'};color:${l.recFollow==='si'?'#000':'var(--fg3)'};border:1px solid var(--line);">Sí</button><button onclick="setLogRecFollow('${l._hevyId}','parcial')" style="flex:1;padding:4px;border-radius:6px;font-size:10px;background:${l.recFollow==='parcial'?'var(--y)':'var(--bg3)'};color:${l.recFollow==='parcial'?'#000':'var(--fg3)'};border:1px solid var(--line);">Parcial</button><button onclick="setLogRecFollow('${l._hevyId}','no')" style="flex:1;padding:4px;border-radius:6px;font-size:10px;background:${l.recFollow==='no'?'var(--r)':'var(--bg3)'};color:${l.recFollow==='no'?'#000':'var(--fg3)'};border:1px solid var(--line);">No</button></div>`:''}</div>`).join('');
 }
 
 // ══ INTERVALS FETCH ══
@@ -3385,10 +3394,14 @@ async function fetchHevy(){
         // FIX: classify by dominant group — if neither >60% it's mixed
         const upperSets=Object.entries(muscleSets).filter(([m])=>UPPER_M.includes(m)).reduce((s,[,v])=>s+v,0);
         const lowerSets=Object.entries(muscleSets).filter(([m])=>LOWER_M.includes(m)).reduce((s,[,v])=>s+v,0);
+        const coreSets=safeNum(muscleSets['Core'],0);
+        const allSets=upperSets+lowerSets+coreSets||1;
+        // Core-dominant session = neither upper nor lower (avoids mislabeling Core as Pierna)
+        const isCoreDom=coreSets/allSets>0.5;
         const total=upperSets+lowerSets||1;
-        // Require >60% dominance to classify, otherwise mixed
-        const isUpperDom=upperSets/total>0.6;
-        const isLowerDom=lowerSets/total>0.6;
+        // Require >60% dominance AND not core-dominant
+        const isUpperDom=!isCoreDom&&upperSets/total>0.6;
+        const isLowerDom=!isCoreDom&&lowerSets/total>0.6;
         const muscles=Object.keys(muscleSets).filter(m=>muscleSets[m]>0);
         // ── Time-proximity matching (ChatGPT recommendation) ──
         // Match by abs(sessionTime - activityTime) < 8h
@@ -3467,7 +3480,7 @@ async function fetchHevy(){
       }
     });
 
-    S._hevyRecent=recentHevySess;safe(populateLogSessions,'pls');
+    S._hevyRecent=recentHevySess;safe(populateLogSessions,'pls');safe(autoLogHevySessions,'alh');
     S.hevy={workouts,totalWorkouts:data.workout_count||workouts.length,key};
     save();
     const hSt=safeDOM('hevyStatus');if(hSt)hSt.innerHTML='<span class="sdot-sm sdot-g"></span><span style="color:var(--g);">Conectado</span>';
@@ -4498,6 +4511,59 @@ function populateLogSessions(){
   var planGrp=sel.querySelector('optgroup[label="Plan"]');
   if(planGrp)sel.insertBefore(grp,planGrp);
   else sel.appendChild(grp);
+}
+
+// ══ AUTO-LOG FROM HEVY ══
+// Each Hevy session auto-creates a log entry. No manual data entry needed.
+// Only recFollow + knee are added by the user (one-tap on the row).
+function autoLogHevySessions(){
+  if(!S._hevyRecent||!S._hevyRecent.length)return;
+  if(!S.logs)S.logs=[];
+  var changed=false;
+  S._hevyRecent.forEach(function(hs){
+    // Build a stable ID from name + date to avoid duplicates
+    var hsDate=new Date(hs.date);
+    var ds=(hsDate.getMonth()+1<10?'0':'')+(hsDate.getMonth()+1)+'/'+(hsDate.getDate()<10?'0':'')+hsDate.getDate()+'/'+hsDate.getFullYear();
+    var logId='hevy_'+hs.name+'_'+ds;
+    // Already logged?
+    var existing=S.logs.find(function(l){return l._hevyId===logId;});
+    if(existing)return;
+    // Build muscle snapshots
+    var sessMF={};if(S._muscleFatigue){Object.keys(S._muscleFatigue).forEach(function(m){var v=S._muscleFatigue[m];sessMF[m]=typeof v==='object'?Math.round(safeNum(v.value)):Math.round(safeNum(v));});}
+    var sessEff={};if(S._effectiveSets&&S._effectiveSets.muscles){Object.keys(S._effectiveSets.muscles).forEach(function(m){var v=S._effectiveSets.muscles[m];sessEff[m]=Math.round(safeNum(v.effective)*10)/10;});}
+    S.logs.unshift({
+      _hevyId:logId,
+      _auto:true,
+      sess:hs.name,
+      dur:hs.durMins||null,
+      rpe:hs.rpe||hs.hevyRPE||null,
+      srpe:hs.sRPE||null,
+      date:ds,
+      hevyRPE:hs.hevyRPE||null,
+      garminRPE:hs.rpe||null,
+      muscleSets:hs.muscleSets||null,
+      effectiveSets:Object.keys(sessEff).length?sessEff:null,
+      muscleFatigue:Object.keys(sessMF).length?sessMF:null,
+      hrv:S.metrics.hrv||null,sleep:S.metrics.sleep||null,
+      rhr:S.metrics.rhr||null,weight:S.metrics.weight||null,
+      readiness:S._readiness?S._readiness.overall:null,
+      fatigue:S._fatigue?Math.round(S._fatigue.systemic):null,
+      knee:null, recFollow:null,
+      atlasRec:S._decision?S._decision.recommendation:null
+    });
+    changed=true;
+  });
+  if(changed){save();safe(renderLog,'rl');}
+}
+
+// Set recFollow on an auto-logged session (one-tap from the row)
+function setLogRecFollow(hevyId,val){
+  var log=safeArr(S.logs).find(function(l){return l._hevyId===hevyId;});
+  if(!log)return;
+  log.recFollow=val;
+  save();
+  safe(renderLog,'rl');
+  safe(function(){if(typeof buildWeeklyAdaptationSnapshot==='function')buildWeeklyAdaptationSnapshot();},'ws');
 }
 function safe(fn,name){try{fn();}catch(e){console.error(name+':',e.message);}}
 function showS(id){
