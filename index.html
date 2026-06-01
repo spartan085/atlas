@@ -82,7 +82,7 @@ body::after{content:'';position:fixed;inset:0;z-index:9999;pointer-events:none;b
 .mav-header{display:flex;align-items:baseline;justify-content:space-between;margin-bottom:5px;}
 .mav-muscle{font-size:13px;font-weight:500;}.mav-nums{font-family:'Geist Mono',monospace;font-size:10px;color:var(--fg3);}
 .mav-track{height:8px;background:var(--bg4);border-radius:4px;position:relative;overflow:visible;}
-.mav-mev{position:absolute;top:0;bottom:0;left:0;background:var(--b-a);border-right:1.5px dashed var(--b);z-index:1;border-radius:4px 0 0 4px;}
+.mav-mev{position:absolute;top:-3px;bottom:-3px;width:2px;background:var(--b);z-index:1;border-radius:1px;}
 .mav-fill{position:absolute;top:0;bottom:0;left:0;border-radius:4px;z-index:2;transition:width 1.2s cubic-bezier(.16,1,.3,1);}
 .mav-mrv{position:absolute;top:-3px;bottom:-3px;width:2px;background:var(--r);z-index:3;border-radius:1px;}
 .mav-zone{font-size:11px;margin-top:4px;}
@@ -3156,7 +3156,7 @@ function renderMAV(){
     else if(current<=eMRV){col='var(--y)';zone='MAV→MRV';}
     else{col='var(--r)';zone=`Sobre MRV (+${current-eMRV}s)`;}
     const dyn=isReduced?`<div style="font-size:10px;color:var(--y);margin-top:2px;">⚠ MRV dinámico: ${mrv}→${eMRV} (×${eff.mult})</div>`:'';
-    return`<div class="mav-row"><div class="mav-header"><div class="mav-muscle">${muscle}${(function(){var f=safeArr(S._hevyRecent).filter(function(s){return s.age<7*864e5&&s.muscleSets&&s.muscleSets[muscle]>0;}).length;return f>0?"<span style=\"font-size:9px;color:"+(f>=2?"var(--g)":"var(--y)")+";margin-left:5px;font-family:monospace;\">"+(f>=2?"F2":"F1")+"</span>":"";}())}</div><div class="mav-nums"><span style="color:${col};font-weight:600;">${current}s</span> · MEV${mev} MAV${mavBase} MRV<span style="color:${isReduced?'var(--y)':'inherit'}">${eMRV}</span></div></div><div class="mav-track"><div class="mav-mev" style="width:${mevPct}%"></div><div class="mav-fill" style="width:${fillPct}%;background:${col};"></div><div class="mav-mrv" style="left:${mrvPct}%"></div></div><div class="mav-zone" style="color:${col};">${zone}</div>${dyn}</div>`;
+    return`<div class="mav-row"><div class="mav-header"><div class="mav-muscle">${muscle}${(function(){var f=safeArr(S._hevyRecent).filter(function(s){return s.age<7*864e5&&s.muscleSets&&s.muscleSets[muscle]>0;}).length;return f>0?"<span style=\"font-size:9px;color:"+(f>=2?"var(--g)":"var(--y)")+";margin-left:5px;font-family:monospace;\">"+(f>=2?"F2":"F1")+"</span>":"";}())}</div><div class="mav-nums"><span style="color:${col};font-weight:600;">${current}s</span> · MEV${mev} MAV${mavBase} MRV<span style="color:${isReduced?'var(--y)':'inherit'}">${eMRV}</span></div></div><div class="mav-track"><div class="mav-mev" style="left:${mevPct}%"></div><div class="mav-fill" style="width:${fillPct}%;background:${col};"></div><div class="mav-mrv" style="left:${mrvPct}%"></div></div><div class="mav-zone" style="color:${col};">${zone}</div>${dyn}</div>`;
   }).join('');
   if(mav&&mav.reasons.length&&multCard&&multList){multCard.style.display='block';multList.innerHTML=mav.reasons.map(r=>`<div style="font-size:12px;color:var(--fg2);padding:4px 0;border-bottom:1px solid var(--line);">${r}</div>`).join('')+`<div style="font-family:'Geist Mono',monospace;font-size:11px;color:var(--c);padding:6px 0 0;">Global ×${mav.global}</div>`;}
   else if(multCard)multCard.style.display='none';
