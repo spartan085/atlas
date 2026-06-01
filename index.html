@@ -3348,10 +3348,12 @@ async function fetchIntervals(){
     S.metrics.lightSleep=fv['LightSleep']!=null?Math.round(safeNum(fv['LightSleep'])/60):null;
     S.metrics.remSleep=fv['REMSleep']!=null?Math.round(safeNum(fv['REMSleep'])/60):null;
     S.metrics.leanMass=safeNum(fv['LeanBodyMass'])||null;
-    // Sleep efficiency: actual sleep stages / total sleep time (%)
-    var _stagesMin=(S.metrics.deepSleep||0)+(S.metrics.lightSleep||0)+(S.metrics.remSleep||0);
+    // Quality sleep %: restorative stages (deep + REM) / total sleep time (%)
+    // Deep = physical repair + GH secretion; REM = neuromuscular/motor consolidation.
+    // Light sleep is transitional, so excluded from numerator (evidence-based).
+    var _qualityMin=(S.metrics.deepSleep||0)+(S.metrics.remSleep||0);
     var _totalSleepMin=latestBio.sleepSecs?latestBio.sleepSecs/60:null;
-    S.metrics.sleepEfficiency=(_stagesMin>0&&_totalSleepMin>0)?Math.round(_stagesMin/_totalSleepMin*100):null;
+    S.metrics.qualitySleepPct=(_qualityMin>0&&_totalSleepMin>0)?Math.round(_qualityMin/_totalSleepMin*100):null;
     // Total energy expenditure for energy-availability context
     S.metrics.totalEnergy=(S.metrics.activeEnergy&&S.metrics.restingEnergy)?Math.round(S.metrics.activeEnergy+S.metrics.restingEnergy):null;
     // % grasa: use today's value OR last known value from history
@@ -4515,7 +4517,12 @@ function buildWeeklyAdaptationSnapshot(){
     protein:S.metrics.protein||null,
     leanMass:S.metrics.leanMass||null
   }:null;
-  var sleepArch=(S.metrics.deepSleep||S.metrics.remSleep)?{deepMin:S.metrics.deepSleep||null,lightMin:S.metrics.lightSleep||null,remMin:S.metrics.remSleep||null}:null;
+  // Weekly sleep averages from session logs (trend matters more than any single night)
+  function avgLogField(field){var vals=weekLogs.map(function(l){return safeNum(l[field],0);}).filter(function(v){return v>0;});return vals.length?Math.round(vals.reduce(function(a,b){return a+b;},0)/vals.length):null;}
+  var sleepArch=(S.metrics.deepSleep||S.metrics.remSleep)?{
+    deepMin:S.metrics.deepSleep||null,lightMin:S.metrics.lightSleep||null,remMin:S.metrics.remSleep||null,
+    avgDeepSleepMin:avgLogField('deepSleepMin'),avgRemSleepMin:avgLogField('remSleepMin'),avgQualitySleepPct:avgLogField('qualitySleepPct')
+  }:null;
   var snapshot={weekKey:weekKey,muscles:muscles,exercises:exercises,patterns:(typeof patterns!=='undefined'?patterns:null),running:running,recFollowRate:recFollowRate,peaks:peaks,hrvStability:hrvStability,weightTrend:weightTrend,readinessStability:readinessStability,sessionOutcomes:sessionOutcomes,energy:energyData,sleepArch:sleepArch};
   try{var ex=[];var raw=localStorage.getItem('atlas_weekly_v1');if(raw)ex=JSON.parse(raw);if(!Array.isArray(ex))ex=[];var idx=ex.findIndex(function(s){return s.weekKey===weekKey;});if(idx>=0)ex[idx]=snapshot;else ex.unshift(snapshot);localStorage.setItem('atlas_weekly_v1',JSON.stringify(ex.slice(0,104)));}catch(e){}
   S._weeklySnap=snapshot;
@@ -4703,7 +4710,7 @@ function autoLogHevySessions(){
       muscleFatigue:Object.keys(sessMF).length?sessMF:null,
       hrv:S.metrics.hrv||null,sleep:S.metrics.sleep||null,
       rhr:S.metrics.rhr||null,weight:S.metrics.weight||null,
-      deepSleepMin:S.metrics.deepSleep||null,remSleepMin:S.metrics.remSleep||null,sleepEfficiency:S.metrics.sleepEfficiency||null,
+      deepSleepMin:S.metrics.deepSleep||null,remSleepMin:S.metrics.remSleep||null,qualitySleepPct:S.metrics.qualitySleepPct||null,
       readiness:S._readiness?S._readiness.overall:null,
       fatigue:S._fatigue?Math.round(S._fatigue.systemic):null,
       knee:null, recFollow:null,
@@ -4735,7 +4742,7 @@ function autoLogHevySessions(){
       load:load, distanceKm:distKm, actType:type,
       date:ds,
       hrv:S.metrics.hrv||null,sleep:S.metrics.sleep||null,
-      deepSleepMin:S.metrics.deepSleep||null,remSleepMin:S.metrics.remSleep||null,sleepEfficiency:S.metrics.sleepEfficiency||null,
+      deepSleepMin:S.metrics.deepSleep||null,remSleepMin:S.metrics.remSleep||null,qualitySleepPct:S.metrics.qualitySleepPct||null,
       readiness:S._readiness?S._readiness.overall:null,
       knee:null, recFollow:null,
       atlasRec:S._decision?S._decision.recommendation:null
