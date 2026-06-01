@@ -563,20 +563,6 @@ textarea.field{resize:vertical;min-height:60px;}
       </div>
     </div>
     <div class="card">
-      <div class="card-hdr"><div class="t-md">Entrada manual</div></div>
-      <div class="card-body">
-        <div class="fg2">
-          <div><label class="fg-label">HRV hoy (ms)</label><input class="field" type="number" id="manHRV" placeholder="ej. 58" oninput="manualUpdate()"></div>
-          <div><label class="fg-label">Body Battery</label><input class="field" type="number" id="manBB" placeholder="0-100" oninput="manualUpdate()"></div>
-          <div><label class="fg-label">Sueño (h)</label><input class="field" type="number" id="manSleep" step=".1" placeholder="7.5" oninput="manualUpdate()"></div>
-          <div><label class="fg-label">FC Reposo</label><input class="field" type="number" id="manRHR" placeholder="52" oninput="manualUpdate()"></div>
-          <div><label class="fg-label">DOMS tren sup (0-10)</label><input class="field" type="number" id="manDomsUpper" placeholder="0" min="0" max="10" oninput="manualUpdate()"></div>
-          <div><label class="fg-label">DOMS tren inf (0-10)</label><input class="field" type="number" id="manDomsLower" placeholder="0" min="0" max="10" oninput="manualUpdate()"></div>
-        </div>
-        <div class="fg" style="margin-bottom:0;"><label class="fg-label">Dolor / molestia</label><input class="field" type="text" id="manPain" placeholder="ej. lumbar leve, hombro..."></div>
-      </div>
-    </div>
-    <div class="card">
       <div class="card-hdr"><div class="t-md">Claude API Key</div></div>
       <div class="card-body">
         <div class="info c" style="margin-bottom:12px;">console.anthropic.com → API Keys → Create Key</div>
@@ -704,16 +690,16 @@ function save(){
 
   // Prune logs: keep last 90 days, max 150 entries
   // Parse DD/MM/YYYY properly (string compare with ISO cutoff was deleting valid logs)
-  var cutoff90ms=Date.now()-90*864e5;
+  var cutoffLogMs=Date.now()-730*864e5; // 2 years
   var prunedLogs=safeArr(S.logs)
     .filter(function(l){
       if(!l)return false;
       if(!l.date)return true; // keep undated entries
       var p=String(l.date).split('/');
       var d=p.length===3?new Date(p[2],p[1]-1,p[0]).getTime():new Date(l.date).getTime();
-      return isNaN(d)?true:d>=cutoff90ms;
+      return isNaN(d)?true:d>=cutoffLogMs;
     })
-    .slice(-150);
+    .slice(-1000);
 
   // Prune RVL snapshots in localStorage
   try{
@@ -2410,10 +2396,36 @@ function RecommendationEngine(fatigue,interference){
 }
 
 // ══ MAIN ORCHESTRATOR ══
+
+// ══ AUTOSAVE ESTADO HOY (persist daily-state inputs across app close) ══
+var ESTADO_FIELDS=['bbToday','energyToday','domsUpper','domsLower','lumbarToday','achillesToday','kneeToday','painToday','notesToday'];
+function estadoKey(){return 'atlas_estado_'+new Date().toISOString().split('T')[0];}
+function saveEstado(){
+  var data={};
+  ESTADO_FIELDS.forEach(function(id){var el=safeDOM(id);if(el&&el.value!=='')data[id]=el.value;});
+  try{localStorage.setItem(estadoKey(),JSON.stringify(data));}catch(e){}
+}
+function loadEstado(){
+  try{var raw=localStorage.getItem(estadoKey());if(raw){var data=JSON.parse(raw);ESTADO_FIELDS.forEach(function(id){var el=safeDOM(id);if(el&&data[id]!=null&&el.value==='')el.value=data[id];});}}catch(e){}
+  try{var cutoff=new Date(Date.now()-7*864e5).toISOString().split('T')[0];for(var i=localStorage.length-1;i>=0;i--){var k=localStorage.key(i);if(k&&k.indexOf('atlas_estado_')===0&&k.replace('atlas_estado_','')<cutoff)localStorage.removeItem(k);}}catch(e){}
+}
+function wireEstadoAutosave(){
+  ESTADO_FIELDS.forEach(function(id){var el=safeDOM(id);if(el&&!el._autoWired){el._autoWired=true;el.addEventListener('input',saveEstado);el.addEventListener('change',saveEstado);}});
+}
+
 function runEngines(){
   const knee=safeNum(safeDOM('kneeToday')?.value)||0;
   const domsUp=safeNum(safeDOM('domsUpper')?.value)||0;
   const domsLow=safeNum(safeDOM('domsLower')?.value)||0;
+  // Capture manual Estado hoy fields into S.metrics so top cards update live
+  var _bb=safeNum(safeDOM('bbToday')?.value);
+  if(_bb>0){S.metrics.bb=_bb;var bbCard=safeDOM('m-bb');if(bbCard)bbCard.textContent=_bb;}
+  var _en=safeNum(safeDOM('energyToday')?.value);
+  if(_en>0)S.metrics.energy=_en;
+  var _lum=safeNum(safeDOM('lumbarToday')?.value);
+  if(_lum>0)S.metrics.lumbar=_lum;
+  var _ach=safeNum(safeDOM('achillesToday')?.value);
+  if(_ach>0)S.metrics.achilles=_ach;
 
   // ── Engine execution order (dependencies matter) ──
   // 1. HRV first — needed by ConfidenceEngine and FatigueEngine
@@ -3329,6 +3341,19 @@ async function fetchIntervals(){
     S.metrics.vo2max=latestBio.vo2max||null;
     S.metrics.avgNocturnalHR=latestBio.avgSleepingHR||null;
     const fv=latestBio.fieldValues||{};
+    // Custom wellness fields synced from Apple Health via Intervals Companion
+    S.metrics.activeEnergy=safeNum(fv['ActiveEnergy'])||null;
+    S.metrics.restingEnergy=safeNum(fv['RestingEnergy'])||null;
+    S.metrics.deepSleep=fv['DeepSleep']!=null?Math.round(safeNum(fv['DeepSleep'])/60):null;
+    S.metrics.lightSleep=fv['LightSleep']!=null?Math.round(safeNum(fv['LightSleep'])/60):null;
+    S.metrics.remSleep=fv['REMSleep']!=null?Math.round(safeNum(fv['REMSleep'])/60):null;
+    S.metrics.leanMass=safeNum(fv['LeanBodyMass'])||null;
+    // Sleep efficiency: actual sleep stages / total sleep time (%)
+    var _stagesMin=(S.metrics.deepSleep||0)+(S.metrics.lightSleep||0)+(S.metrics.remSleep||0);
+    var _totalSleepMin=latestBio.sleepSecs?latestBio.sleepSecs/60:null;
+    S.metrics.sleepEfficiency=(_stagesMin>0&&_totalSleepMin>0)?Math.round(_stagesMin/_totalSleepMin*100):null;
+    // Total energy expenditure for energy-availability context
+    S.metrics.totalEnergy=(S.metrics.activeEnergy&&S.metrics.restingEnergy)?Math.round(S.metrics.activeEnergy+S.metrics.restingEnergy):null;
     // % grasa: use today's value OR last known value from history
     const todayFat=latestBio.bodyFat||latestBio.fatPercent||fv['BodyFatPercent']||fv['PercentageOfBodyFat']||null;
     if(todayFat!=null) S.metrics.fatPct=todayFat;
@@ -3595,6 +3620,23 @@ function showValidation(){
 
   panel.innerHTML=html;
 }
+
+// ══ WEEKLY BACKUP REMINDER ══
+function checkBackupReminder(){
+  try{
+    var last=localStorage.getItem('atlas_last_export');
+    var now=Date.now();
+    var days=last?Math.floor((now-parseInt(last))/864e5):999;
+    var banner=safeDOM('backupReminder');
+    if(!banner)return;
+    if(days>=7){
+      banner.style.display='block';
+      banner.innerHTML='<div style="display:flex;align-items:center;gap:8px;justify-content:space-between;"><span style="font-size:12px;color:var(--y);">⚠ '+(days>=900?'Sin backup aún':'Hace '+days+' días del último backup')+'</span><button onclick="exportAllData()" style="padding:6px 12px;border-radius:8px;font-size:11px;background:var(--c);color:#000;border:none;font-weight:600;cursor:pointer;">Backup ahora</button></div>';
+    }else{
+      banner.style.display='none';
+    }
+  }catch(e){}
+}
 function exportAllData(){
   try{
     var payload={
@@ -3620,7 +3662,7 @@ function exportAllData(){
     a.click();
     document.body.removeChild(a);
     setTimeout(function(){URL.revokeObjectURL(url);},100);
-    toast('Backup exportado',payload.logs.length+' logs · '+payload.weeklySnapshots.length+' sem · Guárdalo en iCloud','✅');
+    try{localStorage.setItem('atlas_last_export',String(Date.now()));}catch(e){}var _br=safeDOM('backupReminder');if(_br)_br.style.display='none';toast('Backup exportado',payload.logs.length+' logs · '+payload.weeklySnapshots.length+' sem · Guárdalo en iCloud','✅');
   }catch(e){
     toast('Error exportando',e.message,'⚠️');
   }
@@ -4460,8 +4502,22 @@ function buildWeeklyAdaptationSnapshot(){
     var rSD=Math.sqrt(readSeries.reduce(function(s,v){return s+(v-rMean)*(v-rMean);},0)/readSeries.length);
     readinessStability={avgReadiness:Math.round(rMean),cvReadiness:rMean>0?Math.round(rSD/rMean*1000)/10:0};
   }
-  var snapshot={weekKey:weekKey,muscles:muscles,exercises:exercises,patterns:(typeof patterns!=='undefined'?patterns:null),running:running,recFollowRate:recFollowRate,peaks:peaks,hrvStability:hrvStability,weightTrend:weightTrend,readinessStability:readinessStability,sessionOutcomes:sessionOutcomes};
-  try{var ex=[];var raw=localStorage.getItem('atlas_weekly_v1');if(raw)ex=JSON.parse(raw);if(!Array.isArray(ex))ex=[];var idx=ex.findIndex(function(s){return s.weekKey===weekKey;});if(idx>=0)ex[idx]=snapshot;else ex.unshift(snapshot);localStorage.setItem('atlas_weekly_v1',JSON.stringify(ex.slice(0,52)));}catch(e){}
+  // Energy balance: intake (Cronometer→Intervals) vs expenditure (Apple Health active+resting, fallback Intervals burned)
+  var _expend=S.metrics.totalEnergy||S.metrics.kcalBurned||null;
+  var _intake=S.metrics.kcal||null;
+  var _balance=(_intake&&_expend)?Math.round(_intake-_expend):null;
+  var energyData=(_intake||_expend||S.metrics.activeEnergy)?{
+    activeEnergy:S.metrics.activeEnergy||null,
+    restingEnergy:S.metrics.restingEnergy||null,
+    totalExpenditure:_expend,
+    intake:_intake,
+    balance:_balance,
+    protein:S.metrics.protein||null,
+    leanMass:S.metrics.leanMass||null
+  }:null;
+  var sleepArch=(S.metrics.deepSleep||S.metrics.remSleep)?{deepMin:S.metrics.deepSleep||null,lightMin:S.metrics.lightSleep||null,remMin:S.metrics.remSleep||null}:null;
+  var snapshot={weekKey:weekKey,muscles:muscles,exercises:exercises,patterns:(typeof patterns!=='undefined'?patterns:null),running:running,recFollowRate:recFollowRate,peaks:peaks,hrvStability:hrvStability,weightTrend:weightTrend,readinessStability:readinessStability,sessionOutcomes:sessionOutcomes,energy:energyData,sleepArch:sleepArch};
+  try{var ex=[];var raw=localStorage.getItem('atlas_weekly_v1');if(raw)ex=JSON.parse(raw);if(!Array.isArray(ex))ex=[];var idx=ex.findIndex(function(s){return s.weekKey===weekKey;});if(idx>=0)ex[idx]=snapshot;else ex.unshift(snapshot);localStorage.setItem('atlas_weekly_v1',JSON.stringify(ex.slice(0,104)));}catch(e){}
   S._weeklySnap=snapshot;
 }
 
@@ -4647,6 +4703,7 @@ function autoLogHevySessions(){
       muscleFatigue:Object.keys(sessMF).length?sessMF:null,
       hrv:S.metrics.hrv||null,sleep:S.metrics.sleep||null,
       rhr:S.metrics.rhr||null,weight:S.metrics.weight||null,
+      deepSleepMin:S.metrics.deepSleep||null,remSleepMin:S.metrics.remSleep||null,sleepEfficiency:S.metrics.sleepEfficiency||null,
       readiness:S._readiness?S._readiness.overall:null,
       fatigue:S._fatigue?Math.round(S._fatigue.systemic):null,
       knee:null, recFollow:null,
@@ -4678,6 +4735,7 @@ function autoLogHevySessions(){
       load:load, distanceKm:distKm, actType:type,
       date:ds,
       hrv:S.metrics.hrv||null,sleep:S.metrics.sleep||null,
+      deepSleepMin:S.metrics.deepSleep||null,remSleepMin:S.metrics.remSleep||null,sleepEfficiency:S.metrics.sleepEfficiency||null,
       readiness:S._readiness?S._readiness.overall:null,
       knee:null, recFollow:null,
       atlasRec:S._decision?S._decision.recommendation:null
@@ -4721,6 +4779,7 @@ function showS(id){
   var btn=safeDOM(map[id]);if(btn)btn.classList.add('active');
   window.scrollTo(0,0);try{document.querySelector(".main").scrollTop=0;document.documentElement.scrollTop=0;document.body.scrollTop=0;}catch(e){}
   if(id==='s-mav'){safe(renderWeekZones,'rz');safe(renderMAV,'rm');safe(renderProgressionPanel,'rp');safe(renderE1RMPanel,'re');safe(renderEffectiveSets,'ref');}
+  if(id==='s-hoy'){safe(loadEstado,'le');safe(wireEstadoAutosave,'we');safe(checkBackupReminder,'cbr');}
   if(id==='s-log'){safe(renderLog,'rl');safe(populateLogSessions,'pls');}
   if(id==='s-fatiga'){safe(renderFatigueSignals,'rs');safe(renderMuscleFatigue,'rmf');safe(renderInterferencePanel,'ri');safe(renderDensityPanel,'rd');safe(renderConfidencePanel,'rc');safe(renderValidationPanel,'rv');}
   if(id==='s-datos'){safe(renderValidationDashboard,'rvd');}if(id==='s-plan'){safe(function(){selectMeso(S.currentMeso||1);},'meso');}
@@ -4731,6 +4790,7 @@ function toast(title,msg,icon,ms=3500){const el=document.createElement('div');el
 // ══ INIT ══
 function init(){
   checkWeekReset();loadPersisted();
+  safe(loadEstado,'le');safe(wireEstadoAutosave,'we');safe(checkBackupReminder,'cbr');
   if(S.int.aid){const e=safeDOM('intAid');if(e)e.value=S.int.aid;}
   if(S.int.key){const e=safeDOM('intKey');if(e)e.value='••••••••••••••••';}
   if(S.int.ok)setIntStatus('ok');
@@ -4750,3 +4810,4 @@ window.addEventListener('DOMContentLoaded',init);
 
 </body>
 </html>
+  <div id="backupReminder" style="display:none;margin:10px 18px 0;padding:10px 14px;background:var(--bg3);border:1px solid var(--y);border-radius:10px;"></div>
