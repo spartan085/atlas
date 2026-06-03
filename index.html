@@ -397,6 +397,7 @@ textarea.field{resize:vertical;min-height:60px;}
 <!-- MEV/MAV -->
 <div class="screen" id="s-mav">
   <div class="pad">
+    <div id="mavMicroSummary" style="background:var(--bg2);border:1px solid var(--line);border-radius:var(--radius);padding:10px 14px;margin-bottom:10px;font-size:12px;color:var(--fg2);display:none;"></div>
     <div class="card">
       <div class="card-hdr">
         <span class="t-md" id="mavBarsTitle">Volumen semana</span>
@@ -3160,6 +3161,7 @@ function renderMAV(){
   }).join('');
   if(mav&&mav.reasons.length&&multCard&&multList){multCard.style.display='block';multList.innerHTML=mav.reasons.map(r=>`<div style="font-size:12px;color:var(--fg2);padding:4px 0;border-bottom:1px solid var(--line);">${r}</div>`).join('')+`<div style="font-family:'Geist Mono',monospace;font-size:11px;color:var(--c);padding:6px 0 0;">Global ×${mav.global}</div>`;}
   else if(multCard)multCard.style.display='none';
+  safe(renderMavMicroSummary,'rmms');
 }
 
 function renderActivities(){
@@ -3526,6 +3528,7 @@ async function fetchHevy(){
     const hSt=safeDOM('hevyStatus');if(hSt)hSt.innerHTML='<span class="sdot-sm sdot-g"></span><span style="color:var(--g);">Conectado</span>';
     renderMAV();runEngines();
     safe(buildWeeklyAdaptationSnapshot,'wsnap'); // build AFTER weeklyVol is populated (was running on init with empty vol → zeros)
+    safe(renderWeekSummary,'rws');
     toast('Hevy sincronizado',`${workouts.length} sesiones · ${recentHevySess.length} recientes (72h)`,'💪',5000);
   }catch(err){toast('Error Hevy',err.message,'❌');}
   finally{if(sp)sp.style.display='none';}
@@ -3756,6 +3759,87 @@ function parseDate(str){if(!str)return null;const p=str.split('/');if(p.length==
 const SYS=`Eres ATLAS v6 — coach fisiológico de Carlos. Español. Directo, basado en evidencia. Máx 380 palabras. Los motores fisiológicos ya procesaron datos determinísticamente. Tu rol: EXPLICAR en lenguaje humano claro. NO decides — interpretas. Carlos: 78.2kg, 15.6% grasa, objetivo ~10%+hipertrofia+running. Ex maratonista. Rodilla: condromalacia/ITB sin dolor. VMO descompensado, piernas en varo. Gemelos: 2x/semana mínimo. Mesociclo 1, semanas 1-4. D1 Empuje · D2 Pierna A (pre-act) · D3 Z2 · D4 Tirón · D5 Pierna B (pre-act) · D6 Z2+Mov · D7 Descanso. IMPORTANTE: respeta el bloque CALENDARIO Y MICROCICLO — analiza la sesión que TOCA según lo ya hecho esta semana, nunca asumas D1/D2 por defecto. Cada día es UNA sesión de fuerza; cardio puede sumarse el mismo día pero dos sesiones de fuerza van en días distintos. Rodilla >3/10 = parar ejercicio. Sistémica <30%=completo · 30-60%=-35% · >60%=descanso. CAPA DE DECISIÓN (obligatoria): toda recomendación que reduzca o elimine entrenamiento debe mostrar su COSTE SEMANAL, no solo el beneficio fisiológico. Clasifica cada acción como COSTE BAJO / MEDIO / ALTO. Ejemplos: reducir volumen hoy -20% = BAJO; saltar sesión de pierna = ALTO; quitar 6 series de cuádriceps = ALTO. Para acciones de coste medio/alto, muestra el trade-off explícito usando el BALANCE DE VOLUMEN: cuánto volumen se pierde esta semana, qué músculos quedan afectados, y probabilidad de no llegar al MAV. Ej: "Quitar 4 series de cuádriceps hoy lo dejaría en 8/14 y, sin más sesiones de pierna esta semana, por debajo del objetivo." Evalúa SIEMPRE las dos caras: 1) beneficio fisiológico (recuperación), 2) coste de entrenamiento semanal (volumen/MAV perdido). Nunca recomiendes una acción de coste alto sin enseñar el trade-off. Si fatiga y objetivo semanal chocan, dilo y deja que Carlos decida con el coste delante.`;
 
 // ══ MICROCYCLE / CALENDAR CONTEXT — tells AI what day it is, which Dn sessions are done this week, and what's next ══
+
+// ══ WEEKLY BALANCE DATA (for HOY card + MEV/MAV summary) — reuses same logic as AI context ══
+
+
+function renderMavMicroSummary(){
+  var el=safeDOM('mavMicroSummary');if(!el)return;
+  var b=getWeeklyBalance();
+  var nextTxt=b.nextSession?(b.nextSession[0]+' '+b.nextSession[2]):'Fuerza completa ✓';
+  el.style.display='block';
+  el.innerHTML='<div style="display:flex;justify-content:space-between;align-items:center;">'+
+    '<span><b style="color:var(--c);">Fuerza '+b.strengthDone+'/'+b.strengthTotal+'</b> · Running '+b.cardioDone+'/'+b.cardioTotal+'</span>'+
+    '<span style="color:var(--fg3);font-size:11px;">Próxima: '+nextTxt+'</span></div>';
+}
+
+function renderWeekSummary(){
+  var el=safeDOM('weekSummaryBody');var badge=safeDOM('weekScoreBadge');
+  if(!el)return;
+  var b=getWeeklyBalance();
+  if(badge)badge.textContent='Semana '+b.weekScore+'%';
+  var nextTxt=b.nextSession?(b.nextSession[0]+' '+b.nextSession[2]):'Fuerza completa ✓';
+  var remTxt=b.remainingSessions.length?b.remainingSessions.map(function(d){return d[0];}).join(', '):'ninguna';
+  var furthestHtml=b.furthest.length?b.furthest.map(function(m){
+    return '<div style="display:flex;justify-content:space-between;font-size:12px;padding:2px 0;"><span style="color:var(--fg2);">'+m.muscle+'</span><span class="mono" style="color:var(--y);">'+m.done+'/'+m.mav+' (-'+m.deficit+')</span></div>';
+  }).join(''):'<div style="font-size:12px;color:var(--g);">Todos los músculos en MAV ✓</div>';
+  el.innerHTML=
+    '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">'+
+      '<div><div style="font-size:22px;font-weight:600;color:var(--fg);">'+b.weekScore+'%</div><div style="font-size:10px;color:var(--fg3);text-transform:uppercase;letter-spacing:0.5px;">Semana completada</div></div>'+
+      '<div style="text-align:right;font-size:12px;color:var(--fg2);">Fuerza '+b.strengthDone+'/'+b.strengthTotal+'<br>Running '+b.cardioDone+'/'+b.cardioTotal+'</div>'+
+    '</div>'+
+    '<div style="height:6px;background:var(--bg4);border-radius:3px;overflow:hidden;margin-bottom:10px;"><div style="height:100%;width:'+b.weekScore+'%;background:var(--c);border-radius:3px;transition:width 1s;"></div></div>'+
+    '<div style="font-size:12px;color:var(--fg2);margin-bottom:3px;">Próxima: <span style="color:var(--c);">'+nextTxt+'</span></div>'+
+    '<div style="font-size:12px;color:var(--fg3);margin-bottom:8px;">Quedan: '+remTxt+'</div>'+
+    '<div style="font-size:10px;color:var(--fg3);text-transform:uppercase;letter-spacing:0.5px;margin-bottom:4px;">Más retrasados ('+b.mavCovered+'/'+b.mavTotal+' en MAV)</div>'+
+    furthestHtml;
+}
+
+function getWeeklyBalance(){
+  var meso=S.currentMeso||1;
+  var plan=(MESO_DAYS[meso]||MESO_DAYS[1]);
+  var weekStart=getWeekBounds(0).start;
+  var weekLogs=safeArr(S.logs).filter(function(l){var d=parseDate(l.date);return d&&d>=weekStart;});
+  var doneStrength=[];var doneCardio=[];
+  weekLogs.forEach(function(l){
+    var nm=(l.sess||'').toLowerCase();
+    if(l._cardio||/z2|z1|cardio|run|correr|caminata|movilidad/i.test(nm)){doneCardio.push(l.sess||'cardio');return;}
+    var matched=null;
+    plan.forEach(function(d){var label=d[2].toLowerCase();if(nm.indexOf(d[0].toLowerCase())>=0||(label.split(' ')[0]&&nm.indexOf(label.split(' ')[0])>=0))matched=d[0];});
+    doneStrength.push(matched||l.sess||'fuerza');
+  });
+  var strengthDays=plan.filter(function(d){return !/cardio|z2|z1|movilidad|descanso|recuper/i.test(d[2]);});
+  var cardioDays=plan.filter(function(d){return /cardio|z2|z1/i.test(d[2]);});
+  var doneSet={};doneStrength.forEach(function(x){doneSet[x]=true;});
+  var nextStrength=null;
+  for(var i=0;i<strengthDays.length;i++){if(!doneSet[strengthDays[i][0]]){nextStrength=strengthDays[i];break;}}
+  var remainingSessions=[];
+  for(var j=0;j<strengthDays.length;j++){if(!doneSet[strengthDays[j][0]])remainingSessions.push(strengthDays[j]);}
+  // Volume per muscle
+  var vol=S.weeklyVol||{};var ranges=S.mavRanges||{};
+  var muscleStatus=[];var mavCovered=0;var mavTotal=0;var mavSumPct=0;
+  Object.keys(ranges).forEach(function(mu){
+    var done=safeNum(vol[mu],0);var mav=ranges[mu].mav;
+    var deficit=mav-done;var pct=mav>0?Math.min(100,Math.round(done/mav*100)):0;
+    mavSumPct+=pct;mavTotal++;
+    if(done>=mav)mavCovered++;
+    muscleStatus.push({muscle:mu,done:done,mav:mav,deficit:deficit,pct:pct});
+  });
+  var mavGlobalPct=mavTotal>0?Math.round(mavSumPct/mavTotal):0;
+  // Top 3 furthest from MAV (largest deficit, only those still short)
+  var furthest=muscleStatus.filter(function(m){return m.deficit>0;}).sort(function(a,b){return b.deficit-a.deficit;}).slice(0,3);
+  // Completion score: 50% sessions + 50% MAV
+  var sessionPct=strengthDays.length>0?Math.round(doneStrength.length/strengthDays.length*100):0;
+  var weekScore=Math.round(sessionPct*0.5+mavGlobalPct*0.5);
+  return {
+    strengthDone:doneStrength.length,strengthTotal:strengthDays.length,
+    cardioDone:doneCardio.length,cardioTotal:cardioDays.length,
+    nextSession:nextStrength,remainingSessions:remainingSessions,
+    mavCovered:mavCovered,mavTotal:mavTotal,mavGlobalPct:mavGlobalPct,
+    furthest:furthest,sessionPct:sessionPct,weekScore:weekScore
+  };
+}
+
 function buildMicrocycleCtx(){
   var meso=S.currentMeso||1;
   var plan=(MESO_DAYS[meso]||MESO_DAYS[1]);
@@ -4849,7 +4933,7 @@ function showS(id){
   var btn=safeDOM(map[id]);if(btn)btn.classList.add('active');
   window.scrollTo(0,0);try{document.querySelector(".main").scrollTop=0;document.documentElement.scrollTop=0;document.body.scrollTop=0;}catch(e){}
   if(id==='s-mav'){safe(renderWeekZones,'rz');safe(renderMAV,'rm');safe(renderProgressionPanel,'rp');safe(renderE1RMPanel,'re');safe(renderEffectiveSets,'ref');}
-  if(id==='s-hoy'){safe(loadEstado,'le');safe(wireEstadoAutosave,'we');safe(checkBackupReminder,'cbr');}
+  if(id==='s-hoy'){safe(loadEstado,'le');safe(wireEstadoAutosave,'we');safe(checkBackupReminder,'cbr');safe(renderWeekSummary,'rws');}
   if(id==='s-log'){safe(renderLog,'rl');safe(populateLogSessions,'pls');}
   if(id==='s-fatiga'){safe(renderFatigueSignals,'rs');safe(renderMuscleFatigue,'rmf');safe(renderInterferencePanel,'ri');safe(renderDensityPanel,'rd');safe(renderConfidencePanel,'rc');safe(renderValidationPanel,'rv');}
   if(id==='s-datos'){safe(renderValidationDashboard,'rvd');}if(id==='s-plan'){safe(function(){selectMeso(S.currentMeso||1);},'meso');}
@@ -4860,7 +4944,7 @@ function toast(title,msg,icon,ms=3500){const el=document.createElement('div');el
 // ══ INIT ══
 function init(){
   checkWeekReset();loadPersisted();
-  safe(loadEstado,'le');safe(wireEstadoAutosave,'we');safe(checkBackupReminder,'cbr');
+  safe(loadEstado,'le');safe(wireEstadoAutosave,'we');safe(checkBackupReminder,'cbr');safe(renderWeekSummary,'rws');
   if(S.int.aid){const e=safeDOM('intAid');if(e)e.value=S.int.aid;}
   if(S.int.key){const e=safeDOM('intKey');if(e)e.value='••••••••••••••••';}
   if(S.int.ok)setIntStatus('ok');
@@ -4881,3 +4965,11 @@ window.addEventListener('DOMContentLoaded',init);
 </body>
 </html>
   <div id="backupReminder" style="display:none;margin:10px 18px 0;padding:10px 14px;background:var(--bg3);border:1px solid var(--y);border-radius:10px;"></div>
+  <div style="padding:10px 18px 0;">
+    <div class="card" style="margin-bottom:0;">
+      <div class="card-hdr"><span class="t-md">Semana actual</span><span class="mono" id="weekScoreBadge" style="font-size:11px;color:var(--c);">—</span></div>
+      <div class="card-body" id="weekSummaryBody">
+        <div style="font-size:12px;color:var(--fg3);">Sincroniza para ver tu progreso semanal</div>
+      </div>
+    </div>
+  </div>
