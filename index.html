@@ -3894,21 +3894,26 @@ function getWeeklyBalance(){
   // Sequential fallback REMOVED so an extra/bonus session never fakes a planned day.
   // Detect motor pattern from the muscles trained in a session (fallback when no Dn name)
   function detectPattern(l){
-    var ms=l.muscleSets||{};var tot=0;var g={push:0,pull:0,legA:0,legB:0};
+    var ms=l.muscleSets||{};var tot=0;
+    var g={push:0,pull:0,legQuad:0,legHam:0,legGeneral:0};
     Object.keys(ms).forEach(function(mu){var s=safeNum(ms[mu],0);tot+=s;
       if(['Pectoral','Deltoides','Tríceps'].indexOf(mu)>=0)g.push+=s;
       if(['Dorsal','Bíceps'].indexOf(mu)>=0)g.pull+=s;
-      if(['Cuádriceps'].indexOf(mu)>=0)g.legA+=s;
-      if(['Isquiotibiales'].indexOf(mu)>=0)g.legB+=s;
+      // All leg muscles count as "leg signal" (was only counting quads/hams → legs went to Bonus)
+      if(mu==='Cuádriceps')g.legQuad+=s;
+      if(mu==='Isquiotibiales')g.legHam+=s;
+      if(['Cuádriceps','Isquiotibiales','Glúteo','Gemelos/Sóleo','Aductores'].indexOf(mu)>=0)g.legGeneral+=s;
     });
     if(tot===0)return null;
-    // Pick dominant group (needs to be a clear majority of the session)
-    var best=null;var bestV=0;
-    Object.keys(g).forEach(function(k){if(g[k]>bestV){bestV=g[k];best=k;}});
-    if(bestV/tot<0.25)return null; // too mixed → no clear pattern
-    // Map group → which plan Dn matches that pattern (by label)
-    var patRe={push:/empuje|push|press/,pull:/tiron|tirón|pull/,legA:/pierna a|cuad/,legB:/pierna b|isquio/};
-    return patRe[best];
+    // Upper-body patterns first (push/pull need clear dominance)
+    if(g.push/tot>=0.35&&g.push>=g.pull&&g.push>=g.legGeneral)return /empuje|push|press/;
+    if(g.pull/tot>=0.35&&g.pull>=g.push&&g.pull>=g.legGeneral)return /tiron|tirón|pull/;
+    // Leg session: if legs dominate, decide A (quad-dominant) vs B (ham-dominant)
+    if(g.legGeneral/tot>=0.40){
+      if(g.legQuad>=g.legHam)return /pierna a|cuad/;
+      return /pierna b|isquio/;
+    }
+    return null; // too mixed → Bonus
   }
   var doneSet={};var matchedLogs=[];var bonusLogs=[];
   // PASS 1: explicit Dn name in title (highest priority)
