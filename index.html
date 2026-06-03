@@ -3852,7 +3852,7 @@ function renderWeekSummary(){
     // Two separate tracks
     '<div style="display:flex;gap:12px;margin-bottom:12px;">'+
       '<div style="flex:1;background:var(--bg3);border-radius:8px;padding:8px 10px;">'+
-        '<div style="font-size:10px;color:var(--fg3);text-transform:uppercase;letter-spacing:0.5px;margin-bottom:2px;">Fuerza</div>'+
+        '<div style="font-size:10px;color:var(--fg3);text-transform:uppercase;letter-spacing:0.5px;margin-bottom:2px;">Fuerza'+(b.bonusCount>0?' <span style="color:var(--p);">+'+b.bonusCount+' bonus</span>':'')+'</div>'+
         '<div style="font-size:15px;font-weight:600;color:var(--c);">'+b.strengthDone+'/'+b.strengthTotal+'</div>'+
         '<div style="font-size:10px;color:var(--fg3);margin-top:2px;">Pendiente: '+strPend+'</div>'+
       '</div>'+
@@ -3862,8 +3862,10 @@ function renderWeekSummary(){
         '<div style="font-size:10px;color:var(--fg3);margin-top:2px;">Pendiente: '+carPend+'</div>'+
       '</div>'+
     '</div>'+
+    // Bonus detail (what the extra sessions were)
+    (b.bonusCount>0?'<div style="background:var(--bg3);border-radius:8px;padding:8px 10px;margin-bottom:12px;"><div style="font-size:10px;color:var(--p);text-transform:uppercase;letter-spacing:0.5px;margin-bottom:3px;">Bonus ('+b.bonusCount+')</div>'+b.bonusDetails.map(function(bd){return '<div style="font-size:11px;color:var(--fg2);">· '+(bd.topMuscle||bd.name)+(bd.sets?' ('+bd.sets+' series)':'')+'</div>';}).join('')+'</div>':'')+
     // Microcycle timeline
-    '<div style="font-size:10px;color:var(--fg3);text-transform:uppercase;letter-spacing:0.5px;margin-bottom:4px;">Microciclo</div>'+
+    '<div style="font-size:10px;color:var(--fg3);text-transform:uppercase;letter-spacing:0.5px;margin-bottom:4px;">Microciclo · Adherencia '+b.planAdherence+'%</div>'+
     '<div style="background:var(--bg3);border-radius:8px;padding:8px 10px;margin-bottom:12px;">'+timelineHtml+'</div>'+
     // Muscle volume
     '<div style="font-size:10px;color:var(--fg3);text-transform:uppercase;letter-spacing:0.5px;margin-bottom:4px;">Volumen por músculo ('+b.mavCovered+'/'+b.mavTotal+' en MAV)</div>'+
@@ -3885,30 +3887,69 @@ function getWeeklyBalance(){
     strengthLogs.push(l);
   });
   var strengthCount=strengthLogs.length;
-  // ── DUAL MATCHING ──
-  // Priority 1: match by explicit Dn name in the Hevy session title (e.g. "D1 Torso Empuje").
-  // Priority 2: sequential fallback for any unmatched session → fill remaining Dn in order.
-  var doneSet={};var matchedLogs=[];
+  // ── NAME-BASED MATCHING + BONUS ──
+  // A strength session whose Hevy title contains a plan Dn (e.g. "D1 Torso Empuje") OCCUPIES that day.
+  // Any strength session WITHOUT a recognised Dn name is a BONUS: it still adds muscle volume
+  // (handled by S.weeklyVol elsewhere) but does NOT occupy a plan day — keeps the calendar honest.
+  // Sequential fallback REMOVED so an extra/bonus session never fakes a planned day.
+  // Detect motor pattern from the muscles trained in a session (fallback when no Dn name)
+  function detectPattern(l){
+    var ms=l.muscleSets||{};var tot=0;var g={push:0,pull:0,legA:0,legB:0};
+    Object.keys(ms).forEach(function(mu){var s=safeNum(ms[mu],0);tot+=s;
+      if(['Pectoral','Deltoides','Tríceps'].indexOf(mu)>=0)g.push+=s;
+      if(['Dorsal','Bíceps'].indexOf(mu)>=0)g.pull+=s;
+      if(['Cuádriceps'].indexOf(mu)>=0)g.legA+=s;
+      if(['Isquiotibiales'].indexOf(mu)>=0)g.legB+=s;
+    });
+    if(tot===0)return null;
+    // Pick dominant group (needs to be a clear majority of the session)
+    var best=null;var bestV=0;
+    Object.keys(g).forEach(function(k){if(g[k]>bestV){bestV=g[k];best=k;}});
+    if(bestV/tot<0.25)return null; // too mixed → no clear pattern
+    // Map group → which plan Dn matches that pattern (by label)
+    var patRe={push:/empuje|push|press/,pull:/tiron|tirón|pull/,legA:/pierna a|cuad/,legB:/pierna b|isquio/};
+    return patRe[best];
+  }
+  var doneSet={};var matchedLogs=[];var bonusLogs=[];
+  // PASS 1: explicit Dn name in title (highest priority)
+  var unnamed=[];
   strengthLogs.forEach(function(l){
     var nm=(l.sess||'').toLowerCase();
     var hit=null;
     strengthDays.forEach(function(d){
-      var dn=d[0].toLowerCase(); // "d1"
-      // match "d1", "d 1", "d1:", "d1 " etc at a word-ish boundary
+      var dn=d[0].toLowerCase();
       var re=new RegExp('(^|[^a-z0-9])'+dn+'([^0-9]|$)');
       if(re.test(nm)&&!doneSet[d[0]])hit=d[0];
     });
     if(hit){doneSet[hit]=true;matchedLogs.push(l);}
+    else unnamed.push(l);
   });
-  // Sequential fallback: sessions that didn't match a name fill the first free Dn in order
-  var unmatchedCount=strengthCount-matchedLogs.length;
-  for(var k=0;k<strengthDays.length&&unmatchedCount>0;k++){
-    if(!doneSet[strengthDays[k][0]]){doneSet[strengthDays[k][0]]=true;unmatchedCount--;}
-  }
-  // Build doneStrength list in plan order
+  // PASS 2: motor-pattern recognition for unnamed sessions
+  unnamed.forEach(function(l){
+    var pat=detectPattern(l);var hit=null;
+    if(pat){
+      strengthDays.forEach(function(d){
+        if(pat.test(d[2].toLowerCase())&&!doneSet[d[0]])hit=d[0];
+      });
+    }
+    if(hit){doneSet[hit]=true;matchedLogs.push(l);}
+    else bonusLogs.push(l); // PASS 3: still unrecognised → Bonus
+  });
+  // Build doneStrength list in plan order (only sessions matched to a Dn count as "done")
   var doneStrength=[];
   strengthDays.forEach(function(d){if(doneSet[d[0]])doneStrength.push(d[0]);});
-  var extraStrength=Math.max(0,strengthCount-strengthDays.length);
+  var bonusCount=bonusLogs.length;
+  var extraStrength=bonusCount;
+  // Bonus details: what muscles each bonus session trained (so it's not a mystery in 8 weeks)
+  var bonusDetails=bonusLogs.map(function(l){
+    var ms=l.muscleSets||{};var top=null;var topV=0;var totalSets=0;
+    Object.keys(ms).forEach(function(mu){var s=safeNum(ms[mu],0);totalSets+=s;if(s>topV){topV=s;top=mu;}});
+    return {name:l.sess||'Extra',topMuscle:top,sets:totalSets};
+  });
+  // PLAN ADHERENCE: % of planned strength days actually completed (named or pattern-matched)
+  var planAdherence=strengthDays.length>0?Math.round(doneStrength.length/strengthDays.length*100):0;
+  // Skipped sessions = planned strength days not done (only meaningful late in the week)
+  var skippedSessions=strengthDays.filter(function(d){return !doneSet[d[0]];}).map(function(d){return d[0];});
   var nextStrength=null;
   for(var i=0;i<strengthDays.length;i++){if(!doneSet[strengthDays[i][0]]){nextStrength=strengthDays[i];break;}}
   var remainingSessions=[];
@@ -3956,10 +3997,10 @@ function getWeeklyBalance(){
   var furthest=muscleStatus.filter(function(m){return m.deficit>0;}).sort(function(a,b){return b.deficit-a.deficit;});
   var allMuscles=muscleStatus.slice().sort(function(a,b){return b.deficit-a.deficit;});
   // Completion score: 50% sessions + 50% MAV
-  var sessionPct=strengthDays.length>0?Math.min(100,Math.round(strengthCount/strengthDays.length*100)):0;
+  var sessionPct=strengthDays.length>0?Math.min(100,Math.round(doneStrength.length/strengthDays.length*100)):0;
   var weekScore=Math.round(sessionPct*0.5+mavGlobalPct*0.5);
   return {
-    strengthDone:strengthCount,strengthTotal:strengthDays.length,extraStrength:extraStrength,
+    strengthDone:doneStrength.length,strengthTotal:strengthDays.length,bonusCount:bonusCount,bonusDetails:bonusDetails,planAdherence:planAdherence,skippedSessions:skippedSessions,
     cardioDone:doneCardio.length,cardioTotal:cardioDays.length,
     nextSession:nextStrength,remainingSessions:remainingSessions,pendingCardio:pendingCardio,timeline:timeline,
     mavCovered:mavCovered,mavTotal:mavTotal,mavGlobalPct:mavGlobalPct,
@@ -4882,7 +4923,7 @@ function buildWeeklyAdaptationSnapshot(){
     deepMin:S.metrics.deepSleep||null,lightMin:S.metrics.lightSleep||null,remMin:S.metrics.remSleep||null,
     avgDeepSleepMin:avgLogField('deepSleepMin'),avgRemSleepMin:avgLogField('remSleepMin'),avgQualitySleepPct:avgLogField('qualitySleepPct')
   }:null;
-  var snapshot={weekKey:weekKey,muscles:muscles,exercises:exercises,patterns:(typeof patterns!=='undefined'?patterns:null),running:running,recFollowRate:recFollowRate,peaks:peaks,hrvStability:hrvStability,weightTrend:weightTrend,readinessStability:readinessStability,sessionOutcomes:sessionOutcomes,energy:energyData,sleepArch:sleepArch};
+  var snapshot={weekKey:weekKey,muscles:muscles,exercises:exercises,patterns:(typeof patterns!=='undefined'?patterns:null),running:running,recFollowRate:recFollowRate,peaks:peaks,hrvStability:hrvStability,weightTrend:weightTrend,readinessStability:readinessStability,sessionOutcomes:sessionOutcomes,energy:energyData,sleepArch:sleepArch,planAdherence:(function(){try{var wb=getWeeklyBalance();return{adherencePct:wb.planAdherence,bonusCount:wb.bonusCount,skipped:wb.skippedSessions};}catch(e){return null;}})()};
   try{var ex=[];var raw=localStorage.getItem('atlas_weekly_v1');if(raw)ex=JSON.parse(raw);if(!Array.isArray(ex))ex=[];var idx=ex.findIndex(function(s){return s.weekKey===weekKey;});if(idx>=0)ex[idx]=snapshot;else ex.unshift(snapshot);localStorage.setItem('atlas_weekly_v1',JSON.stringify(ex.slice(0,104)));}catch(e){}
   S._weeklySnap=snapshot;
 }
