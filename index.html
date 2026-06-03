@@ -242,11 +242,11 @@ textarea.field{resize:vertical;min-height:60px;}
           <div><label class="fg-label">Sesión planificada</label>
             <select class="field" id="todaySess" style="font-size:12px;" onchange="runEngines()">
               <option value="">Sin sesión</option>
-              <option>D1 — Torso Empuje + Core</option>
-              <option>D2 — Pierna A · Cuád/Glúteo</option>
+              <option>D1 — Upper A · Pecho/Dorsal</option>
+              <option>D2 — Lower A · Cuád/Glúteo</option>
               <option>D3 — Cardio Z2</option>
-              <option>D4 — Torso Tirón + Core</option>
-              <option>D5 — Pierna B · Isquio/Glúteo</option>
+              <option>D4 — Upper B · Dorsal/Pecho</option>
+              <option>D5 — Lower B · Isquio/Glúteo</option>
               <option>D6 — Z2 + Movilidad</option>
               <option>D7 — Descanso</option>
             </select>
@@ -471,6 +471,17 @@ textarea.field{resize:vertical;min-height:60px;}
         <div style="font-size:12px;color:var(--fg3);">Sin datos de Hevy con RPE</div>
       </div>
     </div>
+
+    <!-- Movement Pattern Analysis (audit layer) -->
+    <div class="card" style="margin-top:10px;">
+      <div class="card-hdr">
+        <span class="t-md">Patrones de movimiento</span>
+        <span class="mono" style="font-size:10px;color:var(--fg3);">Auditoría</span>
+      </div>
+      <div class="card-body" id="movPatternPanel">
+        <div style="font-size:12px;color:var(--fg3);">Sin sesiones esta semana</div>
+      </div>
+    </div>
       <div class="card-hdr"><span class="t-md">Tendencia e1RM estimado</span><span class="mono" style="font-size:10px;color:var(--fg3);">Últimas 4 semanas · Epley/Brzycki</span></div>
       <div class="card-body" id="e1rmPanel"><div style="font-size:12px;color:var(--fg3);">Sin datos de Hevy</div></div>
     </div>
@@ -502,7 +513,7 @@ textarea.field{resize:vertical;min-height:60px;}
             <select class="field" id="logSess" style="font-size:12px;">
               <option value="">Seleccionar...</option>
               <optgroup label="Plan">
-              <option>D1 — Torso Empuje + Core</option><option>D2 — Pierna A · Cuád/Glúteo</option><option>D3 — Cardio Z2</option><option>D4 — Torso Tirón + Core</option><option>D5 — Pierna B · Isquio/Glúteo</option><option>D6 — Z2 + Movilidad</option>
+              <option>D1 — Upper A · Pecho/Dorsal</option><option>D2 — Lower A · Cuád/Glúteo</option><option>D3 — Cardio Z2</option><option>D4 — Upper B · Dorsal/Pecho</option><option>D5 — Lower B · Isquio/Glúteo</option><option>D6 — Z2 + Movilidad</option>
               </optgroup>
             </select>
           </div>
@@ -673,17 +684,17 @@ const S = {
   hevy:null, logs:[], weekDays:new Set(), weekStart:'',
   weekOffset:0, logWeekOffset:0, weeklyVol:{},
   mavRanges:{
-    'Cuádriceps':    {mev:8, mav:14,mrv:20},
-    'Isquiotibiales':{mev:6, mav:12,mrv:18},
+    'Cuádriceps':    {mev:6, mav:10,mrv:16},
+    'Isquiotibiales':{mev:7, mav:12,mrv:18},
     'Glúteo':        {mev:8, mav:14,mrv:20},
     'Gemelos/Sóleo': {mev:10,mav:16,mrv:22},
-    'Pectoral':      {mev:8, mav:14,mrv:18},
-    'Dorsal':        {mev:8, mav:14,mrv:18},
-    'Deltoides':     {mev:6, mav:10,mrv:14},
-    'Bíceps':        {mev:4, mav:10,mrv:14},
-    'Tríceps':       {mev:4, mav:10,mrv:14},
-    'Core':          {mev:6, mav:10,mrv:16},
-    'Aductores':     {mev:4, mav:8, mrv:12},
+    'Pectoral':      {mev:7, mav:12,mrv:18},
+    'Dorsal':        {mev:7, mav:12,mrv:18},
+    'Deltoides':     {mev:5, mav:8, mrv:14},
+    'Bíceps':        {mev:4, mav:6, mrv:12},
+    'Tríceps':       {mev:4, mav:6, mrv:12},
+    'Core':          {mev:4, mav:6, mrv:14},
+    'Aductores':     {mev:6, mav:10,mrv:14},
   },
   _hrv:null,_fatigue:null,_mav:null,_interference:null,_recs:null,
   _hevyRecent:[], _activitiesByDate:{}, _rawWellness:null, _wellnessHistory:[]
@@ -833,6 +844,10 @@ const EXERCISE_INTELLIGENCE = {
   'adductor':            {p:['Aductores'],s:[],ax:0.05,ecc:0.9,sys:0.25,kn:0.15,lb:0.05,sfr:0.90,hl:30,pat:'isolation',stimQ:0.82,lenMult:1.08,tags:['adductor','rehab']},
   'abducción':           {p:['Aductores'],s:[],ax:0.05,ecc:0.8,sys:0.2,kn:0.1,lb:0.04,sfr:0.92,hl:28,pat:'isolation',stimQ:0.78,lenMult:1.00,tags:['abductor','rehab']},
   'abduction':           {p:['Aductores'],s:[],ax:0.05,ecc:0.8,sys:0.2,kn:0.1,lb:0.04,sfr:0.92,hl:28,pat:'isolation',stimQ:0.78,lenMult:1.00,tags:['abductor','rehab']},
+  'copenhagen':          {p:['Aductores'],s:['Core'],ax:0.1,ecc:1.1,sys:0.3,kn:0.1,lb:0.1,sfr:0.85,hl:32,pat:'isolation',stimQ:0.88,lenMult:1.15,tags:['adductor']},
+  'cossack':             {p:['Aductores'],s:['Cuádriceps','Glúteo'],ax:0.2,ecc:1.0,sys:0.4,kn:0.25,lb:0.1,sfr:0.82,hl:34,pat:'compound',stimQ:0.80,lenMult:1.12,tags:['adductor','mobility']},
+  'sumo deadlift':       {p:['Glúteo','Aductores'],s:['Cuádriceps','Isquiotibiales'],ax:0.6,ecc:1.0,sys:0.7,kn:0.2,lb:0.4,sfr:0.80,hl:48,pat:'compound',stimQ:0.85,lenMult:1.0,tags:['adductor','hinge']},
+  'peso muerto sumo':    {p:['Glúteo','Aductores'],s:['Cuádriceps','Isquiotibiales'],ax:0.6,ecc:1.0,sys:0.7,kn:0.2,lb:0.4,sfr:0.80,hl:48,pat:'compound',stimQ:0.85,lenMult:1.0,tags:['adductor','hinge']},
   // ── UPPER — Push horizontal ──
   'press de banca':      {p:['Pectoral'],s:['Tríceps','Deltoides'],ax:0.12,ecc:1.15,sys:0.65,kn:0.0,lb:0.22,sfr:0.85,hl:48,pat:'push-h',stimQ:0.88,lenMult:1.05,tags:['bilateral','compound']},
   'bench press':         {p:['Pectoral'],s:['Tríceps','Deltoides'],ax:0.12,ecc:1.15,sys:0.65,kn:0.0,lb:0.22,sfr:0.85,hl:48,pat:'push-h',stimQ:0.88,lenMult:1.05,tags:['bilateral']},
@@ -1158,10 +1173,10 @@ function MuscleFatigueEngine(logs, hevyRecent){
 
   // Session map for log-based estimation
   const sessMap = {
-    'D1':{'Pectoral':{sets:8,ex:'press banca'},'Deltoides':{sets:6,ex:'press de hombros'},'Tríceps':{sets:5,ex:'press banca'},'Core':{sets:3,ex:'plancha'}},
-    'D2':{'Cuádriceps':{sets:7,ex:'sentadilla'},'Glúteo':{sets:5,ex:'hip thrust'},'Gemelos/Sóleo':{sets:4,ex:'gemelo'},'Aductores':{sets:3,ex:'abducción'}},
-    'D4':{'Dorsal':{sets:8,ex:'remo'},'Bíceps':{sets:5,ex:'curl'},'Tríceps':{sets:2,ex:'fondos'},'Core':{sets:3,ex:'plancha'}},
-    'D5':{'Isquiotibiales':{sets:7,ex:'rdl'},'Glúteo':{sets:7,ex:'hip thrust'},'Gemelos/Sóleo':{sets:3,ex:'gemelo'},'Aductores':{sets:2,ex:'abducción'}},
+    'D1':{'Pectoral':{sets:8,ex:'press banca mancuernas'},'Dorsal':{sets:4,ex:'remo mancuerna'},'Deltoides':{sets:4,ex:'elevación lateral'},'Bíceps':{sets:3,ex:'curl'},'Tríceps':{sets:3,ex:'extensión'},'Gemelos/Sóleo':{sets:4,ex:'gemelo'}},
+    'D2':{'Cuádriceps':{sets:7,ex:'sentadilla frontal'},'Isquiotibiales':{sets:4,ex:'curl femoral'},'Glúteo':{sets:6,ex:'hip thrust'},'Gemelos/Sóleo':{sets:4,ex:'gemelo'},'Aductores':{sets:5,ex:'aductor'},'Core':{sets:3,ex:'crunch'}},
+    'D4':{'Dorsal':{sets:7,ex:'remo'},'Pectoral':{sets:4,ex:'press banca mancuernas'},'Deltoides':{sets:5,ex:'press de hombros'},'Bíceps':{sets:3,ex:'curl martillo'},'Tríceps':{sets:3,ex:'jm press'},'Gemelos/Sóleo':{sets:4,ex:'gemelo'}},
+    'D5':{'Isquiotibiales':{sets:8,ex:'rdl'},'Cuádriceps':{sets:3,ex:'sentadilla frontal'},'Glúteo':{sets:7,ex:'hip thrust'},'Gemelos/Sóleo':{sets:4,ex:'gemelo'},'Aductores':{sets:3,ex:'aductor'},'Core':{sets:3,ex:'pallof'}},
   };
 
   function addFatigue(muscle, sets, rpe, exName, ageMs, isPrimary){
@@ -1897,6 +1912,8 @@ function ProgressionEngine(workouts, hevyRecent, muscleFatigue, fatigue, metrics
       // Get best set (highest e1RM) for this exercise in this session
       let bestE1RM = null, bestKg = 0, bestReps = 0;
       var _rpeVals = [];
+      // Progression mechanisms: avgReps, avgRIR, topSet (heaviest), volumeLoad
+      var _repsVals=[];var _volLoad=0;var _topKg=0;var _topSet=null;var _workCount=0;
       (ex.sets||[]).forEach(s => {
         const kg = safeNum(s.weight_kg||s.weight||0);
         const reps = safeInt(s.reps||0);
@@ -1905,16 +1922,36 @@ function ProgressionEngine(workouts, hevyRecent, muscleFatigue, fatigue, metrics
         if(!kg||!reps) return;
         const e1rm = calc1RM(kg, reps);
         if(e1rm > (bestE1RM||0)){ bestE1RM = e1rm; bestKg = kg; bestReps = reps; }
+        // Progression tracking
+        _repsVals.push(reps);_volLoad+=kg*reps;_workCount++;
+        if(kg>_topKg){_topKg=kg;_topSet={kg:kg,reps:reps,rpe:_rpe>0?_rpe:null,rir:_rpe>0?Math.max(0,Math.round((10-_rpe)*10)/10):null};}
       });
 
       if(!bestE1RM) return;
       if(!exHistory[name]) exHistory[name] = [];
       var _avgRPE = _rpeVals.length ? Math.round(_rpeVals.reduce(function(a,b){return a+b;},0)/_rpeVals.length*10)/10 : null;
       var _lastRPE = _rpeVals.length ? _rpeVals[_rpeVals.length-1] : null;
+      // avgRIR ≈ 10 − avgRPE (more useful than RPE for hypertrophy)
+      var _avgRIR = _avgRPE!=null ? Math.max(0,Math.round((10-_avgRPE)*10)/10) : null;
+      var _avgReps = _repsVals.length ? Math.round(_repsVals.reduce(function(a,b){return a+b;},0)/_repsVals.length*10)/10 : null;
+      // PR detection: compare topSet against this exercise's history so far
+      var _prevTopKg=0;var _prevBestReps=0;var _prevBestE1RM=0;
+      exHistory[name].forEach(function(h){
+        if(h.topSet&&h.topSet.kg>_prevTopKg)_prevTopKg=h.topSet.kg;
+        if(h.e1rm>_prevBestE1RM)_prevBestE1RM=h.e1rm;
+        // best reps at >= topSet load (rep PR at comparable load)
+        if(h.topSet&&_topSet&&h.topSet.kg>=_topKg&&h.topSet.reps>_prevBestReps)_prevBestReps=h.topSet.reps;
+      });
+      var _loadPR=(_topKg>0&&_topKg>_prevTopKg);
+      var _repsPR=(_topSet&&_topSet.reps>_prevBestReps&&_prevBestReps>0&&_topKg>=_prevTopKg);
+      var _e1rmPR=(bestE1RM>_prevBestE1RM&&_prevBestE1RM>0);
       exHistory[name].push({
         date, e1rm: bestE1RM, kg: bestKg, reps: bestReps,
         conf: e1RMConfidence(bestReps, null),
-        avgRPE: _avgRPE, lastSetRPE: _lastRPE
+        avgRPE: _avgRPE, lastSetRPE: _lastRPE,
+        avgRIR: _avgRIR, avgReps: _avgReps, topSet: _topSet,
+        volumeLoad: Math.round(_volLoad), workSets: _workCount,
+        loadPR: _loadPR, repsPR: _repsPR, e1rmPR: _e1rmPR
       });
     });
   });
@@ -1965,12 +2002,19 @@ function ProgressionEngine(workouts, hevyRecent, muscleFatigue, fatigue, metrics
       else if(pctChange<-1&&_drift>0.5){_ppd='negative';_ppdLabel='Respuesta negativa';}
       else if(pctChange>0&&_drift<=0){_ppd='clean';_ppdLabel='Progresión limpia';}
     }
+    // Best historical top set (all-time heaviest set for context)
+    var _bestHist=null;
+    sorted.forEach(function(s){if(s.topSet&&(!_bestHist||s.topSet.kg>_bestHist.kg||(s.topSet.kg===_bestHist.kg&&s.topSet.reps>_bestHist.reps)))_bestHist={kg:s.topSet.kg,reps:s.topSet.reps,date:s.date};});
+    // Recent progression-mechanism values (latest session)
     exTrends[name] = {
       latest: latest.e1rm, baseline, slope: Math.round(slope*10)/10,
       pctChange, trend, isStagnant, sessions: recent.length,
       lastKg: latest.kg, lastReps: latest.reps,
       avgRPE:_rpeCur, lastSetRPE:_rpeLast, avgRPE3:_avg3, avgRPE5:_avg5, avgRPE10:_avg10,
-      rpeDrift:_drift, ppd:_ppd, ppdLabel:_ppdLabel
+      rpeDrift:_drift, ppd:_ppd, ppdLabel:_ppdLabel,
+      avgRIR:latest.avgRIR!=null?latest.avgRIR:null, avgReps:latest.avgReps!=null?latest.avgReps:null,
+      topSet:latest.topSet||null, volumeLoad:latest.volumeLoad||null,
+      bestHistoricalSet:_bestHist, loadPR:!!latest.loadPR, repsPR:!!latest.repsPR, e1rmPR:!!latest.e1rmPR
     };
   });
 
@@ -2732,6 +2776,67 @@ function renderE1RMPanel(){
   }).join('');
 }
 
+
+function renderMovementPatterns(){
+  var el=safeDOM('movPatternPanel');if(!el)return;
+  var d=getMovementPatternVolume();
+  if(!d.hasData){
+    el.innerHTML='<div style="font-size:12px;color:var(--fg3);">Sin datos de ejercicios esta semana. Sincroniza Hevy para ver el análisis.</div>';
+    return;
+  }
+  var p=d.patterns;
+  // Group for display
+  var upper=[['Empuje horizontal',p['Empuje horizontal']||0],['Empuje vertical',p['Empuje vertical']||0],['Tracción horizontal',p['Tracción horizontal']||0],['Tracción vertical',p['Tracción vertical']||0],['Hombro lateral',p['Hombro lateral']||0]];
+  var lower=[['Dominante rodilla',p['Dominante rodilla']||0],['Bisagra (cadera)',p['Bisagra (cadera)']||0],['Extensión cadera (glúteo)',p['Extensión cadera (glúteo)']||0]];
+  var support=[['Gemelo',p['Gemelo']||0],['Aductor',p['Aductor']||0],['Core',p['Core']||0],['Bíceps (curl)',p['Bíceps (curl)']||0],['Tríceps (ext)',p['Tríceps (ext)']||0]];
+  function row(name,val,maxv){
+    var pct=maxv>0?Math.round(val/maxv*100):0;
+    return '<div style="display:flex;align-items:center;gap:8px;padding:2px 0;font-size:12px;">'+
+      '<span style="flex:0 0 150px;color:var(--fg2);">'+name+'</span>'+
+      '<div style="flex:1;height:6px;background:var(--bg4);border-radius:3px;overflow:hidden;"><div style="height:100%;width:'+pct+'%;background:var(--c);border-radius:3px;"></div></div>'+
+      '<span class="mono" style="flex:0 0 32px;text-align:right;color:'+(val>0?'var(--fg)':'var(--fg3)')+';">'+val+'</span></div>';
+  }
+  function section(title,rows){
+    var max=Math.max.apply(null,rows.map(function(r){return r[1];}).concat([1]));
+    var visible=rows.filter(function(r){return r[1]>0;});
+    if(!visible.length)return '';
+    return '<div style="font-size:10px;color:var(--fg3);text-transform:uppercase;letter-spacing:0.5px;margin:8px 0 3px;">'+title+'</div>'+
+      visible.map(function(r){return row(r[0],r[1],max);}).join('');
+  }
+  // Balance insights (push vs pull, knee vs hinge)
+  var hPush=(p['Empuje horizontal']||0),hPull=(p['Tracción horizontal']||0);
+  var knee=(p['Dominante rodilla']||0),hinge=(p['Bisagra (cadera)']||0);
+  var insights=[];
+  if(hPush>0&&hPull>0){
+    var r1=hPush/hPull;
+    if(r1>=1.5)insights.push('⚠ Empuje horizontal '+hPush+' vs tracción horizontal '+hPull+' ('+r1.toFixed(1)+':1). Considera más tracción.');
+    else if(r1<=0.67)insights.push('⚠ Más tracción que empuje horizontal ('+hPush+':'+hPull+').');
+    else insights.push('✓ Empuje/tracción horizontal equilibrado ('+hPush+':'+hPull+').');
+  }
+  if(knee>0&&hinge>0){
+    var r2=knee/hinge;
+    if(r2>=2)insights.push('⚠ Rodilla '+knee+' vs bisagra '+hinge+' ('+r2.toFixed(1)+':1). Tu historial de rodilla agradece más bisagra.');
+    else insights.push('✓ Rodilla/bisagra '+knee+':'+hinge+'.');
+  } else if(knee>0&&hinge===0){
+    insights.push('⚠ Rodilla '+knee+' series, bisagra 0. Falta trabajo de cadena posterior esta semana.');
+  }
+  var insightHtml=insights.length?'<div style="margin-top:10px;padding-top:8px;border-top:1px solid var(--line);font-size:11px;line-height:1.6;color:var(--fg2);">'+insights.join('<br>')+'</div>':'';
+  // Bilateral vs unilateral (relevant for varo/ITB/condromalacia — unilateral corrects asymmetries)
+  var lat=d.laterality||{};var bi=lat.bilateral||0;var uni=lat.unilateral||0;var latTot=bi+uni;
+  var latHtml='';
+  if(latTot>0){
+    var biPct=Math.round(bi/latTot*100);var uniPct=100-biPct;
+    var latNote='';
+    if(uni===0)latNote=' <span style="color:var(--y);">· sin trabajo unilateral</span>';
+    else if(uniPct<15)latNote=' <span style="color:var(--fg3);">· poco unilateral para tu perfil</span>';
+    latHtml='<div style="font-size:10px;color:var(--fg3);text-transform:uppercase;letter-spacing:0.5px;margin:10px 0 3px;">Lateralidad'+latNote+'</div>'+
+      '<div style="display:flex;height:8px;border-radius:4px;overflow:hidden;margin-bottom:4px;"><div style="width:'+biPct+'%;background:var(--c);"></div><div style="width:'+uniPct+'%;background:var(--p);"></div></div>'+
+      '<div style="display:flex;justify-content:space-between;font-size:11px;"><span style="color:var(--c);">Bilateral '+bi+'</span><span style="color:var(--p);">Unilateral '+uni+'</span></div>';
+  }
+  el.innerHTML=section('Tren superior',upper)+section('Tren inferior',lower)+section('Complementarios',support)+latHtml+insightHtml+
+    '<div style="margin-top:8px;font-size:10px;color:var(--fg3);font-style:italic;">Capa de auditoría — no afecta a fatiga, MAV ni recomendaciones.</div>';
+}
+
 function renderEffectiveSets(){
   const eff=S._effectiveSets;
   const el=safeDOM('effSetsPanel');
@@ -3301,7 +3406,7 @@ function saveLog(){
     readiness:S._readiness?S._readiness.overall:null,fatigue:S._fatigue?Math.round(S._fatigue.systemic):null,
     muscleFatigue:Object.keys(sessMF).length?sessMF:null,
     recFollow:_recFollow||null,atlasRec:S._decision?S._decision.recommendation:null});
-  const sm={'D1':{'Pectoral':8,'Deltoides':6,'Tríceps':5,'Core':3},'D2':{'Cuádriceps':7,'Glúteo':5,'Aductores':3,'Gemelos/Sóleo':4},'D4':{'Dorsal':7,'Bíceps':5,'Tríceps':2,'Core':3},'D5':{'Isquiotibiales':7,'Glúteo':7,'Gemelos/Sóleo':3,'Aductores':2}};
+  const sm={'D1':{'Pectoral':8,'Dorsal':4,'Deltoides':4,'Bíceps':3,'Tríceps':3,'Gemelos/Sóleo':4},'D2':{'Cuádriceps':7,'Isquiotibiales':4,'Glúteo':6,'Gemelos/Sóleo':4,'Aductores':5,'Core':3},'D4':{'Dorsal':7,'Pectoral':4,'Deltoides':5,'Bíceps':3,'Tríceps':3,'Gemelos/Sóleo':4},'D5':{'Isquiotibiales':8,'Cuádriceps':3,'Glúteo':7,'Gemelos/Sóleo':4,'Aductores':3,'Core':3}};
   const k=['D1','D2','D4','D5'].find(k=>sess.includes(k));
   if(k)Object.entries(sm[k]).forEach(([m,s])=>{S.weeklyVol[m]=(S.weeklyVol[m]||0)+s;});
   S.weekDays.add(sess.split('—')[0].trim());
@@ -3875,6 +3980,72 @@ function renderWeekSummary(){
     furthestHtml;
 }
 
+
+// ══════════════════════════════════════════════════════════════
+// MOVEMENT PATTERN ANALYSIS (audit layer only — does NOT drive
+// fatigue, MAV, readiness or recommendations). Classifies each
+// exercise by movement pattern from its name. Read-only dashboard.
+// ══════════════════════════════════════════════════════════════
+function classifyMovementPattern(exName){
+  var n=(exName||'').toLowerCase();
+  // Order matters: more specific first
+  // ── LOWER ──
+  if(/peso muerto rumano|romanian|rdl|good morning|buenos d[ií]as|curl de piernas|leg curl|curl femoral|peso muerto|deadlift/.test(n)){
+    // hip hinge / posterior chain (but plain deadlift is hinge too)
+    return 'Bisagra (cadera)';
+  }
+  if(/sentadilla|squat|prensa|leg press|extensi[óo]n de pierna|leg extension|zancada|lunge|b[úu]lgar|bulgar|split squat|step.?up|cossack/.test(n)){
+    return 'Dominante rodilla';
+  }
+  if(/hip thrust|puente|glute bridge|patada.*gl[úu]teo|gl[úu]teo.*patada|kickback|abducci[óo]n|abduction/.test(n)){
+    return 'Extensión cadera (glúteo)';
+  }
+  if(/gemelo|calf|pantorrilla|s[óo]leo/.test(n))return 'Gemelo';
+  if(/aductor|aducci[óo]n|adducci[óo]n|adduction|adductor|copenhagen/.test(n))return 'Aductor';
+  // ── UPPER PUSH ──
+  if(/press.*hombro|hombro.*press|overhead press|press militar|arnold|elevaci[óo]n(es)? frontal/.test(n))return 'Empuje vertical';
+  if(/press.*banca|bench press|press inclinado|press declinado|apertura|chest fly|peck deck|cruces|fondos|flexion/.test(n))return 'Empuje horizontal';
+  if(/elevaci[óo]n(es)? lateral|lateral raise/.test(n))return 'Hombro lateral';
+  // ── UPPER PULL ──
+  if(/pullover/.test(n))return 'Dorsal (otros)';
+  if(/dominadas|jal[óo]n|pull.?up|pulldown/.test(n))return 'Tracción vertical';
+  if(/remo|row|face pull/.test(n))return 'Tracción horizontal';
+  // ── ARMS / CORE ──
+  if(/curl/.test(n)&&!/curl de piernas|leg curl|curl femoral/.test(n))return 'Bíceps (curl)';
+  if(/tr[íi]ceps|tricep|press franc[ée]s|extensi[óo]n franc[ée]s|skull crusher|extensi[óo]n de tr[íi]ceps|jm press|patada de tr[íi]ceps/.test(n))return 'Tríceps (ext)';
+  if(/plancha|plank|dead bug|pallof|encogimiento|crunch|ab.?wheel|rueda/.test(n))return 'Core';
+  return null; // unclassified
+}
+// Bilateral vs unilateral (relevant for Carlos: varo, ITB, condromalacia → unilateral matters)
+function classifyLaterality(exName){
+  var n=(exName||'').toLowerCase();
+  // Only genuine single-limb movements count as unilateral. A two-dumbbell bench press is bilateral.
+  if(/b[úu]lgar|bulgar|split squat|zancada|lunge|step.?up|pistol|cossack|copenhagen|unilateral|a una pierna|a un brazo|single.?leg|single.?arm|patada.*gl[úu]teo|kickback|remo.*una mano|prensa.*una pierna/.test(n))return 'unilateral';
+  return 'bilateral';
+}
+// Compute weekly volume per movement pattern from this week's strength logs
+function getMovementPatternVolume(){
+  var weekStart=getWeekBounds(0).start;
+  var logs=safeArr(S.logs).filter(function(l){var d=parseDate(l.date);return d&&d>=weekStart&&!l._cardio;});
+  var pat={};var unclassified=0;var lateral={};
+  logs.forEach(function(l){
+    // Prefer per-exercise data if available; else use muscleSets as a coarse proxy is NOT possible
+    // (muscleSets has no exercise names). Use l.exercises if present, else l._exNames.
+    var exList=l.exercises||l._exNames||null;
+    if(exList&&exList.length){
+      exList.forEach(function(e){
+        var name=(typeof e==='string')?e:(e.name||e.title||'');
+        var sets=(typeof e==='object'&&e.sets)?safeNum(e.sets,1):1;
+        var p=classifyMovementPattern(name);
+        if(p)pat[p]=(pat[p]||0)+sets; else unclassified+=sets;
+        var lat=classifyLaterality(name);
+        lateral[lat]=(lateral[lat]||0)+sets;
+      });
+    }
+  });
+  return {patterns:pat,unclassified:unclassified,laterality:lateral,hasData:Object.keys(pat).length>0};
+}
+
 function getWeeklyBalance(){
   var meso=S.currentMeso||1;
   var plan=(MESO_DAYS[meso]||MESO_DAYS[1]);
@@ -3898,23 +4069,21 @@ function getWeeklyBalance(){
   // Detect motor pattern from the muscles trained in a session (fallback when no Dn name)
   function detectPattern(l){
     var ms=l.muscleSets||{};var tot=0;
-    var g={push:0,pull:0,legQuad:0,legHam:0,legGeneral:0};
+    var g={upper:0,legQuad:0,legHam:0,legGeneral:0};
     Object.keys(ms).forEach(function(mu){var s=safeNum(ms[mu],0);tot+=s;
-      if(['Pectoral','Deltoides','Tríceps'].indexOf(mu)>=0)g.push+=s;
-      if(['Dorsal','Bíceps'].indexOf(mu)>=0)g.pull+=s;
-      // All leg muscles count as "leg signal" (was only counting quads/hams → legs went to Bonus)
+      // Upper/Lower split: all upper-body muscles count as one "upper" signal
+      if(['Pectoral','Dorsal','Deltoides','Bíceps','Tríceps'].indexOf(mu)>=0)g.upper+=s;
       if(mu==='Cuádriceps')g.legQuad+=s;
       if(mu==='Isquiotibiales')g.legHam+=s;
       if(['Cuádriceps','Isquiotibiales','Glúteo','Gemelos/Sóleo','Aductores'].indexOf(mu)>=0)g.legGeneral+=s;
     });
     if(tot===0)return null;
-    // Upper-body patterns first (push/pull need clear dominance)
-    if(g.push/tot>=0.35&&g.push>=g.pull&&g.push>=g.legGeneral)return /empuje|push|press/;
-    if(g.pull/tot>=0.35&&g.pull>=g.push&&g.pull>=g.legGeneral)return /tiron|tirón|pull/;
-    // Leg session: if legs dominate, decide A (quad-dominant) vs B (ham-dominant)
+    // Upper session: upper-body muscles dominate
+    if(g.upper/tot>=0.45&&g.upper>=g.legGeneral)return /upper|torso|empuje|tiron|tirón|push|pull/;
+    // Lower session: legs dominate → A (quad-dominant) vs B (ham-dominant)
     if(g.legGeneral/tot>=0.40){
-      if(g.legQuad>=g.legHam)return /pierna a|cuad/;
-      return /pierna b|isquio/;
+      if(g.legQuad>=g.legHam)return /lower a|pierna a|cuad/;
+      return /lower b|pierna b|isquio/;
     }
     return null; // too mixed → Bonus
   }
@@ -3925,6 +4094,7 @@ function getWeeklyBalance(){
     var nm=(l.sess||'').toLowerCase();
     var hit=null;
     strengthDays.forEach(function(d){
+      if(hit)return; // take first free matching day, not last
       var dn=d[0].toLowerCase();
       var re=new RegExp('(^|[^a-z0-9])'+dn+'([^0-9]|$)');
       if(re.test(nm)&&!doneSet[d[0]])hit=d[0];
@@ -3937,6 +4107,7 @@ function getWeeklyBalance(){
     var pat=detectPattern(l);var hit=null;
     if(pat){
       strengthDays.forEach(function(d){
+        if(hit)return; // first free matching day
         if(pat.test(d[2].toLowerCase())&&!doneSet[d[0]])hit=d[0];
       });
     }
@@ -3978,11 +4149,11 @@ function getWeeklyBalance(){
   // Map each strength Dn to the muscles it works (by session role: push/pull/legA/legB)
   function musclesForDay(label){
     var L=(label||'').toLowerCase();var ms=[];
-    if(/empuje|push|press/.test(L)){ms=['Pectoral','Deltoides','Tríceps','Core'];}
-    else if(/tiron|tirón|pull|jalon|remo/.test(L)){ms=['Dorsal','Bíceps','Deltoides','Core'];}
-    else if(/pierna a|cuad|cuád/.test(L)){ms=['Cuádriceps','Glúteo','Gemelos/Sóleo','Aductores'];}
-    else if(/pierna b|isquio/.test(L)){ms=['Isquiotibiales','Glúteo','Gemelos/Sóleo','Aductores'];}
-    else if(/pierna|leg/.test(L)){ms=['Cuádriceps','Isquiotibiales','Glúteo','Gemelos/Sóleo','Aductores'];}
+    // Upper days (A/B) both train the full upper body — it's Upper/Lower, not Push/Pull
+    if(/upper|torso|empuje|tiron|tirón|push|pull/.test(L)){ms=['Pectoral','Dorsal','Deltoides','Bíceps','Tríceps'];}
+    else if(/lower a|pierna a|cuad|cuád/.test(L)){ms=['Cuádriceps','Isquiotibiales','Glúteo','Gemelos/Sóleo','Aductores','Core'];}
+    else if(/lower b|pierna b|isquio/.test(L)){ms=['Isquiotibiales','Cuádriceps','Glúteo','Gemelos/Sóleo','Aductores','Core'];}
+    else if(/lower|pierna|leg/.test(L)){ms=['Cuádriceps','Isquiotibiales','Glúteo','Gemelos/Sóleo','Aductores','Core'];}
     if(/core/.test(L)&&ms.indexOf('Core')<0)ms.push('Core');
     return ms;
   }
@@ -4205,34 +4376,35 @@ function renderTodaySummary(){
 }
 
 
-var MESO_DAYS={1:[['D1','var(--c)','Torso Empuje + Core'],['D2','var(--c)','Pierna A Cuad/Gluteo + Gemelos Pre-activacion'],['D3','var(--g)','Cardio Z2 115-135ppm 35-45min'],['D4','var(--c)','Torso Tiron + Core'],['D5','var(--c)','Pierna B Isquio/Gluteo + Gemelos Pre-activacion'],['D6','var(--g)','Z2 + Movilidad 30+20min'],['D7','var(--fg4)','Descanso']],2:[['D1','var(--c)','Torso Empuje +1s press inclinado +1s aperturas'],['D2','var(--c)','Pierna A +1s bulgara gemelo seated'],['D3','var(--g)','Cardio Z2 45-55min'],['D4','var(--c)','Torso Tiron +1s jalon +1s remo'],['D5','var(--c)','Pierna B +1s RDL +1s curl seated'],['D6','var(--g)','Z2 + Movilidad 40+20min'],['D7','var(--fg4)','Descanso']],3:[['D1','var(--c)','Torso Empuje RIR 1-2 maxima carga'],['D2','var(--c)','Pierna A RIR 1-2 foco elongado'],['D3','var(--g)','Z2 o umbral corto segun readiness'],['D4','var(--c)','Torso Tiron RIR 1-2 progresion e1RM'],['D5','var(--c)','Pierna B RDL pesado curl seated RIR 1-2'],['D6','var(--g)','Recuperacion activa Z1 o movilidad'],['D7','var(--fg4)','Descanso']],4:[['D1','var(--fg3)','Torso Empuje 50pct series 60-70pct carga'],['D2','var(--fg3)','Pierna A 50pct series sin fallo'],['D3','var(--g)','Z1 activo 30min'],['D4','var(--fg3)','Torso Tiron 50pct series'],['D5','var(--fg3)','Pierna B 50pct series tecnica'],['D6','var(--g)','Movilidad completa 30min'],['D7','var(--fg4)','Descanso']]};
+var MESO_DAYS={1:[['D1','var(--c)','Upper A Pecho/Dorsal/Hombro'],['D2','var(--c)','Lower A Cuadriceps/Gluteo/Gemelos'],['D3','var(--g)','Cardio Z2 115-135ppm 45-60min'],['D4','var(--c)','Upper B Dorsal/Pecho/Hombro'],['D5','var(--c)','Lower B Isquio/Gluteo/Gemelos'],['D6','var(--g)','Z2 + Movilidad 30+20min'],['D7','var(--fg4)','Descanso']],2:[['D1','var(--c)','Torso Empuje +1s press inclinado +1s aperturas'],['D2','var(--c)','Pierna A +1s bulgara gemelo seated'],['D3','var(--g)','Cardio Z2 45-55min'],['D4','var(--c)','Torso Tiron +1s jalon +1s remo'],['D5','var(--c)','Pierna B +1s RDL +1s curl seated'],['D6','var(--g)','Z2 + Movilidad 40+20min'],['D7','var(--fg4)','Descanso']],3:[['D1','var(--c)','Torso Empuje RIR 1-2 maxima carga'],['D2','var(--c)','Pierna A RIR 1-2 foco elongado'],['D3','var(--g)','Z2 o umbral corto segun readiness'],['D4','var(--c)','Torso Tiron RIR 1-2 progresion e1RM'],['D5','var(--c)','Pierna B RDL pesado curl seated RIR 1-2'],['D6','var(--g)','Recuperacion activa Z1 o movilidad'],['D7','var(--fg4)','Descanso']],4:[['D1','var(--fg3)','Torso Empuje 50pct series 60-70pct carga'],['D2','var(--fg3)','Pierna A 50pct series sin fallo'],['D3','var(--g)','Z1 activo 30min'],['D4','var(--fg3)','Torso Tiron 50pct series'],['D5','var(--fg3)','Pierna B 50pct series tecnica'],['D6','var(--g)','Movilidad completa 30min'],['D7','var(--fg4)','Descanso']]};
 var MESO_INFO={1:'M1 Readaptacion Sem 1-4 Volumen base tecnica VMO',2:'M2 Acumulacion Sem 5-8 +2s grupos prioritarios densidad moderada',3:'M3 Intensificacion Sem 9-12 RIR 1-2 carga maxima',4:'M4 Deload Sem 13 50pct volumen recuperacion total'};
 
 // ══ PLAN DAY DETAIL (reference view: muscles, exercises, planned volume, status) ══
 var PLAN_DAY_EXERCISES={
-  'empuje':['Press banca','Press inclinado mancuerna','Aperturas','Press militar','Elevaciones laterales','Extensión tríceps'],
-  'tiron':['Dominadas / Jalón','Remo con barra','Remo mancuerna','Face pull','Curl bíceps','Curl martillo'],
-  'pierna a':['Sentadilla','Prensa','Extensión cuádriceps','Hip thrust','Elevación gemelo de pie'],
-  'pierna b':['Peso muerto rumano','Curl femoral','Hip thrust','Zancadas','Elevación gemelo sentado'],
-  'cardio':['Z2 zona 115-135 ppm'],
-  'movilidad':['Movilidad + Z2 suave']
+  'upper a':['Press banca mancuernas — 5×6-10 RIR 2-3','Remo mancuerna — 4×8-12 RIR 2','Press inclinado 30° — 3×8-12 RIR 2','Elevaciones laterales — 3×12-20 RIR 1-2','Curl inclinado — 3×8-12 RIR 1-2','Extensión francesa — 3×10-15 RIR 1-2','Gemelos de pie — 4×10-15 RIR 1-2','Aducción — 2×12-20 RIR 2'],
+  'upper b':['Remo pecho apoyado — 4×6-10 RIR 2','Press banca mancuernas — 4×8-12 RIR 2','Pullover — 3×10-15 RIR 2','Press hombro mancuernas — 3×8-12 RIR 2','Elevaciones laterales — 2×15-20 RIR 1','Curl martillo — 3×8-12 RIR 1-2','JM Press — 3×8-12 RIR 1-2','Gemelos sentado — 4×12-20 RIR 1-2','Aducción — 2×12-20 RIR 2'],
+  'lower a':['ACTIVACIÓN: VMO + glúteo banda — 2×15 (no al fallo)','Sentadilla frontal — 4×6-10 RIR 2-3','Bulgarian split squat — 3×8-12 RIR 2','Curl femoral — 4×10-15 RIR 1-2','Hip thrust — 3×8-12 RIR 2','Patada glúteo banda — 3×12-20 RIR 1','Aducción — 3×12-20 RIR 2','Gemelos de pie — 4×10-15 RIR 1-2','Crunch lastrado — 3×12-20 RIR 1-2'],
+  'lower b':['ACTIVACIÓN: VMO + glúteo banda — 2×15 (no al fallo)','Peso muerto rumano — 4×6-10 RIR 2-3','Curl femoral — 4×10-15 RIR 1-2','Sentadilla frontal ligera — 3×10-15 RIR 2','Hip thrust pesado — 4×6-10 RIR 2','Patada glúteo banda — 3×12-20 RIR 1','Aducción — 3×12-20 RIR 2','Gemelos sentado — 4×12-20 RIR 1-2','Pallof — 3×12-15 RIR 1-2'],
+  'cardio':['Z2 zona 115-135 ppm · 45-60 min'],
+  'movilidad':['Movilidad cadera/tobillo + Z2 suave 30+20 min']
 };
 function planDayMuscles(label){
   var L=(label||'').toLowerCase();var ms=[];
-  if(/empuje|push|press/.test(L))ms=['Pectoral','Deltoides','Tríceps','Core'];
-  else if(/tiron|tirón|pull|jalon|remo/.test(L))ms=['Dorsal','Bíceps','Deltoides','Core'];
-  else if(/pierna a|cuad|cuád/.test(L))ms=['Cuádriceps','Glúteo','Gemelos/Sóleo','Aductores'];
-  else if(/pierna b|isquio/.test(L))ms=['Isquiotibiales','Glúteo','Gemelos/Sóleo','Aductores'];
-  else if(/pierna|leg/.test(L))ms=['Cuádriceps','Isquiotibiales','Glúteo','Gemelos/Sóleo'];
+  if(/upper|torso|empuje|tiron|tirón|push|pull/.test(L))ms=['Pectoral','Dorsal','Deltoides','Bíceps','Tríceps'];
+  else if(/lower a|pierna a|cuad|cuád/.test(L))ms=['Cuádriceps','Isquiotibiales','Glúteo','Gemelos/Sóleo','Aductores','Core'];
+  else if(/lower b|pierna b|isquio/.test(L))ms=['Isquiotibiales','Cuádriceps','Glúteo','Gemelos/Sóleo','Aductores','Core'];
+  else if(/lower|pierna|leg/.test(L))ms=['Cuádriceps','Isquiotibiales','Glúteo','Gemelos/Sóleo','Aductores','Core'];
   if(/core/.test(L)&&ms.indexOf('Core')<0)ms.push('Core');
   return ms;
 }
 function planDayExercises(label){
   var L=(label||'').toLowerCase();
-  if(/empuje|push/.test(L))return PLAN_DAY_EXERCISES['empuje'];
-  if(/tiron|tirón|pull/.test(L))return PLAN_DAY_EXERCISES['tiron'];
-  if(/pierna a/.test(L))return PLAN_DAY_EXERCISES['pierna a'];
-  if(/pierna b/.test(L))return PLAN_DAY_EXERCISES['pierna b'];
+  if(/upper a/.test(L))return PLAN_DAY_EXERCISES['upper a'];
+  if(/upper b/.test(L))return PLAN_DAY_EXERCISES['upper b'];
+  if(/upper|empuje|torso/.test(L))return PLAN_DAY_EXERCISES['upper a'];
+  if(/lower a|pierna a/.test(L))return PLAN_DAY_EXERCISES['lower a'];
+  if(/lower b|pierna b/.test(L))return PLAN_DAY_EXERCISES['lower b'];
+  if(/lower|pierna/.test(L))return PLAN_DAY_EXERCISES['lower a'];
   if(/movilidad/.test(L))return PLAN_DAY_EXERCISES['movilidad'];
   if(/cardio|z2|z1/.test(L))return PLAN_DAY_EXERCISES['cardio'];
   return [];
@@ -4256,8 +4428,12 @@ function planDayDetail(d,isCardio){
     });
   }
   if(ex.length){
-    html+='<div style="color:var(--fg3);text-transform:uppercase;font-size:9px;letter-spacing:0.5px;margin:8px 0 3px;">Ejercicios</div>';
-    html+='<div style="color:var(--fg2);line-height:1.6;">'+ex.map(function(e){return '· '+e;}).join('<br>')+'</div>';
+    html+='<div style="color:var(--fg3);text-transform:uppercase;font-size:9px;letter-spacing:0.5px;margin:8px 0 3px;">Ejercicios · series×reps×RIR</div>';
+    html+='<div style="color:var(--fg2);line-height:1.7;">'+ex.map(function(e){
+      var isAct=/ACTIVACI[ÓO]N/i.test(e);
+      return '<div style="'+(isAct?'color:var(--g);font-size:11px;':'')+'">· '+e+'</div>';
+    }).join('')+'</div>';
+    html+='<div style="margin-top:8px;padding:6px 8px;background:var(--bg4);border-radius:6px;font-size:10px;color:var(--fg3);line-height:1.5;">Progresión RIR del mesociclo: <b style="color:var(--fg2);">Sem1 RIR 3-4 · Sem2 RIR 2-3 · Sem3 RIR 1-2 · Sem4 RIR 0-1</b> · Sem5 descarga. Arranca conservador y acércate al fallo según avanza el bloque.</div>';
   }
   // Completion status this week
   try{
@@ -5114,6 +5290,7 @@ function autoLogHevySessions(){
       hevyRPE:hs.hevyRPE||null,
       garminRPE:hs.rpe||null,
       muscleSets:hs.muscleSets||null,
+      _exNames:(hs.exercises||[]).map(function(ex){return {name:ex.title||'',sets:(ex.sets||[]).filter(function(s){return safeInt((s&&s.reps)||0)>0;}).length};}).filter(function(e){return e.name&&e.sets>0;}),
       effectiveSets:Object.keys(sessEff).length?sessEff:null,
       muscleFatigue:Object.keys(sessMF).length?sessMF:null,
       hrv:S.metrics.hrv||null,sleep:S.metrics.sleep||null,
@@ -5193,7 +5370,7 @@ function showS(id){
   var map={'s-hoy':'ni-hoy','s-fatiga':'ni-fatiga','s-mav':'ni-mav','s-log':'ni-log','s-datos':'ni-datos','s-plan':'ni-plan'};
   var btn=safeDOM(map[id]);if(btn)btn.classList.add('active');
   window.scrollTo(0,0);try{document.querySelector(".main").scrollTop=0;document.documentElement.scrollTop=0;document.body.scrollTop=0;}catch(e){}
-  if(id==='s-mav'){safe(renderWeekZones,'rz');safe(renderMAV,'rm');safe(renderProgressionPanel,'rp');safe(renderE1RMPanel,'re');safe(renderEffectiveSets,'ref');}
+  if(id==='s-mav'){safe(renderWeekZones,'rz');safe(renderMAV,'rm');safe(renderProgressionPanel,'rp');safe(renderE1RMPanel,'re');safe(renderEffectiveSets,'ref');safe(renderMovementPatterns,'rmp');}
   if(id==='s-hoy'){safe(loadEstado,'le');safe(wireEstadoAutosave,'we');safe(checkBackupReminder,'cbr');safe(renderWeekSummary,'rws');}
   if(id==='s-log'){safe(renderLog,'rl');safe(populateLogSessions,'pls');}
   if(id==='s-fatiga'){safe(renderFatigueSignals,'rs');safe(renderMuscleFatigue,'rmf');safe(renderInterferencePanel,'ri');safe(renderDensityPanel,'rd');safe(renderConfidencePanel,'rc');safe(renderValidationPanel,'rv');}
