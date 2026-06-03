@@ -3776,10 +3776,12 @@ function renderMavMicroSummary(){
   var el=safeDOM('mavMicroSummary');if(!el)return;
   var b=getWeeklyBalance();
   var nextTxt=b.nextSession?(b.nextSession[0]+' '+b.nextSession[2]):'Fuerza completa ✓';
+  var totalDeficit=b.allMuscles.reduce(function(s,m){return s+Math.max(0,m.deficit);},0);
   el.style.display='block';
-  el.innerHTML='<div style="display:flex;justify-content:space-between;align-items:center;">'+
+  el.innerHTML='<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px;">'+
     '<span><b style="color:var(--c);">Fuerza '+b.strengthDone+'/'+b.strengthTotal+'</b> · Running '+b.cardioDone+'/'+b.cardioTotal+'</span>'+
-    '<span style="color:var(--fg3);font-size:11px;">Próxima: '+nextTxt+'</span></div>';
+    '<span style="color:var(--fg3);font-size:11px;">Próxima: '+nextTxt+'</span></div>'+
+    '<div style="font-size:11px;color:var(--fg3);">'+b.mavCovered+'/'+b.mavTotal+' músculos en MAV · faltan '+totalDeficit+' series para completar objetivos</div>';
 }
 
 function renderWeekSummary(){
@@ -3789,9 +3791,18 @@ function renderWeekSummary(){
   if(badge)badge.textContent='Semana '+b.weekScore+'%';
   var nextTxt=b.nextSession?(b.nextSession[0]+' '+b.nextSession[2]):'Fuerza completa ✓';
   var remTxt=b.remainingSessions.length?b.remainingSessions.map(function(d){return d[0];}).join(', '):'ninguna';
-  var furthestHtml=b.furthest.length?b.furthest.map(function(m){
-    return '<div style="display:flex;justify-content:space-between;font-size:12px;padding:2px 0;"><span style="color:var(--fg2);">'+m.muscle+'</span><span class="mono" style="color:var(--y);">'+m.done+'/'+m.mav+' (-'+m.deficit+')</span></div>';
-  }).join(''):'<div style="font-size:12px;color:var(--g);">Todos los músculos en MAV ✓</div>';
+  var furthestHtml=b.allMuscles.map(function(m){
+    var col=m.deficit<=0?'var(--g)':m.done===0?'var(--fg3)':'var(--y)';
+    var txt=m.deficit<=0?(m.done+'/'+m.mav+' ✓'):(m.done+'/'+m.mav+' (-'+m.deficit+')');
+    // Show opportunity urgency for short muscles
+    var oppTxt='';
+    if(m.deficit>0){
+      if(m.opp===0)oppTxt='<span style="color:var(--r);font-size:10px;"> · sin oportunidad</span>';
+      else if(m.opp===1)oppTxt='<span style="color:var(--y);font-size:10px;"> · 1 oport.</span>';
+      else oppTxt='<span style="color:var(--fg3);font-size:10px;"> · '+m.opp+' oport.</span>';
+    }
+    return '<div style="display:flex;justify-content:space-between;font-size:12px;padding:2px 0;"><span style="color:var(--fg2);">'+m.muscle+'</span><span class="mono" style="color:'+col+';">'+txt+oppTxt+'</span></div>';
+  }).join('');
   el.innerHTML=
     '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">'+
       '<div><div style="font-size:22px;font-weight:600;color:var(--fg);">'+b.weekScore+'%</div><div style="font-size:10px;color:var(--fg3);text-transform:uppercase;letter-spacing:0.5px;">Semana completada</div></div>'+
@@ -3800,7 +3811,7 @@ function renderWeekSummary(){
     '<div style="height:6px;background:var(--bg4);border-radius:3px;overflow:hidden;margin-bottom:10px;"><div style="height:100%;width:'+b.weekScore+'%;background:var(--c);border-radius:3px;transition:width 1s;"></div></div>'+
     '<div style="font-size:12px;color:var(--fg2);margin-bottom:3px;">Próxima: <span style="color:var(--c);">'+nextTxt+'</span></div>'+
     '<div style="font-size:12px;color:var(--fg3);margin-bottom:8px;">Quedan: '+remTxt+'</div>'+
-    '<div style="font-size:10px;color:var(--fg3);text-transform:uppercase;letter-spacing:0.5px;margin-bottom:4px;">Más retrasados ('+b.mavCovered+'/'+b.mavTotal+' en MAV)</div>'+
+    '<div style="font-size:10px;color:var(--fg3);text-transform:uppercase;letter-spacing:0.5px;margin-bottom:4px;">Volumen por músculo ('+b.mavCovered+'/'+b.mavTotal+' en MAV)</div>'+
     furthestHtml;
 }
 
@@ -3809,21 +3820,41 @@ function getWeeklyBalance(){
   var plan=(MESO_DAYS[meso]||MESO_DAYS[1]);
   var weekStart=getWeekBounds(0).start;
   var weekLogs=safeArr(S.logs).filter(function(l){var d=parseDate(l.date);return d&&d>=weekStart;});
-  var doneStrength=[];var doneCardio=[];
-  weekLogs.forEach(function(l){
-    var nm=(l.sess||'').toLowerCase();
-    if(l._cardio||/z2|z1|cardio|run|correr|caminata|movilidad/i.test(nm)){doneCardio.push(l.sess||'cardio');return;}
-    var matched=null;
-    plan.forEach(function(d){var label=d[2].toLowerCase();if(nm.indexOf(d[0].toLowerCase())>=0||(label.split(' ')[0]&&nm.indexOf(label.split(' ')[0])>=0))matched=d[0];});
-    doneStrength.push(matched||l.sess||'fuerza');
-  });
   var strengthDays=plan.filter(function(d){return !/cardio|z2|z1|movilidad|descanso|recuper/i.test(d[2]);});
   var cardioDays=plan.filter(function(d){return /cardio|z2|z1/i.test(d[2]);});
-  var doneSet={};doneStrength.forEach(function(x){doneSet[x]=true;});
+  // Count strength vs cardio sessions this week. Strength sessions fill plan Dn IN ORDER
+  // (robust: doesn't depend on Hevy naming matching the plan labels exactly).
+  var strengthCount=0;var doneCardio=[];
+  weekLogs.forEach(function(l){
+    var nm=(l.sess||'').toLowerCase();
+    if(l._cardio||/z2|z1|cardio|run|correr|caminata|movilidad|trail|ride|bici|swim/i.test(nm)){doneCardio.push(l.sess||'cardio');return;}
+    strengthCount++;
+  });
+  // Cap at plan length; map first N strength sessions to the first N strength days
+  var doneStrength=[];var doneSet={};
+  for(var k=0;k<Math.min(strengthCount,strengthDays.length);k++){doneStrength.push(strengthDays[k][0]);doneSet[strengthDays[k][0]]=true;}
+  // If more strength sessions than plan days, still record the overflow count
+  var extraStrength=Math.max(0,strengthCount-strengthDays.length);
   var nextStrength=null;
   for(var i=0;i<strengthDays.length;i++){if(!doneSet[strengthDays[i][0]]){nextStrength=strengthDays[i];break;}}
   var remainingSessions=[];
   for(var j=0;j<strengthDays.length;j++){if(!doneSet[strengthDays[j][0]])remainingSessions.push(strengthDays[j]);}
+  // ── REMAINING OPPORTUNITIES: how many future planned sessions still train each muscle ──
+  // Map each strength Dn to the muscles it works (by session role: push/pull/legA/legB)
+  function musclesForDay(label){
+    var L=(label||'').toLowerCase();var ms=[];
+    if(/empuje|push|press/.test(L)){ms=['Pectoral','Deltoides','Tríceps','Core'];}
+    else if(/tiron|tirón|pull|jalon|remo/.test(L)){ms=['Dorsal','Bíceps','Deltoides','Core'];}
+    else if(/pierna a|cuad|cuád/.test(L)){ms=['Cuádriceps','Glúteo','Gemelos/Sóleo','Aductores'];}
+    else if(/pierna b|isquio/.test(L)){ms=['Isquiotibiales','Glúteo','Gemelos/Sóleo','Aductores'];}
+    else if(/pierna|leg/.test(L)){ms=['Cuádriceps','Isquiotibiales','Glúteo','Gemelos/Sóleo','Aductores'];}
+    if(/core/.test(L)&&ms.indexOf('Core')<0)ms.push('Core');
+    return ms;
+  }
+  var remainingOpp={};
+  remainingSessions.forEach(function(d){
+    musclesForDay(d[2]).forEach(function(mu){remainingOpp[mu]=(remainingOpp[mu]||0)+1;});
+  });
   // Volume per muscle
   var vol=S.weeklyVol||{};var ranges=S.mavRanges||{};
   var muscleStatus=[];var mavCovered=0;var mavTotal=0;var mavSumPct=0;
@@ -3832,20 +3863,21 @@ function getWeeklyBalance(){
     var deficit=mav-done;var pct=mav>0?Math.min(100,Math.round(done/mav*100)):0;
     mavSumPct+=pct;mavTotal++;
     if(done>=mav)mavCovered++;
-    muscleStatus.push({muscle:mu,done:done,mav:mav,deficit:deficit,pct:pct});
+    muscleStatus.push({muscle:mu,done:done,mav:mav,deficit:deficit,pct:pct,opp:(remainingOpp[mu]||0)});
   });
   var mavGlobalPct=mavTotal>0?Math.round(mavSumPct/mavTotal):0;
   // Top 3 furthest from MAV (largest deficit, only those still short)
-  var furthest=muscleStatus.filter(function(m){return m.deficit>0;}).sort(function(a,b){return b.deficit-a.deficit;}).slice(0,3);
+  var furthest=muscleStatus.filter(function(m){return m.deficit>0;}).sort(function(a,b){return b.deficit-a.deficit;});
+  var allMuscles=muscleStatus.slice().sort(function(a,b){return b.deficit-a.deficit;});
   // Completion score: 50% sessions + 50% MAV
-  var sessionPct=strengthDays.length>0?Math.round(doneStrength.length/strengthDays.length*100):0;
+  var sessionPct=strengthDays.length>0?Math.min(100,Math.round(strengthCount/strengthDays.length*100)):0;
   var weekScore=Math.round(sessionPct*0.5+mavGlobalPct*0.5);
   return {
-    strengthDone:doneStrength.length,strengthTotal:strengthDays.length,
+    strengthDone:strengthCount,strengthTotal:strengthDays.length,extraStrength:extraStrength,
     cardioDone:doneCardio.length,cardioTotal:cardioDays.length,
     nextSession:nextStrength,remainingSessions:remainingSessions,
     mavCovered:mavCovered,mavTotal:mavTotal,mavGlobalPct:mavGlobalPct,
-    furthest:furthest,sessionPct:sessionPct,weekScore:weekScore
+    furthest:furthest,allMuscles:allMuscles,remainingOpp:remainingOpp,sessionPct:sessionPct,weekScore:weekScore
   };
 }
 
@@ -3880,11 +3912,14 @@ function buildMicrocycleCtx(){
   // WEEKLY VOLUME BALANCE: series done vs MAV target per muscle
   var vol=S.weeklyVol||{};var ranges=S.mavRanges||{};
   var volLines=[];
+  var bal=getWeeklyBalance();var oppMap=bal.remainingOpp||{};
   Object.keys(ranges).forEach(function(mu){
     var done=safeNum(vol[mu],0);var mav=ranges[mu].mav;var mev=ranges[mu].mev;var mrv=ranges[mu].mrv;
     var remaining=Math.max(0,mav-done);
     var status=done===0?'sin empezar':done<mev?'bajo MEV':done<mav?'progresando':done<=mrv?'en MAV ✓':'sobre MRV ⚠';
-    volLines.push(mu+': '+done+'/'+mav+' (faltan '+remaining+', '+status+')');
+    var opp=oppMap[mu]||0;
+    var oppTxt=remaining>0?(' · '+opp+' oportunidad'+(opp===1?'':'es')+' restante'+(opp===1?'':'s')+(opp===0?' ⚠ sin opción de completar':'')):'';
+    volLines.push(mu+': '+done+'/'+mav+' (faltan '+remaining+', '+status+oppTxt+')');
   });
   // SESSION BALANCE: strength sessions done vs remaining this week
   var totalStrength=strengthDays.length;var doneCount=doneStrength.length;
@@ -3900,7 +3935,7 @@ function buildMicrocycleCtx(){
     '- Analiza la sesión que TOCA según lo ya hecho, no asumas D1/D2 por defecto.\n\n'+
     'BALANCE DE SESIONES (fuerza): '+doneCount+'/'+totalStrength+' hechas · quedan '+remainCount+(remainingSessions.length?' ('+remainingSessions.join(' · ')+')':'')+'\n\n'+
     'BALANCE DE VOLUMEN SEMANAL (series hechas/objetivo MAV):\n'+volLines.join('\n')+'\n'+
-    '- Di qué músculos van cortos y cuánto volumen queda repartir en las sesiones restantes. No recomiendes volumen ya cubierto ni que supere el MRV.';
+    '- Di qué músculos van cortos y cuánto volumen queda repartir en las sesiones restantes. Usa las OPORTUNIDADES restantes: un músculo a -12 con 1 oportunidad es urgente; con 3 oportunidades hay margen. Un músculo corto con 0 oportunidades ya no se puede completar esta semana — dilo. No recomiendes volumen ya cubierto ni que supere el MRV.';
 }
 
 function buildCtx(){
