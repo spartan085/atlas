@@ -3525,6 +3525,7 @@ async function fetchHevy(){
     save();
     const hSt=safeDOM('hevyStatus');if(hSt)hSt.innerHTML='<span class="sdot-sm sdot-g"></span><span style="color:var(--g);">Conectado</span>';
     renderMAV();runEngines();
+    safe(buildWeeklyAdaptationSnapshot,'wsnap'); // build AFTER weeklyVol is populated (was running on init with empty vol → zeros)
     toast('Hevy sincronizado',`${workouts.length} sesiones · ${recentHevySess.length} recientes (72h)`,'💪',5000);
   }catch(err){toast('Error Hevy',err.message,'❌');}
   finally{if(sp)sp.style.display='none';}
@@ -3752,7 +3753,63 @@ function tw(el,day){el.classList.toggle('done');if(el.classList.contains('done')
 function parseDate(str){if(!str)return null;const p=str.split('/');if(p.length===3)return new Date(p[2],p[1]-1,p[0]);return new Date(str)||null;}
 
 // ══ AI ══
-const SYS=`Eres ATLAS v6 — coach fisiológico de Carlos. Español. Directo, basado en evidencia. Máx 380 palabras. Los motores fisiológicos ya procesaron datos determinísticamente. Tu rol: EXPLICAR en lenguaje humano claro. NO decides — interpretas. Carlos: 78.2kg, 15.6% grasa, objetivo ~10%+hipertrofia+running. Ex maratonista. Rodilla: condromalacia/ITB sin dolor. VMO descompensado, piernas en varo. Gemelos: 2x/semana mínimo. Mesociclo 1, semanas 1-4. D1 Empuje · D2 Pierna A (pre-act) · D3 Z2 · D4 Tirón · D5 Pierna B (pre-act) · D6 Z2+Mov · D7 Descanso. Rodilla >3/10 = parar ejercicio. Sistémica <30%=completo · 30-60%=-35% · >60%=descanso.`;
+const SYS=`Eres ATLAS v6 — coach fisiológico de Carlos. Español. Directo, basado en evidencia. Máx 380 palabras. Los motores fisiológicos ya procesaron datos determinísticamente. Tu rol: EXPLICAR en lenguaje humano claro. NO decides — interpretas. Carlos: 78.2kg, 15.6% grasa, objetivo ~10%+hipertrofia+running. Ex maratonista. Rodilla: condromalacia/ITB sin dolor. VMO descompensado, piernas en varo. Gemelos: 2x/semana mínimo. Mesociclo 1, semanas 1-4. D1 Empuje · D2 Pierna A (pre-act) · D3 Z2 · D4 Tirón · D5 Pierna B (pre-act) · D6 Z2+Mov · D7 Descanso. IMPORTANTE: respeta el bloque CALENDARIO Y MICROCICLO — analiza la sesión que TOCA según lo ya hecho esta semana, nunca asumas D1/D2 por defecto. Cada día es UNA sesión de fuerza; cardio puede sumarse el mismo día pero dos sesiones de fuerza van en días distintos. Rodilla >3/10 = parar ejercicio. Sistémica <30%=completo · 30-60%=-35% · >60%=descanso. CAPA DE DECISIÓN (obligatoria): toda recomendación que reduzca o elimine entrenamiento debe mostrar su COSTE SEMANAL, no solo el beneficio fisiológico. Clasifica cada acción como COSTE BAJO / MEDIO / ALTO. Ejemplos: reducir volumen hoy -20% = BAJO; saltar sesión de pierna = ALTO; quitar 6 series de cuádriceps = ALTO. Para acciones de coste medio/alto, muestra el trade-off explícito usando el BALANCE DE VOLUMEN: cuánto volumen se pierde esta semana, qué músculos quedan afectados, y probabilidad de no llegar al MAV. Ej: "Quitar 4 series de cuádriceps hoy lo dejaría en 8/14 y, sin más sesiones de pierna esta semana, por debajo del objetivo." Evalúa SIEMPRE las dos caras: 1) beneficio fisiológico (recuperación), 2) coste de entrenamiento semanal (volumen/MAV perdido). Nunca recomiendes una acción de coste alto sin enseñar el trade-off. Si fatiga y objetivo semanal chocan, dilo y deja que Carlos decida con el coste delante.`;
+
+// ══ MICROCYCLE / CALENDAR CONTEXT — tells AI what day it is, which Dn sessions are done this week, and what's next ══
+function buildMicrocycleCtx(){
+  var meso=S.currentMeso||1;
+  var plan=(MESO_DAYS[meso]||MESO_DAYS[1]);
+  var dayNames=['Domingo','Lunes','Martes','Miércoles','Jueves','Viernes','Sábado'];
+  var todayDow=dayNames[new Date().getDay()];
+  // Which sessions are logged this week (Mon–Sun)
+  var weekStart=getWeekBounds(0).start;
+  var weekLogs=safeArr(S.logs).filter(function(l){var d=parseDate(l.date);return d&&d>=weekStart;});
+  // Detect which Dn each STRENGTH log corresponds to (by name match), and cardio separately
+  var doneStrength=[];var doneCardio=[];
+  weekLogs.forEach(function(l){
+    var nm=(l.sess||'').toLowerCase();
+    if(l._cardio||/z2|z1|cardio|run|correr|caminata|movilidad/i.test(nm)){doneCardio.push(l.sess||'cardio');return;}
+    // strength: try to map to a Dn label
+    var matched=null;
+    plan.forEach(function(d){
+      var label=d[2].toLowerCase();
+      if(nm.indexOf(d[0].toLowerCase())>=0||(label.split(' ')[0]&&nm.indexOf(label.split(' ')[0])>=0))matched=d[0];
+    });
+    doneStrength.push(matched||l.sess||'fuerza');
+  });
+  // Strength sessions in the plan (exclude cardio/rest days)
+  var strengthDays=plan.filter(function(d){return !/cardio|z2|z1|movilidad|descanso|recuper/i.test(d[2]);});
+  // Next strength session = first plan strength Dn not yet done
+  var doneSet={};doneStrength.forEach(function(x){doneSet[x]=true;});
+  var nextStrength=null;
+  for(var i=0;i<strengthDays.length;i++){if(!doneSet[strengthDays[i][0]]){nextStrength=strengthDays[i];break;}}
+  var nextTxt=nextStrength?(nextStrength[0]+' — '+nextStrength[2]):'Semana de fuerza completa (solo queda cardio/descanso)';
+  // WEEKLY VOLUME BALANCE: series done vs MAV target per muscle
+  var vol=S.weeklyVol||{};var ranges=S.mavRanges||{};
+  var volLines=[];
+  Object.keys(ranges).forEach(function(mu){
+    var done=safeNum(vol[mu],0);var mav=ranges[mu].mav;var mev=ranges[mu].mev;var mrv=ranges[mu].mrv;
+    var remaining=Math.max(0,mav-done);
+    var status=done===0?'sin empezar':done<mev?'bajo MEV':done<mav?'progresando':done<=mrv?'en MAV ✓':'sobre MRV ⚠';
+    volLines.push(mu+': '+done+'/'+mav+' (faltan '+remaining+', '+status+')');
+  });
+  // SESSION BALANCE: strength sessions done vs remaining this week
+  var totalStrength=strengthDays.length;var doneCount=doneStrength.length;
+  var remainCount=Math.max(0,totalStrength-doneCount);
+  var remainingSessions=[];
+  for(var j=0;j<strengthDays.length;j++){if(!doneSet[strengthDays[j][0]])remainingSessions.push(strengthDays[j][0]+' '+strengthDays[j][2]);}
+  return 'CALENDARIO Y MICROCICLO (mesociclo '+meso+'):\n'+
+    '- Hoy es '+todayDow+'\n'+
+    '- Sesiones de FUERZA ya hechas esta semana: '+(doneStrength.length?doneStrength.join(', '):'ninguna')+'\n'+
+    '- Sesiones de CARDIO ya hechas esta semana: '+(doneCardio.length?doneCardio.join(', '):'ninguna')+'\n'+
+    '- Próxima sesión de FUERZA que toca: '+nextTxt+'\n'+
+    '- REGLA: cada día es UNA sesión de fuerza. Se puede añadir cardio (correr/Z2) el mismo día, pero NUNCA dos sesiones de fuerza el mismo día — la siguiente de fuerza es otro día.\n'+
+    '- Analiza la sesión que TOCA según lo ya hecho, no asumas D1/D2 por defecto.\n\n'+
+    'BALANCE DE SESIONES (fuerza): '+doneCount+'/'+totalStrength+' hechas · quedan '+remainCount+(remainingSessions.length?' ('+remainingSessions.join(' · ')+')':'')+'\n\n'+
+    'BALANCE DE VOLUMEN SEMANAL (series hechas/objetivo MAV):\n'+volLines.join('\n')+'\n'+
+    '- Di qué músculos van cortos y cuánto volumen queda repartir en las sesiones restantes. No recomiendes volumen ya cubierto ni que supere el MRV.';
+}
+
 function buildCtx(){
   const f=S._fatigue;const h=S._hrv;const i=S._interference;const m=S._mav;const r=S._recs;
   const mf=S._muscleFatigue||{};
@@ -3824,10 +3881,10 @@ async function callAI(prompt,panelId,txtId,timeId){
   const data=await r.json();txt.className='ai-text';txt.textContent=data.content.map(b=>b.text||'').join('');}
   catch(err){txt.className='ai-text';txt.textContent='Error: '+err.message;toast('Error IA',err.message,'❌');}
 }
-async function analyzeDay(){const sess=safeDOM('todaySess')?.value;const knee=safeDOM('kneeToday')?.value||'0';const domsUp=safeDOM('domsUpper')?.value||'0';const domsLo=safeDOM('domsLower')?.value||'0';const pain=safeDOM('painToday')?.value||'';const notes=safeDOM('notesToday')?.value||'';const mf=S._muscleFatigue?Object.entries(S._muscleFatigue).map(([m,v])=>`${m}:${v}%`).join(', '):'sin datos';await callAI(`ANÁLISIS DEL DÍA — ${new Date().toLocaleDateString('es-ES',{weekday:'long',day:'numeric',month:'long'})}\n\n${buildCtx()}\n\nFATIGA MUSCULAR: ${mf}\nSESIÓN: ${sess||'no especificada'}\nRODILLA: ${knee}/10 · DOMS SUP: ${domsUp}/10 · DOMS INF: ${domsLo}/10\n${pain?'DOLOR: '+pain:''}\nNOTAS: "${notes||'ninguna'}"\n\n1) ¿Qué indican los motores sobre el estado de hoy? 2) ¿La sesión planificada es adecuada? 3) Una recomendación accionable principal.`,'aiDayP','aiDayTxt','aiDayT');}
+async function analyzeDay(){const sess=safeDOM('todaySess')?.value;const knee=safeDOM('kneeToday')?.value||'0';const domsUp=safeDOM('domsUpper')?.value||'0';const domsLo=safeDOM('domsLower')?.value||'0';const pain=safeDOM('painToday')?.value||'';const notes=safeDOM('notesToday')?.value||'';const mf=S._muscleFatigue?Object.entries(S._muscleFatigue).map(([m,v])=>`${m}:${v}%`).join(', '):'sin datos';await callAI(`ANÁLISIS DEL DÍA — ${new Date().toLocaleDateString('es-ES',{weekday:'long',day:'numeric',month:'long'})}\n\n${buildMicrocycleCtx()}\n\n${buildCtx()}\n\nFATIGA MUSCULAR: ${mf}\nSESIÓN: ${sess||'no especificada'}\nRODILLA: ${knee}/10 · DOMS SUP: ${domsUp}/10 · DOMS INF: ${domsLo}/10\n${pain?'DOLOR: '+pain:''}\nNOTAS: "${notes||'ninguna'}"\n\n1) ¿Qué indican los motores sobre el estado de hoy? 2) ¿La sesión que TOCA hoy (según el balance) es adecuada? 3) Recomendación accionable principal CON su coste semanal (BAJO/MEDIO/ALTO) y el trade-off explícito: qué volumen/MAV se pierde si la sigues.`,'aiDayP','aiDayTxt','aiDayT');}
 async function analyzeFatigue(){const mf=S._muscleFatigue?Object.entries(S._muscleFatigue).sort((a,b)=>b[1]-a[1]).map(([m,v])=>`${m}:${v}%`).join(', '):'sin datos';await callAI(`ANÁLISIS DE FATIGA HÍBRIDA\n\n${buildCtx()}\n\nFATIGA MUSCULAR por grupo (decay exponencial):\n${mf}\n\n1) ¿Qué tipo de fatiga domina y por qué? 2) ¿Hay interferencia cardio-fuerza? 3) ¿Hay acumulación preocupante? 4) Recomendación próximas 48h.`,'aiFatP','aiFatTxt','aiFatT');}
 async function analyzeMav(){const vol=Object.entries(S.weeklyVol||{}).map(([k,v])=>`${k}:${v}s`).join(', ')||'sin datos';const mavCtx=S._mav?Object.entries(S._mav.muscles).map(([m,d])=>`${m}: actual ${S.weeklyVol[m]||0}/${d.effectiveMRV} (×${d.mult})`).join('\n'):'sin MAV';await callAI(`ANÁLISIS DE VOLUMEN\n\n${buildCtx()}\n\nVOLUMEN REAL:\n${vol}\n\nMAV DINÁMICO:\n${mavCtx}\n\n1) Grupos bajo MEV, en óptimo, sobre MRV. 2) ¿Multiplicadores apropiados? 3) Desequilibrios. 4) Ajuste concreto.`,'aiMavP','aiMavTxt','aiMavT');}
-async function analyzeSession(){const last=S.logs[0];if(!last){toast('Sin sesión','Registra una sesión primero','⚠️');return;}await callAI(`ANÁLISIS DE SESIÓN\n${last.sess} · ${last.dur}min · RPE ${last.rpe} · sRPE ${last.srpe} · Rodilla ${last.knee||0}/10\nNotas: "${last.notes||'ninguna'}"\n\n${buildCtx()}\n\n1) ¿sRPE apropiado para el estado de fatiga? 2) Señales de infra/sobreestimulación. 3) Impacto en readiness mañana.`,'aiSessP','aiSessTxt','aiSessT');}
+async function analyzeSession(){const last=S.logs[0];if(!last){toast('Sin sesión','Registra una sesión primero','⚠️');return;}await callAI(`ANÁLISIS DE SESIÓN\n${last.sess} · ${last.dur}min · RPE ${last.rpe} · sRPE ${last.srpe} · Rodilla ${last.knee||0}/10\nNotas: "${last.notes||'ninguna'}"\n\n${buildMicrocycleCtx()}\n\n${buildCtx()}\n\n1) ¿sRPE apropiado para el estado de fatiga? 2) Señales de infra/sobreestimulación. 3) Impacto en readiness mañana Y en el balance semanal: ¿qué músculos quedan cortos y cuánto volumen queda en las sesiones restantes para llegar al MAV?`,'aiSessP','aiSessTxt','aiSessT');}
 
 // ══ NAV & SYNC ══
 
@@ -4419,6 +4476,12 @@ function setRecFollow(val){
 function getWeekKey(){var d=new Date();var jan1=new Date(d.getFullYear(),0,1);var wk=Math.ceil(((d-jan1)/864e5+jan1.getDay()+1)/7);return d.getFullYear()+'-W'+String(wk).padStart(2,'0');}
 function buildWeeklyAdaptationSnapshot(){
   var weekKey=getWeekKey();
+  // Guard: don't overwrite an existing snapshot with zeros if weeklyVol isn't populated yet
+  // (init runs this before fetchHevy; the real build happens at end of fetchHevy)
+  var _volTotal=0;try{Object.keys(S.weeklyVol||{}).forEach(function(k){_volTotal+=safeNum(S.weeklyVol[k],0);});}catch(e){}
+  if(_volTotal===0){
+    try{var existing=localStorage.getItem('atlas_weekly_v1');if(existing){var arr=JSON.parse(existing);if(arr&&arr.length&&arr[0].weekKey===weekKey)return;}}catch(e){}
+  }
   var muscleList=['Cuádriceps','Isquiotibiales','Glúteo','Gemelos/Sóleo','Pectoral','Dorsal','Deltoides','Bíceps','Tríceps','Aductores','Core'];
   var mfData=S._muscleFatigue||{};var effData=S._effectiveSets?S._effectiveSets.muscles:null;
   var muscles={};
