@@ -3775,13 +3775,13 @@ const SYS=`Eres ATLAS v6 — coach fisiológico de Carlos. Español. Directo, ba
 function renderMavMicroSummary(){
   var el=safeDOM('mavMicroSummary');if(!el)return;
   var b=getWeeklyBalance();
-  var nextTxt=b.nextSession?(b.nextSession[0]+' '+b.nextSession[2]):'Fuerza completa ✓';
+  var strPend=b.remainingSessions.length?b.remainingSessions.map(function(d){return d[0];}).join(', '):'completa';
   var totalDeficit=b.allMuscles.reduce(function(s,m){return s+Math.max(0,m.deficit);},0);
   el.style.display='block';
   el.innerHTML='<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px;">'+
-    '<span><b style="color:var(--c);">Fuerza '+b.strengthDone+'/'+b.strengthTotal+'</b> · Running '+b.cardioDone+'/'+b.cardioTotal+'</span>'+
-    '<span style="color:var(--fg3);font-size:11px;">Próxima: '+nextTxt+'</span></div>'+
-    '<div style="font-size:11px;color:var(--fg3);">'+b.mavCovered+'/'+b.mavTotal+' músculos en MAV · faltan '+totalDeficit+' series para completar objetivos</div>';
+    '<span><b style="color:var(--c);">Fuerza '+b.strengthDone+'/'+b.strengthTotal+'</b> · Cardio '+b.cardioDone+'/'+b.cardioTotal+'</span>'+
+    '<span style="color:var(--fg3);font-size:11px;">Fuerza pendiente: '+strPend+'</span></div>'+
+    '<div style="font-size:11px;color:var(--fg3);">'+b.mavCovered+'/'+b.mavTotal+' músculos en MAV · faltan '+totalDeficit+' series para objetivos</div>';
 }
 
 function renderWeekSummary(){
@@ -3789,15 +3789,25 @@ function renderWeekSummary(){
   if(!el)return;
   var b=getWeeklyBalance();
   if(badge)badge.textContent='Semana '+b.weekScore+'%';
-  var nextTxt=b.nextSession?(b.nextSession[0]+' '+b.nextSession[2]):'Fuerza completa ✓';
-  var remTxt=b.remainingSessions.length?b.remainingSessions.map(function(d){return d[0];}).join(', '):'ninguna';
+  // Strength pending
+  var strPend=b.remainingSessions.length?b.remainingSessions.map(function(d){return d[0]+' '+d[2].split('+')[0].trim();}).join(' · '):'completa ✓';
+  // Cardio pending
+  var carPend=b.pendingCardio.length?b.pendingCardio.map(function(d){return d[0]+' '+(/(z2|z1|cardio)/i.test(d[2])?'Z2':d[2].split(' ')[0]);}).join(' · '):'completo ✓';
+  // Microcycle timeline
+  var timelineHtml=b.timeline.map(function(t){
+    var icon=t.rest?'·':(t.done?'✓':'○');
+    var col=t.done?'var(--g)':t.rest?'var(--fg4)':'var(--fg3)';
+    var short=t.label.split('+')[0].trim().replace(/ Pre-activacion| Pre-activación/,'');
+    if(t.cardio)short=/(z2|z1|cardio)/i.test(t.label)?'Z2':short;
+    return '<div style="display:flex;align-items:center;gap:8px;font-size:11px;padding:1px 0;color:'+col+';"><span style="width:14px;text-align:center;font-weight:600;">'+icon+'</span><span style="width:24px;color:var(--fg3);">'+t.day+'</span><span>'+short+'</span></div>';
+  }).join('');
+  // Muscle volume with opportunities
   var furthestHtml=b.allMuscles.map(function(m){
     var col=m.deficit<=0?'var(--g)':m.done===0?'var(--fg3)':'var(--y)';
     var txt=m.deficit<=0?(m.done+'/'+m.mav+' ✓'):(m.done+'/'+m.mav+' (-'+m.deficit+')');
-    // Show opportunity urgency for short muscles
     var oppTxt='';
     if(m.deficit>0){
-      if(m.opp===0)oppTxt='<span style="color:var(--r);font-size:10px;"> · sin oportunidad</span>';
+      if(m.opp===0)oppTxt='<span style="color:var(--r);font-size:10px;"> · sin oport.</span>';
       else if(m.opp===1)oppTxt='<span style="color:var(--y);font-size:10px;"> · 1 oport.</span>';
       else oppTxt='<span style="color:var(--fg3);font-size:10px;"> · '+m.opp+' oport.</span>';
     }
@@ -3806,11 +3816,25 @@ function renderWeekSummary(){
   el.innerHTML=
     '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">'+
       '<div><div style="font-size:22px;font-weight:600;color:var(--fg);">'+b.weekScore+'%</div><div style="font-size:10px;color:var(--fg3);text-transform:uppercase;letter-spacing:0.5px;">Semana completada</div></div>'+
-      '<div style="text-align:right;font-size:12px;color:var(--fg2);">Fuerza '+b.strengthDone+'/'+b.strengthTotal+'<br>Running '+b.cardioDone+'/'+b.cardioTotal+'</div>'+
     '</div>'+
-    '<div style="height:6px;background:var(--bg4);border-radius:3px;overflow:hidden;margin-bottom:10px;"><div style="height:100%;width:'+b.weekScore+'%;background:var(--c);border-radius:3px;transition:width 1s;"></div></div>'+
-    '<div style="font-size:12px;color:var(--fg2);margin-bottom:3px;">Próxima: <span style="color:var(--c);">'+nextTxt+'</span></div>'+
-    '<div style="font-size:12px;color:var(--fg3);margin-bottom:8px;">Quedan: '+remTxt+'</div>'+
+    '<div style="height:6px;background:var(--bg4);border-radius:3px;overflow:hidden;margin-bottom:12px;"><div style="height:100%;width:'+b.weekScore+'%;background:var(--c);border-radius:3px;transition:width 1s;"></div></div>'+
+    // Two separate tracks
+    '<div style="display:flex;gap:12px;margin-bottom:12px;">'+
+      '<div style="flex:1;background:var(--bg3);border-radius:8px;padding:8px 10px;">'+
+        '<div style="font-size:10px;color:var(--fg3);text-transform:uppercase;letter-spacing:0.5px;margin-bottom:2px;">Fuerza</div>'+
+        '<div style="font-size:15px;font-weight:600;color:var(--c);">'+b.strengthDone+'/'+b.strengthTotal+'</div>'+
+        '<div style="font-size:10px;color:var(--fg3);margin-top:2px;">Pendiente: '+strPend+'</div>'+
+      '</div>'+
+      '<div style="flex:1;background:var(--bg3);border-radius:8px;padding:8px 10px;">'+
+        '<div style="font-size:10px;color:var(--fg3);text-transform:uppercase;letter-spacing:0.5px;margin-bottom:2px;">Cardio</div>'+
+        '<div style="font-size:15px;font-weight:600;color:var(--g);">'+b.cardioDone+'/'+b.cardioTotal+'</div>'+
+        '<div style="font-size:10px;color:var(--fg3);margin-top:2px;">Pendiente: '+carPend+'</div>'+
+      '</div>'+
+    '</div>'+
+    // Microcycle timeline
+    '<div style="font-size:10px;color:var(--fg3);text-transform:uppercase;letter-spacing:0.5px;margin-bottom:4px;">Microciclo</div>'+
+    '<div style="background:var(--bg3);border-radius:8px;padding:8px 10px;margin-bottom:12px;">'+timelineHtml+'</div>'+
+    // Muscle volume
     '<div style="font-size:10px;color:var(--fg3);text-transform:uppercase;letter-spacing:0.5px;margin-bottom:4px;">Volumen por músculo ('+b.mavCovered+'/'+b.mavTotal+' en MAV)</div>'+
     furthestHtml;
 }
@@ -3822,23 +3846,54 @@ function getWeeklyBalance(){
   var weekLogs=safeArr(S.logs).filter(function(l){var d=parseDate(l.date);return d&&d>=weekStart;});
   var strengthDays=plan.filter(function(d){return !/cardio|z2|z1|movilidad|descanso|recuper/i.test(d[2]);});
   var cardioDays=plan.filter(function(d){return /cardio|z2|z1/i.test(d[2]);});
-  // Count strength vs cardio sessions this week. Strength sessions fill plan Dn IN ORDER
-  // (robust: doesn't depend on Hevy naming matching the plan labels exactly).
-  var strengthCount=0;var doneCardio=[];
+  // Separate this week's logs into strength vs cardio
+  var strengthLogs=[];var doneCardio=[];
   weekLogs.forEach(function(l){
     var nm=(l.sess||'').toLowerCase();
     if(l._cardio||/z2|z1|cardio|run|correr|caminata|movilidad|trail|ride|bici|swim/i.test(nm)){doneCardio.push(l.sess||'cardio');return;}
-    strengthCount++;
+    strengthLogs.push(l);
   });
-  // Cap at plan length; map first N strength sessions to the first N strength days
-  var doneStrength=[];var doneSet={};
-  for(var k=0;k<Math.min(strengthCount,strengthDays.length);k++){doneStrength.push(strengthDays[k][0]);doneSet[strengthDays[k][0]]=true;}
-  // If more strength sessions than plan days, still record the overflow count
+  var strengthCount=strengthLogs.length;
+  // ── DUAL MATCHING ──
+  // Priority 1: match by explicit Dn name in the Hevy session title (e.g. "D1 Torso Empuje").
+  // Priority 2: sequential fallback for any unmatched session → fill remaining Dn in order.
+  var doneSet={};var matchedLogs=[];
+  strengthLogs.forEach(function(l){
+    var nm=(l.sess||'').toLowerCase();
+    var hit=null;
+    strengthDays.forEach(function(d){
+      var dn=d[0].toLowerCase(); // "d1"
+      // match "d1", "d 1", "d1:", "d1 " etc at a word-ish boundary
+      var re=new RegExp('(^|[^a-z0-9])'+dn+'([^0-9]|$)');
+      if(re.test(nm)&&!doneSet[d[0]])hit=d[0];
+    });
+    if(hit){doneSet[hit]=true;matchedLogs.push(l);}
+  });
+  // Sequential fallback: sessions that didn't match a name fill the first free Dn in order
+  var unmatchedCount=strengthCount-matchedLogs.length;
+  for(var k=0;k<strengthDays.length&&unmatchedCount>0;k++){
+    if(!doneSet[strengthDays[k][0]]){doneSet[strengthDays[k][0]]=true;unmatchedCount--;}
+  }
+  // Build doneStrength list in plan order
+  var doneStrength=[];
+  strengthDays.forEach(function(d){if(doneSet[d[0]])doneStrength.push(d[0]);});
   var extraStrength=Math.max(0,strengthCount-strengthDays.length);
   var nextStrength=null;
   for(var i=0;i<strengthDays.length;i++){if(!doneSet[strengthDays[i][0]]){nextStrength=strengthDays[i];break;}}
   var remainingSessions=[];
   for(var j=0;j<strengthDays.length;j++){if(!doneSet[strengthDays[j][0]])remainingSessions.push(strengthDays[j]);}
+  // Cardio track: fill cardio days in order, same robust approach
+  var cardioCount=doneCardio.length;var cardioDoneSet={};
+  for(var ck=0;ck<Math.min(cardioCount,cardioDays.length);ck++){cardioDoneSet[cardioDays[ck][0]]=true;}
+  var pendingCardio=[];
+  for(var cj=0;cj<cardioDays.length;cj++){if(!cardioDoneSet[cardioDays[cj][0]])pendingCardio.push(cardioDays[cj]);}
+  // Full microcycle timeline: each plan day with done/pending state
+  var timeline=plan.map(function(d){
+    var isRest=/descanso/i.test(d[2]);
+    var isCardioDay=/cardio|z2|z1|movilidad/i.test(d[2]);
+    var done=isCardioDay?(cardioDoneSet[d[0]]||false):(isRest?false:(doneSet[d[0]]||false));
+    return {day:d[0],label:d[2],done:done,rest:isRest,cardio:isCardioDay};
+  });
   // ── REMAINING OPPORTUNITIES: how many future planned sessions still train each muscle ──
   // Map each strength Dn to the muscles it works (by session role: push/pull/legA/legB)
   function musclesForDay(label){
@@ -3875,7 +3930,7 @@ function getWeeklyBalance(){
   return {
     strengthDone:strengthCount,strengthTotal:strengthDays.length,extraStrength:extraStrength,
     cardioDone:doneCardio.length,cardioTotal:cardioDays.length,
-    nextSession:nextStrength,remainingSessions:remainingSessions,
+    nextSession:nextStrength,remainingSessions:remainingSessions,pendingCardio:pendingCardio,timeline:timeline,
     mavCovered:mavCovered,mavTotal:mavTotal,mavGlobalPct:mavGlobalPct,
     furthest:furthest,allMuscles:allMuscles,remainingOpp:remainingOpp,sessionPct:sessionPct,weekScore:weekScore
   };
@@ -3904,6 +3959,9 @@ function buildMicrocycleCtx(){
   });
   // Strength sessions in the plan (exclude cardio/rest days)
   var strengthDays=plan.filter(function(d){return !/cardio|z2|z1|movilidad|descanso|recuper/i.test(d[2]);});
+  var cardioDaysM=plan.filter(function(d){return /cardio|z2|z1/i.test(d[2]);});
+  var cardioDoneSetM={};for(var cm=0;cm<Math.min(doneCardio.length,cardioDaysM.length);cm++){cardioDoneSetM[cardioDaysM[cm][0]]=true;}
+  var pendingCardio=[];for(var pc=0;pc<cardioDaysM.length;pc++){if(!cardioDoneSetM[cardioDaysM[pc][0]])pendingCardio.push(cardioDaysM[pc]);}
   // Next strength session = first plan strength Dn not yet done
   var doneSet={};doneStrength.forEach(function(x){doneSet[x]=true;});
   var nextStrength=null;
@@ -3930,7 +3988,8 @@ function buildMicrocycleCtx(){
     '- Hoy es '+todayDow+'\n'+
     '- Sesiones de FUERZA ya hechas esta semana: '+(doneStrength.length?doneStrength.join(', '):'ninguna')+'\n'+
     '- Sesiones de CARDIO ya hechas esta semana: '+(doneCardio.length?doneCardio.join(', '):'ninguna')+'\n'+
-    '- Próxima sesión de FUERZA que toca: '+nextTxt+'\n'+
+    '- Fuerza pendiente esta semana: '+(remainingSessions.length?remainingSessions.map(function(d){return d[0]+' '+d[2].split('+')[0].trim();}).join(' · '):'completa')+'\n'+
+    '- Cardio pendiente esta semana: '+(typeof pendingCardio!=='undefined'&&pendingCardio.length?pendingCardio.map(function(d){return d[0];}).join(' · '):'(ver Garmin)')+'\n'+
     '- REGLA: cada día es UNA sesión de fuerza. Se puede añadir cardio (correr/Z2) el mismo día, pero NUNCA dos sesiones de fuerza el mismo día — la siguiente de fuerza es otro día.\n'+
     '- Analiza la sesión que TOCA según lo ya hecho, no asumas D1/D2 por defecto.\n\n'+
     'BALANCE DE SESIONES (fuerza): '+doneCount+'/'+totalStrength+' hechas · quedan '+remainCount+(remainingSessions.length?' ('+remainingSessions.join(' · ')+')':'')+'\n\n'+
@@ -4068,6 +4127,76 @@ function renderTodaySummary(){
 
 var MESO_DAYS={1:[['D1','var(--c)','Torso Empuje + Core'],['D2','var(--c)','Pierna A Cuad/Gluteo + Gemelos Pre-activacion'],['D3','var(--g)','Cardio Z2 115-135ppm 35-45min'],['D4','var(--c)','Torso Tiron + Core'],['D5','var(--c)','Pierna B Isquio/Gluteo + Gemelos Pre-activacion'],['D6','var(--g)','Z2 + Movilidad 30+20min'],['D7','var(--fg4)','Descanso']],2:[['D1','var(--c)','Torso Empuje +1s press inclinado +1s aperturas'],['D2','var(--c)','Pierna A +1s bulgara gemelo seated'],['D3','var(--g)','Cardio Z2 45-55min'],['D4','var(--c)','Torso Tiron +1s jalon +1s remo'],['D5','var(--c)','Pierna B +1s RDL +1s curl seated'],['D6','var(--g)','Z2 + Movilidad 40+20min'],['D7','var(--fg4)','Descanso']],3:[['D1','var(--c)','Torso Empuje RIR 1-2 maxima carga'],['D2','var(--c)','Pierna A RIR 1-2 foco elongado'],['D3','var(--g)','Z2 o umbral corto segun readiness'],['D4','var(--c)','Torso Tiron RIR 1-2 progresion e1RM'],['D5','var(--c)','Pierna B RDL pesado curl seated RIR 1-2'],['D6','var(--g)','Recuperacion activa Z1 o movilidad'],['D7','var(--fg4)','Descanso']],4:[['D1','var(--fg3)','Torso Empuje 50pct series 60-70pct carga'],['D2','var(--fg3)','Pierna A 50pct series sin fallo'],['D3','var(--g)','Z1 activo 30min'],['D4','var(--fg3)','Torso Tiron 50pct series'],['D5','var(--fg3)','Pierna B 50pct series tecnica'],['D6','var(--g)','Movilidad completa 30min'],['D7','var(--fg4)','Descanso']]};
 var MESO_INFO={1:'M1 Readaptacion Sem 1-4 Volumen base tecnica VMO',2:'M2 Acumulacion Sem 5-8 +2s grupos prioritarios densidad moderada',3:'M3 Intensificacion Sem 9-12 RIR 1-2 carga maxima',4:'M4 Deload Sem 13 50pct volumen recuperacion total'};
+
+// ══ PLAN DAY DETAIL (reference view: muscles, exercises, planned volume, status) ══
+var PLAN_DAY_EXERCISES={
+  'empuje':['Press banca','Press inclinado mancuerna','Aperturas','Press militar','Elevaciones laterales','Extensión tríceps'],
+  'tiron':['Dominadas / Jalón','Remo con barra','Remo mancuerna','Face pull','Curl bíceps','Curl martillo'],
+  'pierna a':['Sentadilla','Prensa','Extensión cuádriceps','Hip thrust','Elevación gemelo de pie'],
+  'pierna b':['Peso muerto rumano','Curl femoral','Hip thrust','Zancadas','Elevación gemelo sentado'],
+  'cardio':['Z2 zona 115-135 ppm'],
+  'movilidad':['Movilidad + Z2 suave']
+};
+function planDayMuscles(label){
+  var L=(label||'').toLowerCase();var ms=[];
+  if(/empuje|push|press/.test(L))ms=['Pectoral','Deltoides','Tríceps','Core'];
+  else if(/tiron|tirón|pull|jalon|remo/.test(L))ms=['Dorsal','Bíceps','Deltoides','Core'];
+  else if(/pierna a|cuad|cuád/.test(L))ms=['Cuádriceps','Glúteo','Gemelos/Sóleo','Aductores'];
+  else if(/pierna b|isquio/.test(L))ms=['Isquiotibiales','Glúteo','Gemelos/Sóleo','Aductores'];
+  else if(/pierna|leg/.test(L))ms=['Cuádriceps','Isquiotibiales','Glúteo','Gemelos/Sóleo'];
+  if(/core/.test(L)&&ms.indexOf('Core')<0)ms.push('Core');
+  return ms;
+}
+function planDayExercises(label){
+  var L=(label||'').toLowerCase();
+  if(/empuje|push/.test(L))return PLAN_DAY_EXERCISES['empuje'];
+  if(/tiron|tirón|pull/.test(L))return PLAN_DAY_EXERCISES['tiron'];
+  if(/pierna a/.test(L))return PLAN_DAY_EXERCISES['pierna a'];
+  if(/pierna b/.test(L))return PLAN_DAY_EXERCISES['pierna b'];
+  if(/movilidad/.test(L))return PLAN_DAY_EXERCISES['movilidad'];
+  if(/cardio|z2|z1/.test(L))return PLAN_DAY_EXERCISES['cardio'];
+  return [];
+}
+function planDayDetail(d,isCardio){
+  var ranges=S.mavRanges||{};
+  var muscles=planDayMuscles(d[2]);
+  var ex=planDayExercises(d[2]);
+  var html='';
+  if(isCardio){
+    html+='<div style="color:var(--fg3);margin-bottom:6px;">Objetivo: zona aeróbica Z2, base cardiovascular.</div>';
+    if(ex.length)html+='<div style="color:var(--fg2);">'+ex.join(' · ')+'</div>';
+    return html;
+  }
+  // Planned volume per muscle (weekly MAV target — note these are weekly, split across the week's sessions)
+  if(muscles.length){
+    html+='<div style="color:var(--fg3);text-transform:uppercase;font-size:9px;letter-spacing:0.5px;margin-bottom:3px;">Objetivo semanal (MAV)</div>';
+    muscles.forEach(function(mu){
+      var mav=ranges[mu]?ranges[mu].mav:'—';
+      html+='<div style="display:flex;justify-content:space-between;padding:1px 0;"><span style="color:var(--fg2);">'+mu+'</span><span class="mono" style="color:var(--c);">'+mav+' series/sem</span></div>';
+    });
+  }
+  if(ex.length){
+    html+='<div style="color:var(--fg3);text-transform:uppercase;font-size:9px;letter-spacing:0.5px;margin:8px 0 3px;">Ejercicios</div>';
+    html+='<div style="color:var(--fg2);line-height:1.6;">'+ex.map(function(e){return '· '+e;}).join('<br>')+'</div>';
+  }
+  // Completion status this week
+  try{
+    var b=getWeeklyBalance();
+    var done=b.timeline.filter(function(t){return t.day===d[0];})[0];
+    if(done){
+      var st=done.done?'<span style="color:var(--g);">✓ Completado esta semana</span>':'<span style="color:var(--fg3);">○ Pendiente esta semana</span>';
+      html+='<div style="margin-top:8px;padding-top:6px;border-top:1px solid var(--line);">'+st+'</div>';
+    }
+  }catch(e){}
+  return html;
+}
+function togglePlanDay(dn){
+  var el=safeDOM('planDay-'+dn);var chev=safeDOM('planDay-'+dn+'-chev');
+  if(!el)return;
+  if(el.style.display==='none'){el.style.display='block';if(chev)chev.textContent='▴';}
+  else{el.style.display='none';if(chev)chev.textContent='▾';}
+}
+
 function selectMeso(n){
   S.currentMeso=n;
   var i,b;
@@ -4084,7 +4213,15 @@ function selectMeso(n){
   var list=safeDOM('planDaysList');
   var days=MESO_DAYS[n]||[];
   if(list)list.innerHTML=days.map(function(d,idx){
-    return'<div style="display:flex;gap:8px;padding:6px 0;'+(idx<days.length-1?'border-bottom:1px solid var(--line)':'')+'">'+'<span style="font-family:monospace;font-size:10px;color:'+d[1]+';width:28px;flex-shrink:0;">'+d[0]+'</span>'+'<span style="font-size:12px;color:var(--fg2);">'+d[2]+'</span></div>';
+    var detailId='planDay-'+d[0];
+    var isRest=/descanso/i.test(d[2]);
+    var isCardio=/cardio|z2|z1|movilidad/i.test(d[2]);
+    var chevron=(isRest)?'':'<span style="color:var(--fg3);font-size:12px;" id="'+detailId+'-chev">▾</span>';
+    var header='<div onclick="togglePlanDay(\''+d[0]+'\')" style="display:flex;gap:8px;align-items:center;padding:8px 0;cursor:'+(isRest?'default':'pointer')+';'+(idx<days.length-1?'border-bottom:1px solid var(--line)':'')+'">'+
+      '<span style="font-family:monospace;font-size:10px;color:'+d[1]+';width:28px;flex-shrink:0;">'+d[0]+'</span>'+
+      '<span style="font-size:12px;color:var(--fg2);flex:1;">'+d[2]+'</span>'+chevron+'</div>';
+    var detail=(isRest)?'':'<div id="'+detailId+'" style="display:none;padding:8px 0 12px 36px;font-size:12px;">'+planDayDetail(d,isCardio)+'</div>';
+    return header+detail;
   }).join('');
   save();
 }
