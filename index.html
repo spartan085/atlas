@@ -4219,6 +4219,9 @@ function getWeeklyBalance(){
   });
   // PASS 2: motor-pattern recognition for unnamed sessions
   unnamed.forEach(function(l){
+    // Explicit "bonus"/"extra" naming → straight to Bonus, never occupy a Dn day by pattern.
+    var lnm=(l.sess||'').toLowerCase();
+    if(/\bbonus\b|\bextra\b|\baccesorio|\bcomplement/.test(lnm)){bonusLogs.push(l);return;}
     var pat=detectPattern(l);var hit=null;
     if(pat){
       strengthDays.forEach(function(d){
@@ -5630,6 +5633,9 @@ function showAssignmentDebug(){
   });
   // PASS 2: pattern
   unnamed.forEach(function(l){
+    // Explicit "bonus"/"extra" naming → straight to Bonus, never occupy a Dn by pattern.
+    var lnm=(l.sess||'').toLowerCase();
+    if(/\bbonus\b|\bextra\b|\baccesorio|\bcomplement/.test(lnm)){rows.push({log:l,day:'BONUS',reason:'nombre "bonus/extra" → no ocupa día',pass:3});return;}
     var pw=detectPatternWhy(l);var hit=null;
     if(pw.re){strengthDays.forEach(function(d){if(hit)return;if(pw.re.test(d[2].toLowerCase())&&!doneSet[d[0]])hit=d[0];});}
     if(hit){doneSet[hit]=true;rows.push({log:l,day:hit,reason:'patrón muscular: '+pw.why,pass:2});}
@@ -5638,7 +5644,32 @@ function showAssignmentDebug(){
   // Sort rows by date
   rows.sort(function(a,b){var da=parseDate(a.log.date),db=parseDate(b.log.date);return (da?da.getTime():0)-(db?db.getTime():0);});
   // Render
-  var html='<div style="font-size:11px;color:var(--fg3);margin:8px 0;line-height:1.5;">Cómo ATLAS ha asignado cada sesión de esta semana. Mismo algoritmo que el microciclo.</div>';
+  // ── OBJECTIVE RECOGNITION CHECK (real data, not assumed) ──
+  var recCount=0,unrecList=[];var seenEx={};
+  strengthLogs.concat(cardioLogs).forEach(function(l){
+    var exList=l._exNames||l.exercises||[];
+    exList.forEach(function(e){
+      var name=(typeof e==='string')?e:(e.name||e.title||'');
+      if(!name)return;
+      var sets=(typeof e==='object'&&e.sets)?safeNum(e.sets,0):0;
+      var key=name.toLowerCase().trim();
+      if(seenEx[key])return; seenEx[key]=true; // count each distinct exercise once
+      var matched=(typeof getExDB==='function')?getExDB(name):null;
+      if(matched)recCount++; else unrecList.push(name+(sets?' ('+sets+'s)':''));
+    });
+  });
+  var totalEx=recCount+unrecList.length;
+  var recColor=unrecList.length===0?'var(--g)':'var(--y)';
+  var recHtml='<div style="margin:8px 0;padding:10px;border-radius:8px;background:'+(unrecList.length===0?'rgba(80,220,120,0.08)':'rgba(255,200,0,0.08)')+';">'+
+    '<div style="font-size:13px;font-weight:700;color:'+recColor+';">'+recCount+'/'+totalEx+' ejercicios reconocidos</div>';
+  if(unrecList.length){
+    recHtml+='<div style="font-size:11px;color:var(--y);margin-top:5px;">⚠ Sin reconocer (volumen NO contado en MEV/MAV):</div>';
+    recHtml+='<div style="font-size:11px;color:var(--fg2);margin-top:3px;line-height:1.6;">'+unrecList.map(function(x){return '· '+x;}).join('<br>')+'</div>';
+  } else {
+    recHtml+='<div style="font-size:11px;color:var(--fg3);margin-top:3px;">Todas las series cuentan en MEV/MAV. Sin fugas.</div>';
+  }
+  recHtml+='</div>';
+  var html=recHtml+'<div style="font-size:11px;color:var(--fg3);margin:8px 0;line-height:1.5;">Cómo ATLAS ha asignado cada sesión de esta semana. Mismo algoritmo que el microciclo.</div>';
   if(!rows.length){html+='<div style="font-size:12px;color:var(--fg4);">Sin sesiones de fuerza esta semana.</div>';}
   rows.forEach(function(r){
     var d=parseDate(r.log.date);
