@@ -568,6 +568,7 @@ textarea.field{resize:vertical;min-height:60px;}
         <button class="btn btn-g btn-full btn-sm" style="margin-top:8px;" onclick="showDebug()">🔍 Debug datos crudos</button>
         <button class="btn btn-g btn-full btn-sm" style="margin-top:8px;" onclick="exportAllData()">📤 Exportar backup (JSON)</button>
         <button class="btn btn-g btn-full btn-sm" style="margin-top:8px;" onclick="importAllData()">📥 Importar backup (JSON)</button>
+        <button class="btn btn-g btn-full btn-sm" style="margin-top:8px;" onclick="runCleanDuplicates()">🧹 Limpiar sesiones duplicadas</button>
         <button class="btn btn-g btn-full btn-sm" style="margin-top:8px;" onclick="showValidation()">📊 Validación ATLAS</button>
         <div id="validationPanel" style="display:none;margin-top:10px;"></div>
       </div>
@@ -3729,6 +3730,7 @@ async function fetchHevy(){
           sessionType, mismatchNote,
           durMins,
           name: w.name||w.title||'Entrenamiento',
+          _stableId: w.id||w.workout_id||w.start_time||w.created_at||null,
           noRPE: !garminRPE,
           exercises:(w.exercises||[]).map(ex=>({
             title:ex.title||ex.exercise_template_title||ex.name||'',
@@ -5380,15 +5382,24 @@ function autoLogHevySessions(){
     var hsDate=new Date(hs.date);
     if(isNaN(hsDate.getTime()))return;
     var ds=String(hsDate.getDate()).padStart(2,'0')+'/'+String(hsDate.getMonth()+1).padStart(2,'0')+'/'+hsDate.getFullYear();
-    var logId='hevy_'+hs.name+'_'+ds;
-    // Already logged?
-    var existing=S.logs.find(function(l){return l._hevyId===logId;});
-    if(existing)return;
+    // Stable ID survives renames: prefer Hevy workout id / start_time over the (mutable) name.
+    var logId=hs._stableId?('hevy_'+hs._stableId):('hevy_'+hs.name+'_'+ds);
+    // Already logged? Match by stable id OR legacy name-based id (so renamed sessions dedup correctly)
+    var legacyId='hevy_'+hs.name+'_'+ds;
+    var existing=S.logs.find(function(l){return l._hevyId===logId||l._hevyId===legacyId||(l._stableId&&hs._stableId&&l._stableId===hs._stableId);});
+    if(existing){
+      // If found via legacy/stable but name changed, update the stored name + stableId so the
+      // session re-classifies to the correct day and the stale duplicate doesn't persist.
+      existing.sess=hs.name;
+      if(hs._stableId)existing._stableId=hs._stableId;
+      return;
+    }
     // Build muscle snapshots
     var sessMF={};if(S._muscleFatigue){Object.keys(S._muscleFatigue).forEach(function(m){var v=S._muscleFatigue[m];sessMF[m]=typeof v==='object'?Math.round(safeNum(v.value)):Math.round(safeNum(v));});}
     var sessEff={};if(S._effectiveSets&&S._effectiveSets.muscles){Object.keys(S._effectiveSets.muscles).forEach(function(m){var v=S._effectiveSets.muscles[m];sessEff[m]=Math.round(safeNum(v.effective)*10)/10;});}
     S.logs.unshift({
       _hevyId:logId,
+      _stableId:hs._stableId||null,
       _auto:true,
       sess:hs.name,
       dur:hs.durMins||null,
@@ -5448,6 +5459,63 @@ function autoLogHevySessions(){
 // Set recFollow on an auto-logged session (one-tap from the row)
 
 // Session outcome vs expectation (manual, one-tap) — validates ATLAS predictions
+function cleanDuplicateHevyLogs(){
+  var logs=safeArr(S.logs);
+  var hevy=logs.filter(function(l){return l._auto&&l._hevyId&&!l._cardio;});
+  // Group by calendar day
+  var byDay={};
+  hevy.forEach(function(l){
+    var d=parseDate(l.date);if(!d)return;
+    var key=d.getFullYear()+'-'+d.getMonth()+'-'+d.getDate();
+    if(!byDay[key])byDay[key]=[];
+    byDay[key].push(l);
+  });
+  var toRemove=[];
+  Object.keys(byDay).forEach(function(k){
+    var sess=byDay[k];
+    if(sess.length<2)return;
+    // Same-day duplicates: compare muscle profiles. If two sessions share the dominant
+    // muscle group, they're likely the same physical session logged twice (e.g. rename).
+    for(var i=0;i<sess.length;i++){
+      for(var j=i+1;j<sess.length;j++){
+        var a=sess[i],b=sess[j];
+        if(toRemove.indexOf(a)>=0||toRemove.indexOf(b)>=0)continue;
+        var ams=a.muscleSets||{},bms=b.muscleSets||{};
+        var aTot=Object.values(ams).reduce(function(s,v){return s+safeNum(v);},0);
+        var bTot=Object.values(bms).reduce(function(s,v){return s+safeNum(v);},0);
+        // Dominant muscle of each
+        function dom(ms){var t=null,tv=0;Object.keys(ms).forEach(function(m){if(safeNum(ms[m])>tv){tv=safeNum(ms[m]);t=m;}});return t;}
+        var sameDom=dom(ams)&&dom(ams)===dom(bms);
+        var similarVol=aTot>0&&bTot>0&&Math.abs(aTot-bTot)/Math.max(aTot,bTot)<0.35;
+        if(sameDom&&similarVol){
+          // Keep the one whose name contains a Dn code (explicit), else keep the newer
+          var aHasDn=/\b(d1|d2|d4|d5)\b/i.test(a.sess||'');
+          var bHasDn=/\b(d1|d2|d4|d5)\b/i.test(b.sess||'');
+          if(aHasDn&&!bHasDn)toRemove.push(b);
+          else if(bHasDn&&!aHasDn)toRemove.push(a);
+          else toRemove.push(b); // both or neither named → drop the second
+        }
+      }
+    }
+  });
+  if(toRemove.length){
+    S.logs=logs.filter(function(l){return toRemove.indexOf(l)<0;});
+    save();
+    if(typeof fetchHevy==='function'){/* re-render handled by caller */}
+    return toRemove.length;
+  }
+  return 0;
+}
+function runCleanDuplicates(){
+  var n=cleanDuplicateHevyLogs();
+  if(n>0){
+    alert('Eliminados '+n+' registro(s) duplicado(s). Sincroniza o recarga para ver el microciclo actualizado.');
+    try{location.reload();}catch(e){}
+  } else {
+    alert('No se encontraron sesiones duplicadas.');
+  }
+}
+
 function setSessionOutcome(logKey,val){
   var log=safeArr(S.logs).find(function(l){return l._hevyId===logKey||l._intId===logKey;});
   if(!log)return;
