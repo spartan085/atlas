@@ -1708,7 +1708,7 @@ function DensityEngine(hevyRecent){
       densityLevel,
       metabolicStress,
       densityFatigueMult,
-      note: setsPerMin > 0.3 ? `Alta densidad (${setsPerMin}s/min) — fatiga metabólica elevada` :
+      note: setsPerMin > 0.3 ? `Densidad alta (${setsPerMin}s/min) — posible mayor coste metabólico` :
             setsPerMin < 0.15 ? `Baja densidad (${setsPerMin}s/min) — orientado a fuerza` :
             `Densidad moderada (${setsPerMin}s/min)`
     });
@@ -2036,8 +2036,10 @@ function ProgressionEngine(workouts, hevyRecent, muscleFatigue, fatigue, metrics
     const improving = data.trends.filter(t=>t==='improving').length;
     const declining = data.trends.filter(t=>t==='declining').length;
     const dominant = improving > declining ? 'improving' : declining > improving ? 'declining' : 'stable';
+    var _maxSess=data.exercises.reduce(function(m,e){return Math.max(m,e.sessions||0);},0);
     patternSummary[pat] = {
       avgSlope: Math.round(avgSlope*10)/10, dominant,
+      maxSessions:_maxSess,
       exercises: data.exercises.sort((a,b)=>b.sessions-a.sessions)
     };
   });
@@ -2100,18 +2102,18 @@ function ProgressionEngine(workouts, hevyRecent, muscleFatigue, fatigue, metrics
       return vol >= mrv * 0.85;
     });
 
-    if(readinessScore >= 0.85 && ps.dominant === 'improving'){
-      progressionType = 'load'; progressionNote = 'Añade 2.5-5kg o reduce RIR en 1';
-    } else if(readinessScore >= 0.75 && !neuralHigh && !volumeNearMRV){
-      progressionType = 'volume'; progressionNote = 'Añade 1 serie manteniendo carga';
-    } else if(readinessScore >= 0.65 && neuralHigh){
-      progressionType = 'density'; progressionNote = 'Reduce descansos 15s manteniendo carga';
-    } else if(readinessScore >= 0.50 && ps.isStagnant){
-      progressionType = 'technique'; progressionNote = 'Mantén carga, mejora ROM y control';
-    } else if(readinessScore < 0.40){
-      progressionType = 'deload'; progressionNote = 'Reduce volumen 30-40% esta semana';
+    // DESCRIPTIVE ONLY — no prescriptions. The per-pattern readinessScore is not reliable
+    // enough yet (depends on default autonomic values + sparse data) to tell the user to
+    // change volume/load. This panel reports e1RM trend + fatigue as INFORMATION.
+    // Revisit prescriptions only after 6-8 weeks of real data prove the signal predictive.
+    if(ps.dominant==='improving'){
+      progressionType='improving'; progressionNote='Tendencia e1RM al alza';
+    } else if(ps.dominant==='declining'){
+      progressionType='declining'; progressionNote='Tendencia e1RM a la baja — observa fatiga y descanso';
+    } else if(ps.isStagnant||ps.exercises.some(function(e){return e.isStagnant;})){
+      progressionType='stagnant'; progressionNote='e1RM estancado — normal en bloque de volumen';
     } else {
-      progressionType = 'maintain'; progressionNote = 'Mantén carga y volumen actuales';
+      progressionType='stable'; progressionNote='e1RM estable';
     }
 
     progressionReadiness[pat] = {
@@ -2120,6 +2122,7 @@ function ProgressionEngine(workouts, hevyRecent, muscleFatigue, fatigue, metrics
       progressionType,
       progressionNote,
       trend: ps.dominant,
+      maxSessions: ps.maxSessions||0,
       exercises: ps.exercises.slice(0,3)
     };
   });
@@ -2644,7 +2647,7 @@ function renderDensityPanel(){
         <span style="font-family:'Geist Mono',monospace;font-size:10px;color:${col};">${d.setsPerMin} s/min · ${d.densityLevel}</span>
       </div>
       <div style="font-size:10px;color:var(--fg3);">${ageH}h · ${d.durMins}min · ${d.totalSets} sets totales</div>
-      ${d.densityLevel==='alta'?`<div style="font-size:10px;color:var(--y);margin-top:2px;">⚠ Alta densidad → fatiga metabólica elevada</div>`:''}
+      ${d.densityLevel==='alta'?`<div style="font-size:10px;color:var(--fg3);margin-top:2px;">Densidad alta · posible mayor coste metabólico</div>`:''}
     </div>`;
   }).join('');
 }
@@ -2702,8 +2705,8 @@ function renderProgressionPanel(){
 
   if(subtitle)subtitle.textContent=`${prog.totalExercisesTracked} ejercicios tracked`;
 
-  const typeIcon={'load':'↑','volume':'＋','density':'⚡','technique':'○','maintain':'→','deload':'↓'};
-  const typeCol={'load':'var(--g)','volume':'var(--c)','density':'var(--y)','technique':'var(--b)','maintain':'var(--fg3)','deload':'var(--r)'};
+  const typeIcon={'load':'↑','volume':'＋','density':'⚡','improving':'↑','declining':'↓','stagnant':'→','stable':'·','technique':'○','maintain':'→','deload':'↓','collecting':'·'};
+  const typeCol={'load':'var(--g)','volume':'var(--c)','density':'var(--y)','improving':'var(--g)','declining':'var(--y)','stagnant':'var(--fg3)','stable':'var(--fg3)','technique':'var(--b)','maintain':'var(--fg3)','deload':'var(--r)','collecting':'var(--fg3)'};
 
   const patLabels={'squat':'Sentadilla','hinge':'Bisagra','push-h':'Empuje horiz.','push-v':'Empuje vert.','pull-v':'Tirón vert.','pull-h':'Tirón horiz.','hip-ext':'Ext. cadera','isolation':'Aislamiento'};
 
@@ -2720,7 +2723,6 @@ function renderProgressionPanel(){
         <span style="font-size:13px;font-weight:500;">${patLabels[pat]||pat}</span>
         <div style="display:flex;align-items:center;gap:6px;">
           <span style="font-family:'Geist Mono',monospace;font-size:10px;color:${trendCol};">${trendIcon} e1RM</span>
-          <span style="font-family:'Geist Mono',monospace;font-size:10px;color:${readCol};">${readPct}% listo</span>
         </div>
       </div>
       <div style="display:flex;align-items:center;gap:8px;margin-bottom:4px;">
@@ -2728,6 +2730,18 @@ function renderProgressionPanel(){
         <span style="font-size:12px;color:${col};font-weight:500;">${data.progressionNote}</span>
       </div>
       <div style="font-size:10px;color:var(--fg4);">Fatiga muscular ${data.avgFat}% · ${data.exercises.slice(0,2).map(e=>`${e.name.split(' ').slice(0,2).join(' ')} ${e.latest||'—'}kg e1RM`).join(' · ')}</div>
+      ${(function(){
+        // Low-confidence contextual guidance — answers "keep pushing?" softly, no volume prescription
+        var sess=data.maxSessions||0;
+        var fat=data.avgFat||0;
+        var msg='';var mcol='var(--fg4)';
+        if(sess<3){msg='Confianza baja ('+sess+' ses) · no modificar volumen aún';}
+        else if(fat>=55){msg='Fatiga alta · valora calidad antes de añadir';mcol='var(--y)';}
+        else if(data.trend==='declining'&&fat>=40){msg='e1RM baja + fatiga media · observa descanso';mcol='var(--y)';}
+        else if(data.trend==='improving'&&fat<40){msg='Margen para progresar si la sesión sale bien';mcol='var(--g)';}
+        else{msg='Mantén el plan · sin señales de alarma';}
+        return '<div style="font-size:10px;color:'+mcol+';margin-top:2px;font-style:italic;">'+msg+'</div>';
+      })()}
     </div>`;
   }).join('');
 
@@ -2842,6 +2856,7 @@ function renderEffectiveSets(){
   const el=safeDOM('effSetsPanel');
   const confEl=safeDOM('effSetsConf');
   if(!el)return;
+  var _secCtx=getSecondaryStimulusContext();
 
   if(!eff||!Object.keys(eff.muscles||{}).length){
     el.innerHTML='<div style="font-size:12px;color:var(--fg3);">Sin sesiones esta semana</div>';
@@ -2877,7 +2892,20 @@ function renderEffectiveSets(){
       <div style="height:4px;background:var(--bg4);border-radius:2px;overflow:hidden;margin-bottom:3px;">
         <div style="height:100%;width:${Math.min(effRatio*100,100)}%;background:${col};border-radius:2px;transition:width .8s ease;"></div>
       </div>
-      <div style="font-size:10px;color:var(--fg3);">${data.label}${rawNeededForMav>data.rawSets?` · Necesitas ~${rawNeededForMav}s raw para MAV${mav}ef`:''}</div>
+      <div style="font-size:10px;color:var(--fg3);">${data.label}${(function(){
+        var secSets=_secCtx[m]||0;
+        var hasSecondary=secSets>=4; // notable secondary stimulus this week
+        if(rawNeededForMav>data.rawSets){
+          // Soften the inference when the muscle gets meaningful secondary work the count ignores
+          if(hasSecondary)return ` · faltan ~${rawNeededForMav-data.rawSets}s directas (+ trabajo indirecto no contado)`;
+          return ` · Necesitas ~${rawNeededForMav}s raw para MAV${mav}ef`;
+        }
+        return '';
+      })()}</div>${(function(){
+        var secSets=_secCtx[m]||0;
+        if(secSets>=4)return `<div style="font-size:10px;color:var(--b);margin-top:2px;">Contexto: +${secSets}s de estímulo secundario (no sumado al conteo directo)</div>`;
+        return '';
+      })()}
       ${data.junkProbability>35?`<div style="font-size:10px;color:var(--y);margin-top:2px;">⚠ ${data.junkProbability}% prob volumen improductivo (RPE≤5, RIR>5)</div>`:''}
     </div>`;
   }).join('');
@@ -3173,7 +3201,14 @@ function renderMuscleFatigue(){
     const effMRV=mav?`MRV${mav.effectiveMRV}`:'';
     // Recovery time estimate
     const hrsToFresh=fat>5?Math.round((-Math.log(5/fat)/0.693)*(hl||44)):0;
-    const recovNote=fat>10&&hrsToFresh>0?`~${hrsToFresh}h`:'';
+    // Actionable recovery bucket instead of abstract raw hours (~394h means nothing to a user)
+    var recovNote='';
+    if(fat>10&&hrsToFresh>0){
+      if(hrsToFresh<=24)recovNote='~24h';
+      else if(hrsToFresh<=48)recovNote='~48h';
+      else if(hrsToFresh<=72)recovNote='~72h';
+      else recovNote='>72h';
+    }
     // Neural note
     const neuralNote=neural&&neural>30?`SNC ${neural}%`:'';
 
@@ -3273,6 +3308,7 @@ function renderMAV(){
   updateWeekSelector();
   var _bal=null;try{if(offset===0)_bal=getWeeklyBalance();}catch(e){}
   var _oppMap=_bal?_bal.remainingOpp:{};
+  var _secCtxMav={};try{if(offset===0)_secCtxMav=getSecondaryStimulusContext();}catch(e){}
   container.innerHTML=Object.entries(S.mavRanges).map(([muscle,{mev,mav:mavBase,mrv}])=>{
     const current=vol[muscle]||0;
     const eff=mav?.muscles[muscle];
@@ -3294,7 +3330,9 @@ function renderMAV(){
       var deficit=mavBase-current;var opp=_oppMap[muscle]||0;
       if(deficit<=0)return'<div style="font-size:10px;color:var(--g);margin-top:2px;">Objetivo MAV '+mavBase+' completado ✓</div>';
       var oppTxt=opp===0?'<span style="color:var(--r);">sin oportunidad esta semana</span>':opp===1?'<span style="color:var(--y);">1 oportunidad</span>':opp+' oportunidades';
-      return'<div style="font-size:10px;color:var(--fg3);margin-top:2px;">Objetivo MAV: '+mavBase+' · faltan '+deficit+' · '+oppTxt+'</div>';
+      var _sec=_secCtxMav[muscle]||0;
+      var _secNote=_sec>=4?'<div style="font-size:10px;color:var(--b);margin-top:1px;">+ estímulo indirecto alto ('+_sec+'s) no contado</div>':'';
+      return'<div style="font-size:10px;color:var(--fg3);margin-top:2px;">Objetivo MAV: '+mavBase+' · faltan '+deficit+' · '+oppTxt+'</div>'+_secNote;
     })()}</div>`;
   }).join('');
   if(mav&&mav.reasons.length&&multCard&&multList){multCard.style.display='block';multList.innerHTML=mav.reasons.map(r=>`<div style="font-size:12px;color:var(--fg2);padding:4px 0;border-bottom:1px solid var(--line);">${r}</div>`).join('')+`<div style="font-family:'Geist Mono',monospace;font-size:11px;color:var(--c);padding:6px 0 0;">Global ×${mav.global}</div>`;}
@@ -3542,7 +3580,7 @@ async function fetchHevy(){
     if(!r.ok)throw new Error('Hevy error '+r.status);
     const data=await r.json();const workouts=data.workouts||data.data||data||[];
     const now=Date.now();const weekStart=getWeekBounds(0).start;
-    S.weeklyVol={};const recentHevySess=[];
+    S.weeklyVol={};S._unmatchedEx={};const recentHevySess=[];
     const UPPER_M=['Pectoral','Deltoides','Tríceps','Dorsal','Bíceps'];
     const LOWER_M=['Cuádriceps','Isquiotibiales','Glúteo','Gemelos/Sóleo','Aductores'];
 
@@ -3564,9 +3602,17 @@ async function fetchHevy(){
           exData.s.forEach(m=>{muscleSets[m]=(muscleSets[m]||0)+nSets*0.4;});
         }
         // Volume tracking — primary muscles only (Israetel/Schoenfeld standard)
-        if(isThisWeek&&exData){
+        if(isThisWeek){
           const workingSets3=(ex.sets||[]).filter(s=>safeInt(s.reps||0)>0).length;
-          if(workingSets3>0)exData.p.forEach(m=>{S.weeklyVol[m]=(S.weeklyVol[m]||0)+workingSets3;});
+          if(workingSets3>0){
+            if(exData){
+              exData.p.forEach(m=>{S.weeklyVol[m]=(S.weeklyVol[m]||0)+workingSets3;});
+            } else {
+              // DIAGNOSTIC: exercise not recognised → its volume is being LOST. Record it.
+              const exNm=(ex.title||ex.exercise_template_title||ex.name||'').trim();
+              if(exNm){ if(!S._unmatchedEx)S._unmatchedEx={}; S._unmatchedEx[exNm]=(S._unmatchedEx[exNm]||0)+workingSets3; }
+            }
+          }
         }
       });
 
@@ -3915,10 +3961,17 @@ function renderMavMicroSummary(){
   var lastOpp=b.remainingSessions.length?b.remainingSessions[b.remainingSessions.length-1]:null;
   var lastTxt=lastOpp?(lastOpp[0]+' '+lastOpp[2].split('+')[0].trim()):'—';
   el.style.display='block';
+  // Diagnostic: exercises whose volume is being LOST (not recognised by the database)
+  var unmatchedHtml='';
+  var um=S._unmatchedEx||{};var umKeys=Object.keys(um);
+  if(umKeys.length){
+    unmatchedHtml='<div style="margin-top:6px;padding:6px 8px;background:rgba(255,200,0,0.08);border-radius:6px;font-size:10px;color:var(--y);">⚠ Ejercicios sin reconocer (volumen no contado): '+umKeys.map(function(k){return k+' ('+um[k]+'s)';}).join(', ')+'. Renómbralos en Hevy o avísame para añadirlos.</div>';
+  }
   el.innerHTML='<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:5px;">'+
     '<span><b style="color:var(--c);">Fuerza '+b.strengthDone+'/'+b.strengthTotal+'</b> · Cardio '+b.cardioDone+'/'+b.cardioTotal+'</span>'+
     '<span style="color:var(--fg3);font-size:11px;">Pendiente: '+strPend+'</span></div>'+
     '<div style="font-size:11px;color:var(--fg3);margin-bottom:3px;">'+b.mavCovered+'/'+b.mavTotal+' músculos en MAV</div>'+
+    unmatchedHtml+
     (critical.length?'<div style="font-size:11px;line-height:1.7;"><span style="color:var(--fg3);">Críticos: </span>'+critHtml+'</div>'+
     (lastOpp?'<div style="font-size:11px;color:var(--fg3);margin-top:2px;">Última oportunidad: <span style="color:var(--c);">'+lastTxt+'</span></div>':''):'');
 }
@@ -4024,6 +4077,29 @@ function classifyLaterality(exName){
   return 'bilateral';
 }
 // Compute weekly volume per movement pattern from this week's strength logs
+
+// Detect muscles receiving notable SECONDARY stimulus this week (read-only context — does
+// NOT add volume, change MAV, or touch opportunities. Used to soften false "need X raw"
+// inferences and show interpretive context for priority muscles.)
+function getSecondaryStimulusContext(){
+  var weekStart=getWeekBounds(0).start;
+  var logs=safeArr(S.logs).filter(function(l){var d=parseDate(l.date);return d&&d>=weekStart&&!l._cardio;});
+  var sec={}; // muscle → count of secondary-stimulus sets this week
+  logs.forEach(function(l){
+    var exList=l._exNames||l.exercises||null;
+    if(!exList)return;
+    exList.forEach(function(e){
+      var name=(typeof e==='string')?e:(e.name||e.title||'');
+      var sets=(typeof e==='object'&&e.sets)?safeNum(e.sets,1):1;
+      var d=getExDB(name);
+      if(d&&d.s&&d.s.length){
+        d.s.forEach(function(m){sec[m]=(sec[m]||0)+sets;});
+      }
+    });
+  });
+  return sec;
+}
+
 function getMovementPatternVolume(){
   var weekStart=getWeekBounds(0).start;
   var logs=safeArr(S.logs).filter(function(l){var d=parseDate(l.date);return d&&d>=weekStart&&!l._cardio;});
