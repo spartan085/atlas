@@ -569,6 +569,10 @@ textarea.field{resize:vertical;min-height:60px;}
         <button class="btn btn-g btn-full btn-sm" style="margin-top:8px;" onclick="exportAllData()">📤 Exportar backup (JSON)</button>
         <button class="btn btn-g btn-full btn-sm" style="margin-top:8px;" onclick="importAllData()">📥 Importar backup (JSON)</button>
         <button class="btn btn-g btn-full btn-sm" style="margin-top:8px;" onclick="runCleanDuplicates()">🧹 Limpiar sesiones duplicadas</button>
+        <button class="btn btn-g btn-full btn-sm" style="margin-top:8px;" onclick="showAssignmentDebug()">🔬 Diagnóstico: asignación de sesiones</button>
+        <div id="assignDebugPanel" style="display:none;margin-top:10px;"></div>
+        <button class="btn btn-g btn-full btn-sm" style="margin-top:8px;" onclick="showSessionManager()">📋 Ver / borrar sesiones</button>
+        <div id="sessionMgrPanel" style="display:none;margin-top:10px;"></div>
         <button class="btn btn-g btn-full btn-sm" style="margin-top:8px;" onclick="showValidation()">📊 Validación ATLAS</button>
         <div id="validationPanel" style="display:none;margin-top:10px;"></div>
       </div>
@@ -4205,8 +4209,9 @@ function getWeeklyBalance(){
     var hit=null;
     strengthDays.forEach(function(d){
       if(hit)return; // take first free matching day, not last
-      var dn=d[0].toLowerCase();
-      var re=new RegExp('(^|[^a-z0-9])'+dn+'([^0-9]|$)');
+      var dn=d[0].toLowerCase();var dNum=d[0].slice(1);
+      // Match "d2" (compact) OR "día 2"/"dia 2" (word + optional space) — users write either
+      var re=new RegExp('(^|[^a-z0-9])(d|d[ií]a)\\s?'+dNum+'([^0-9]|$)');
       if(re.test(nm)&&!doneSet[d[0]])hit=d[0];
     });
     if(hit){doneSet[hit]=true;matchedLogs.push(l);}
@@ -5514,6 +5519,210 @@ function runCleanDuplicates(){
   } else {
     alert('No se encontraron sesiones duplicadas.');
   }
+}
+
+function removeSessionFromDay(targetDay){
+  // Re-run the week's strength matching to find which log occupies targetDay (e.g. 'D5'),
+  // then delete that log. Volume recomputes from _hevyRecent on next sync/render.
+  var weekStart=getWeekBounds(0).start;
+  var weekLogs=safeArr(S.logs).filter(function(l){var d=parseDate(l.date);return d&&d>=weekStart;});
+  var strengthLogs=weekLogs.filter(function(l){
+    var nm=(l.sess||'').toLowerCase();
+    if(l._cardio||/z2|z1|cardio|run|correr|caminata|movilidad|trail|ride|bici|swim/i.test(nm))return false;
+    return !!l.muscleSets;
+  });
+  if(!strengthLogs.length){alert('No hay sesiones de fuerza esta semana.');return;}
+  var plan=(typeof getPlanDays==='function')?getPlanDays():[['D1','','upper a'],['D2','','lower a'],['D4','','upper b'],['D5','','lower b']];
+  var strengthDays=[['D1','','upper a'],['D2','','lower a'],['D4','','upper b'],['D5','','lower b']];
+  // Replicate detectPattern
+  function detectPat(l){
+    var ms=l.muscleSets||{};var tot=0;var g={upper:0,legQuad:0,legHam:0,legGeneral:0};
+    Object.keys(ms).forEach(function(mu){var s=safeNum(ms[mu],0);tot+=s;
+      if(['Pectoral','Dorsal','Deltoides','Bíceps','Tríceps'].indexOf(mu)>=0)g.upper+=s;
+      if(mu==='Cuádriceps')g.legQuad+=s;
+      if(mu==='Isquiotibiales')g.legHam+=s;
+      if(['Cuádriceps','Isquiotibiales','Glúteo','Gemelos/Sóleo','Aductores'].indexOf(mu)>=0)g.legGeneral+=s;
+    });
+    if(tot===0)return null;
+    if(g.upper/tot>=0.45&&g.upper>=g.legGeneral)return 'upper';
+    if(g.legGeneral/tot>=0.40){if(g.legQuad>=g.legHam)return 'lowerA';return 'lowerB';}
+    return null;
+  }
+  var dayKey={'D1':'upper','D2':'lowerA','D4':'upper','D5':'lowerB'};
+  var doneSet={};var assignment={};
+  // PASS 1: explicit Dn name
+  var unnamed=[];
+  strengthLogs.forEach(function(l){
+    var nm=(l.sess||'').toLowerCase();var hit=null;
+    ['D1','D2','D4','D5'].forEach(function(dn){
+      if(hit)return;var re=new RegExp('(^|[^a-z0-9])'+dn.toLowerCase()+'([^0-9]|$)');
+      if(re.test(nm)&&!doneSet[dn])hit=dn;
+    });
+    if(hit){doneSet[hit]=true;assignment[hit]=l;}else unnamed.push(l);
+  });
+  // PASS 2: pattern
+  unnamed.forEach(function(l){
+    var pat=detectPat(l);var hit=null;
+    if(pat){['D1','D2','D4','D5'].forEach(function(dn){
+      if(hit)return;if(dayKey[dn]===pat&&!doneSet[dn])hit=dn;
+    });}
+    if(hit){doneSet[hit]=true;assignment[hit]=l;}
+  });
+  var target=assignment[targetDay];
+  if(!target){alert('No hay ninguna sesión asignada a '+targetDay+' esta semana. Puede que ya esté libre.');return;}
+  if(!confirm('La sesión en '+targetDay+' es: "'+(target.sess||'Sin nombre')+'" ('+Object.values(target.muscleSets||{}).reduce(function(s,v){return s+safeNum(v);},0)+' series).\n\n¿Borrarla? Su volumen dejará de contar tras resincronizar.'))return;
+  // Delete from logs
+  S.logs=safeArr(S.logs).filter(function(l){return l!==target;});
+  // Also remove from _hevyRecent so volume recomputes correctly
+  if(S._hevyRecent){
+    S._hevyRecent=S._hevyRecent.filter(function(s){
+      return !(s.name===target.sess && Math.abs((parseDate(s.date)||0)-(parseDate(target.date)||0))<3600000);
+    });
+  }
+  // Clear cached volume so it rebuilds on next sync
+  save();
+  alert('Sesión de '+targetDay+' borrada. Pulsa Sync para recalcular el volumen, o recargo ahora.');
+  try{location.reload();}catch(e){}
+}
+function showAssignmentDebug(){
+  var panel=safeDOM('assignDebugPanel');if(!panel)return;
+  var meso=S.currentMeso||1;
+  var plan=(typeof MESO_DAYS!=='undefined'?(MESO_DAYS[meso]||MESO_DAYS[1]):[['D1','','upper a'],['D2','','lower a'],['D3','','z2'],['D4','','upper b'],['D5','','lower b'],['D6','','z2'],['D7','','descanso']]);
+  var weekStart=getWeekBounds(0).start;
+  var weekLogs=safeArr(S.logs).filter(function(l){var d=parseDate(l.date);return d&&d>=weekStart;});
+  var strengthDays=plan.filter(function(d){return !/cardio|z2|z1|movilidad|descanso|recuper/i.test(d[2]);});
+  // Split strength vs cardio (same as getWeeklyBalance)
+  var strengthLogs=[];var cardioLogs=[];
+  weekLogs.forEach(function(l){
+    var nm=(l.sess||'').toLowerCase();
+    if(l._cardio||/z2|z1|cardio|run|correr|caminata|movilidad|trail|ride|bici|swim/i.test(nm)){cardioLogs.push(l);return;}
+    strengthLogs.push(l);
+  });
+  // Replicate detectPattern with reason capture
+  function detectPatternWhy(l){
+    var ms=l.muscleSets||{};var tot=0;var g={upper:0,legQuad:0,legHam:0,legGeneral:0};
+    Object.keys(ms).forEach(function(mu){var s=safeNum(ms[mu],0);tot+=s;
+      if(['Pectoral','Dorsal','Deltoides','Bíceps','Tríceps'].indexOf(mu)>=0)g.upper+=s;
+      if(mu==='Cuádriceps')g.legQuad+=s;
+      if(mu==='Isquiotibiales')g.legHam+=s;
+      if(['Cuádriceps','Isquiotibiales','Glúteo','Gemelos/Sóleo','Aductores'].indexOf(mu)>=0)g.legGeneral+=s;
+    });
+    if(tot===0)return {re:null,why:'sin series'};
+    if(g.upper/tot>=0.45&&g.upper>=g.legGeneral)return {re:/upper|torso|empuje|tiron|tirón|push|pull/,why:'upper '+Math.round(g.upper/tot*100)+'% del volumen'};
+    if(g.legGeneral/tot>=0.40){
+      if(g.legQuad>=g.legHam)return {re:/lower a|pierna a|cuad/,why:'pierna, cuádriceps '+g.legQuad+' ≥ isquios '+g.legHam+' → A'};
+      return {re:/lower b|pierna b|isquio/,why:'pierna, isquios '+g.legHam+' > cuádriceps '+g.legQuad+' → B'};
+    }
+    return {re:null,why:'mezclada ('+Math.round(g.upper/tot*100)+'% upper, '+Math.round(g.legGeneral/tot*100)+'% pierna) → Bonus'};
+  }
+  var doneSet={};var rows=[];
+  var unnamed=[];
+  // PASS 1: explicit Dn name
+  strengthLogs.forEach(function(l){
+    var nm=(l.sess||'').toLowerCase();var hit=null;
+    strengthDays.forEach(function(d){
+      if(hit)return;var dn=d[0].toLowerCase();var dNum=d[0].slice(1);
+      var re=new RegExp('(^|[^a-z0-9])(d|d[ií]a)\\s?'+dNum+'([^0-9]|$)');
+      if(re.test(nm)&&!doneSet[d[0]])hit=d[0];
+    });
+    if(hit){doneSet[hit]=true;rows.push({log:l,day:hit,reason:'nombre explícito ("'+hit+'" en el título)',pass:1});}
+    else unnamed.push(l);
+  });
+  // PASS 2: pattern
+  unnamed.forEach(function(l){
+    var pw=detectPatternWhy(l);var hit=null;
+    if(pw.re){strengthDays.forEach(function(d){if(hit)return;if(pw.re.test(d[2].toLowerCase())&&!doneSet[d[0]])hit=d[0];});}
+    if(hit){doneSet[hit]=true;rows.push({log:l,day:hit,reason:'patrón muscular: '+pw.why,pass:2});}
+    else rows.push({log:l,day:'BONUS',reason:pw.why,pass:3});
+  });
+  // Sort rows by date
+  rows.sort(function(a,b){var da=parseDate(a.log.date),db=parseDate(b.log.date);return (da?da.getTime():0)-(db?db.getTime():0);});
+  // Render
+  var html='<div style="font-size:11px;color:var(--fg3);margin:8px 0;line-height:1.5;">Cómo ATLAS ha asignado cada sesión de esta semana. Mismo algoritmo que el microciclo.</div>';
+  if(!rows.length){html+='<div style="font-size:12px;color:var(--fg4);">Sin sesiones de fuerza esta semana.</div>';}
+  rows.forEach(function(r){
+    var d=parseDate(r.log.date);
+    var ds=d?(String(d.getDate()).padStart(2,'0')+'/'+String(d.getMonth()+1).padStart(2,'0')):'?';
+    var ms=r.log.muscleSets||{};
+    var muscleStr=Object.keys(ms).sort(function(a,b){return ms[b]-ms[a];}).slice(0,3).map(function(m){return m+' '+(Math.round(ms[m]*10)/10);}).join(' · ');
+    var dayCol=r.day==='BONUS'?'var(--p)':'var(--c)';
+    html+='<div style="padding:8px 0;border-bottom:1px solid var(--line);">'+
+      '<div style="display:flex;justify-content:space-between;align-items:baseline;">'+
+        '<span style="font-size:13px;font-weight:600;color:var(--fg);">'+ds+' · "'+(r.log.sess||'Sin nombre')+'"</span>'+
+        '<span style="font-size:13px;font-weight:700;color:'+dayCol+';">→ '+r.day+'</span>'+
+      '</div>'+
+      '<div style="font-size:10px;color:'+(r.pass===1?'var(--g)':r.pass===2?'var(--y)':'var(--p)')+';margin-top:3px;font-family:monospace;">PASS '+r.pass+' · '+(r.pass===1?'nombre explícito':r.pass===2?'matching por patrón':'sin coincidencia → Bonus')+'</div>'+
+      '<div style="font-size:10px;color:var(--fg3);margin-top:1px;">Motivo: '+r.reason+'</div>'+
+      (muscleStr?'<div style="font-size:10px;color:var(--fg4);margin-top:1px;">'+muscleStr+'</div>':'')+
+    '</div>';
+  });
+  // ── SUMMARY: full microcycle at a glance ──
+  var allStrengthDays=strengthDays.map(function(d){return d[0];});
+  var summaryHtml='<div style="margin-top:12px;padding:10px;background:var(--bg3);border-radius:8px;">';
+  summaryHtml+='<div style="font-size:10px;color:var(--fg3);text-transform:uppercase;letter-spacing:0.5px;margin-bottom:6px;">Resumen del microciclo</div>';
+  allStrengthDays.forEach(function(dn){
+    var row=rows.find(function(r){return r.day===dn;});
+    var icon,col,note;
+    if(row){
+      icon='\u2713';col='var(--g)';
+      note=row.pass===1?'nombre':row.pass===2?'patrón':'?';
+    } else {
+      icon='\u2717';col='var(--fg4)';note='pendiente';
+    }
+    summaryHtml+='<div style="display:flex;align-items:center;gap:8px;font-size:12px;padding:2px 0;color:'+col+';"><span style="width:14px;text-align:center;font-weight:700;">'+icon+'</span><span style="width:28px;font-weight:600;">'+dn+'</span><span style="color:var(--fg3);">'+note+'</span></div>';
+  });
+  var bonusRows=rows.filter(function(r){return r.day==='BONUS';});
+  if(bonusRows.length){
+    summaryHtml+='<div style="font-size:12px;padding:2px 0;color:var(--p);margin-top:2px;"><span style="width:14px;display:inline-block;text-align:center;">+</span> Bonus: '+bonusRows.map(function(r){return (r.log.sess||'Extra');}).join(', ')+'</div>';
+  }
+  summaryHtml+='</div>';
+  html+=summaryHtml;
+  // Show cardio too (informative)
+  if(cardioLogs.length){
+    html+='<div style="font-size:10px;color:var(--fg3);text-transform:uppercase;letter-spacing:0.5px;margin:10px 0 4px;">Cardio</div>';
+    cardioLogs.forEach(function(l){
+      var d=parseDate(l.date);var ds=d?(String(d.getDate()).padStart(2,'0')+'/'+String(d.getMonth()+1).padStart(2,'0')):'?';
+      html+='<div style="font-size:11px;color:var(--fg3);padding:3px 0;">'+ds+' · "'+(l.sess||'cardio')+'" → cardio</div>';
+    });
+  }
+  panel.innerHTML=html;
+  panel.style.display='block';
+}
+function showSessionManager(){
+  var panel=safeDOM('sessionMgrPanel');if(!panel)return;
+  var logs=safeArr(S.logs).filter(function(l){return l._auto&&!l._cardio&&l.muscleSets;});
+  logs.sort(function(a,b){var da=parseDate(a.date),db=parseDate(b.date);return (db?db.getTime():0)-(da?da.getTime():0);});
+  window._sessionMgrList=logs; // keep reference for index-based delete
+  if(!logs.length){panel.innerHTML='<div style="font-size:12px;color:var(--fg3);padding:8px;">No hay sesiones de fuerza registradas.</div>';panel.style.display='block';return;}
+  var html='<div style="font-size:11px;color:var(--fg3);margin:8px 0;">Toca el icono para borrar una sesión. Útil si hay duplicados o una sesión mal asignada.</div>';
+  logs.forEach(function(l,i){
+    var d=parseDate(l.date);
+    var ds=d?(d.getDate()+'/'+(d.getMonth()+1)+' '+String(d.getHours()).padStart(2,'0')+':'+String(d.getMinutes()).padStart(2,'0')):'?';
+    var ms=l.muscleSets||{};
+    var tot=Object.values(ms).reduce(function(s,v){return s+safeNum(v);},0);
+    var dm=null,dv=0;Object.keys(ms).forEach(function(m){if(safeNum(ms[m])>dv){dv=safeNum(ms[m]);dm=m;}});
+    var muscleStr=Object.keys(ms).sort(function(a,b){return ms[b]-ms[a];}).slice(0,4).map(function(m){return m+' '+ms[m];}).join(' \u00b7 ');
+    html+='<div style="display:flex;align-items:flex-start;gap:8px;padding:8px 0;border-bottom:1px solid var(--line);">'+
+      '<div style="flex:1;">'+
+        '<div style="font-size:13px;font-weight:600;color:var(--fg);">'+(l.sess||'Sin nombre')+'</div>'+
+        '<div style="font-size:10px;color:var(--fg3);margin-top:2px;">'+ds+' \u00b7 '+tot+' series \u00b7 dom: '+(dm||'?')+'</div>'+
+        '<div style="font-size:10px;color:var(--fg4);margin-top:1px;">'+muscleStr+'</div>'+
+      '</div>'+
+      '<button onclick="deleteSessionByIndex('+i+')" style="flex:0 0 auto;padding:6px 10px;background:rgba(255,80,80,0.12);color:var(--r);border:none;border-radius:6px;font-size:14px;cursor:pointer;">\ud83d\uddd1</button>'+
+    '</div>';
+  });
+  panel.innerHTML=html;
+  panel.style.display='block';
+}
+function deleteSessionByIndex(i){
+  var list=window._sessionMgrList||[];
+  var target=list[i];
+  if(!target){alert('Sesi\u00f3n no encontrada.');return;}
+  if(!confirm('\u00bfBorrar la sesi\u00f3n "'+(target.sess||'Sin nombre')+'"? Esto no se puede deshacer.'))return;
+  S.logs=safeArr(S.logs).filter(function(l){return l!==target;});
+  save();
+  alert('Sesi\u00f3n borrada. Recargando\u2026');
+  try{location.reload();}catch(e){}
 }
 
 function setSessionOutcome(logKey,val){
