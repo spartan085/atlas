@@ -800,6 +800,37 @@ function loadPersisted(){
 // - Beardsley & Contreras 2014: stretched-position stimulus
 
 const EXERCISE_INTELLIGENCE = {
+  // ── ALIASES para nombres reales de Hevy de Carlos (matching por substring) ──
+  // Apuntan a las mismas propiedades que el ejercicio canónico. No cambian cálculos,
+  // solo permiten que getExDB reconozca los nombres tal como llegan de Hevy.
+  'elevación lateral (':{p:['Deltoides'],s:[],ax:0.02,ecc:0.85,sys:0.22,kn:0.0,lb:0.02,sfr:0.90,hl:26,pat:'isolation',stimQ:0.85,lenMult:1.00,tags:['isolation','side-delt']},
+  'elevaciones laterales':{p:['Deltoides'],s:[],ax:0.02,ecc:0.85,sys:0.22,kn:0.0,lb:0.02,sfr:0.90,hl:26,pat:'isolation',stimQ:0.85,lenMult:1.00,tags:['isolation','side-delt']},
+  'elevación frontal (':{p:['Deltoides'],s:[],ax:0.05,ecc:0.85,sys:0.25,kn:0.0,lb:0.05,sfr:0.82,hl:28,pat:'isolation',stimQ:0.78,lenMult:1.00,tags:['isolation','front-delt']},
+  'elevaciones frontales':{p:['Deltoides'],s:[],ax:0.05,ecc:0.85,sys:0.25,kn:0.0,lb:0.05,sfr:0.82,hl:28,pat:'isolation',stimQ:0.78,lenMult:1.00,tags:['isolation','front-delt']},
+  'extensión francesa':{p:['Tríceps'],s:[],ax:0.08,ecc:1.2,sys:0.28,kn:0.0,lb:0.1,sfr:0.86,hl:36,pat:'isolation',stimQ:0.88,lenMult:1.15,tags:['isolation','stretch-mediated']},
+  'extension francesa':{p:['Tríceps'],s:[],ax:0.08,ecc:1.2,sys:0.28,kn:0.0,lb:0.1,sfr:0.86,hl:36,pat:'isolation',stimQ:0.88,lenMult:1.15,tags:['isolation','stretch-mediated']},
+  'press hombro':{p:['Deltoides'],s:['Tríceps'],ax:0.45,ecc:1.0,sys:0.55,kn:0.0,lb:0.35,sfr:0.78,hl:50,pat:'push-v',stimQ:0.82,lenMult:1.00,tags:['bilateral','overhead','axial']},
+  'press de hombro':{p:['Deltoides'],s:['Tríceps'],ax:0.45,ecc:1.0,sys:0.55,kn:0.0,lb:0.35,sfr:0.78,hl:50,pat:'push-v',stimQ:0.82,lenMult:1.00,tags:['bilateral','overhead','axial']},
+  'patada':{p:['Glúteo'],s:[],ax:0.05,ecc:0.85,sys:0.25,kn:0.05,lb:0.1,sfr:0.88,hl:30,pat:'hip-ext',stimQ:0.80,lenMult:1.0,tags:['unilateral']},
+  'patada de glúteo':{p:['Glúteo'],s:[],ax:0.05,ecc:0.85,sys:0.25,kn:0.05,lb:0.1,sfr:0.88,hl:30,pat:'hip-ext',stimQ:0.80,lenMult:1.0,tags:['unilateral']},
+  'patada gluteo':{p:['Glúteo'],s:[],ax:0.05,ecc:0.85,sys:0.25,kn:0.05,lb:0.1,sfr:0.88,hl:30,pat:'hip-ext',stimQ:0.80,lenMult:1.0,tags:['unilateral']},
+  'curl femoral':{p:['Isquiotibiales'],s:[],ax:0.1,ecc:1.0,sys:0.30,kn:0.1,lb:0.05,sfr:0.92,hl:36,pat:'isolation',stimQ:0.85,lenMult:1.0,tags:['bilateral']},
+  'curl de pierna':{p:['Isquiotibiales'],s:[],ax:0.1,ecc:1.0,sys:0.30,kn:0.1,lb:0.05,sfr:0.92,hl:36,pat:'isolation',stimQ:0.85,lenMult:1.0,tags:['bilateral']},
+  'leg curl':{p:['Isquiotibiales'],s:[],ax:0.1,ecc:1.0,sys:0.30,kn:0.1,lb:0.05,sfr:0.92,hl:36,pat:'isolation',stimQ:0.85,lenMult:1.0,tags:['bilateral']},
+  'jm press':{p:['Tríceps'],s:[],ax:0.08,ecc:1.2,sys:0.28,kn:0.0,lb:0.1,sfr:0.86,hl:36,pat:'isolation',stimQ:0.88,lenMult:1.15,tags:['isolation','stretch-mediated']},
+  'elevacion lateral':{p:['Deltoides'],s:[],ax:0.02,ecc:0.85,sys:0.22,kn:0.0,lb:0.02,sfr:0.90,hl:26,pat:'isolation',stimQ:0.85,lenMult:1.00,tags:['isolation','side-delt']},
+  'elevacion frontal':{p:['Deltoides'],s:[],ax:0.05,ecc:0.85,sys:0.25,kn:0.0,lb:0.05,sfr:0.82,hl:28,pat:'isolation',stimQ:0.78,lenMult:1.00,tags:['isolation','front-delt']},
+  'empuje de cadera':{p:['Glúteo'],s:['Isquiotibiales'],ax:0.2,ecc:0.85,sys:0.55,kn:0.15,lb:0.25,sfr:0.95,hl:40,pat:'hip-ext',stimQ:0.90,lenMult:1.00,tags:['bilateral','high-sfr','glute']},
+  'aducción de cadera':{p:['Aductores'],s:[],ax:0.05,ecc:0.9,sys:0.25,kn:0.15,lb:0.05,sfr:0.90,hl:30,pat:'isolation',stimQ:0.82,lenMult:1.08,tags:['adductor','rehab']},
+  'aduccion de cadera':{p:['Aductores'],s:[],ax:0.05,ecc:0.9,sys:0.25,kn:0.15,lb:0.05,sfr:0.90,hl:30,pat:'isolation',stimQ:0.82,lenMult:1.08,tags:['adductor','rehab']},
+  'aducción de':{p:['Aductores'],s:[],ax:0.05,ecc:0.9,sys:0.25,kn:0.15,lb:0.05,sfr:0.90,hl:30,pat:'isolation',stimQ:0.82,lenMult:1.08,tags:['adductor','rehab']},
+  'aducción':{p:['Aductores'],s:[],ax:0.05,ecc:0.9,sys:0.25,kn:0.15,lb:0.05,sfr:0.90,hl:30,pat:'isolation',stimQ:0.82,lenMult:1.08,tags:['adductor','rehab']},
+  'aduccion':{p:['Aductores'],s:[],ax:0.05,ecc:0.9,sys:0.25,kn:0.15,lb:0.05,sfr:0.90,hl:30,pat:'isolation',stimQ:0.82,lenMult:1.08,tags:['adductor','rehab']},
+  'flexion':{p:['Pectoral'],s:['Tríceps','Deltoides'],ax:0.1,ecc:1.1,sys:0.45,kn:0.0,lb:0.15,sfr:0.82,hl:40,pat:'push-h',stimQ:0.80,lenMult:1.0,tags:['bilateral']},
+  'flexiones':{p:['Pectoral'],s:['Tríceps','Deltoides'],ax:0.1,ecc:1.1,sys:0.45,kn:0.0,lb:0.15,sfr:0.82,hl:40,pat:'push-h',stimQ:0.80,lenMult:1.0,tags:['bilateral']},
+  'rueda abdominal':{p:['Core'],s:[],ax:0.2,ecc:1.0,sys:0.30,kn:0.0,lb:0.30,sfr:0.78,hl:30,pat:'core',stimQ:0.82,lenMult:1.1,tags:['bilateral']},
+  'abdominal corto':{p:['Core'],s:[],ax:0.18,ecc:0.9,sys:0.25,kn:0.0,lb:0.15,sfr:0.82,hl:26,pat:'core',stimQ:0.72,lenMult:1.00,tags:['flexion']},
+
   // Fields: p=primary, s=secondary, ax=axial(0-1), ecc=eccentric(0-1),
   //         sys=systemic cost, kn=knee stress, lb=lumbar, sfr=stim/fatigue ratio,
   //         hl=half-life hours, pat=pattern, stimQ=stimulus quality(0-1),
@@ -898,10 +929,11 @@ const EXERCISE_INTELLIGENCE = {
 // Returns full exercise data with all physiological fields
 function getExDB(name){
   const lower=(name||'').toLowerCase();
+  let best=null,bestLen=0;
   for(const [k,d] of Object.entries(EXERCISE_INTELLIGENCE)){
-    if(lower.includes(k))return d;
+    if(lower.includes(k)&&k.length>bestLen){best=d;bestLen=k.length;}
   }
-  return null;
+  return best;
 }
 
 // Get SFR label for UI
