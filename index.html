@@ -3365,16 +3365,21 @@ function renderMAV(){
     const mrvPct=Math.min((eMRV/maxD)*100,100);
     const fillPct=Math.min((current/maxD)*100,100);
     let col,zone;
+    // Color reflects progress toward the WEEKLY MAV TARGET (Carlos treats MAV as the goal):
+    //  - below MEV: insufficient (gris)
+    //  - MEV..just under MAV: on the way, still missing sets (azul/cian) — NOT "óptimo"
+    //  - at/just below MAV (within ~1): target reached (verde ✓)
+    //  - MAV..MRV base: high but fine (amarillo suave)
+    //  - over MRV base: genuinely over (rojo si >+2)
+    var nearMav=mavBase-1; // within 1 set of MAV counts as "reached"
     if(current===0){col='var(--fg4)';zone='Sin series';}
-    else if(current<mev){col='var(--fg3)';zone=`MEV ${current}/${mev}s`;}
-    else if(current<=mavBase){col='var(--g)';zone='Rango óptimo ✓';}
-    else if(current<=mrv){col='var(--y)';zone='Parte alta del rango';}
-    else if(current<=eMRV){col='var(--y)';zone='MAV→MRV';}
+    else if(current<mev){col='var(--fg3)';zone=`Insuficiente · MEV ${current}/${mev}s`;}
+    else if(current<nearMav){col='var(--b)';zone=`Camino al objetivo · faltan ${mavBase-current}s para MAV`;}
+    else if(current<=mavBase){col='var(--g)';zone='En objetivo MAV ✓';}
+    else if(current<=mrv){col='var(--g)';zone='Por encima del MAV ✓';}
     else{
-      // Over effective MRV: distinguish a mild overshoot (still under BASE mrv) from a real one
       var overBase=current-mrv;
-      if(current<=mrv){col='var(--y)';zone='Parte alta del rango';}
-      else if(overBase<=2){col='var(--y)';zone=`Parte alta (+${overBase}s sobre MRV)`;}
+      if(overBase<=2){col='var(--y)';zone=`Parte alta (+${overBase}s sobre MRV)`;}
       else{col='var(--r)';zone=`Sobre MRV (+${overBase}s)`;}
     }
     const dyn=isReduced?`<div style="font-size:10px;color:var(--y);margin-top:2px;">⚠ MRV dinámico: ${mrv}→${eMRV} (×${eff.mult})</div>`:'';
@@ -3382,10 +3387,12 @@ function renderMAV(){
       if(offset!==0)return'';
       var deficit=mavBase-current;var opp=_oppMap[muscle]||0;
       if(deficit<=0)return'<div style="font-size:10px;color:var(--g);margin-top:2px;">Objetivo MAV '+mavBase+' completado ✓</div>';
-      var oppTxt=opp===0?'<span style="color:var(--r);">sin oportunidad esta semana</span>':opp===1?'<span style="color:var(--y);">1 oportunidad</span>':opp+' oportunidades';
+      var oppTxt=opp===0?'<span style="color:var(--r);">Sin sesiones restantes esta semana</span>':opp===1?'<span style="color:var(--y);">1 sesión restante para sumar</span>':opp+' sesiones restantes';
       var _sec=_secCtxMav[muscle]||0;
       var _secNote=_sec>=4?'<div style="font-size:10px;color:var(--b);margin-top:1px;">+ estímulo indirecto alto ('+_sec+'s) no contado</div>':'';
-      return'<div style="font-size:10px;color:var(--fg3);margin-top:2px;">Objetivo MAV: '+mavBase+' · faltan '+deficit+' · '+oppTxt+'</div>'+_secNote;
+      // Zone already states the deficit; show opportunities only when still below target
+      var showOpp=deficit>0;
+      return (showOpp?'<div style="font-size:10px;color:var(--fg3);margin-top:2px;">'+oppTxt+'</div>':'')+_secNote;
     })()}${(function(){
       // Per-exercise breakdown (verification: which exercises feed this muscle)
       var contribs=_contribMav[muscle]||[];
