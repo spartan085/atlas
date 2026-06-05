@@ -1525,21 +1525,29 @@ function MAVEngine(fatigue,metrics,knee){
     else{mult.sleep=1.0;}
   }else{mult.sleep=1.0;}
   var prot=metrics.protein||0;
-  // Protein: rolling 3-day average more stable than single day
+  // Protein: rolling 3-day average. PRINCIPLE: "sin dato ≠ dato malo" — only penalize with
+  // reliable data (≥2 real logged days). Without enough data → neutral (×1.0), low confidence.
   var recentProt=safeArr(S.logs).slice(-3).map(function(l){return safeNum(l.protein,0);}).filter(function(v){return v>0;});
   if(prot>0)recentProt.push(prot);
-  var protRolling=recentProt.length>0?(recentProt.reduce(function(a,b){return a+b;},0)/recentProt.length):prot;
-  if(protRolling>0){
-    if(protRolling<120){mult.nutrition=0.82;reasons.push('Proteína crónica baja ('+Math.round(protRolling)+'g avg) → ×0.82');}
-    else if(protRolling<140){mult.nutrition=0.91;reasons.push('Proteína moderada ('+Math.round(protRolling)+'g) → ×0.91');}
+  var protRolling=recentProt.length>0?(recentProt.reduce(function(a,b){return a+b;},0)/recentProt.length):0;
+  var protReliable=recentProt.length>=2; // need at least 2 days of real data to judge
+  if(protRolling>0&&protReliable){
+    if(protRolling<120){mult.nutrition=0.88;reasons.push('Proteína crónica baja ('+Math.round(protRolling)+'g avg) → ×0.88');}
+    else if(protRolling<140){mult.nutrition=0.95;reasons.push('Proteína moderada ('+Math.round(protRolling)+'g) → ×0.95');}
     else if(protRolling>=170){mult.nutrition=1.03;}
     else{mult.nutrition=1.0;}
-  }else{mult.nutrition=1.0;}
+  }else{mult.nutrition=1.0;} // sin dato fiable → no penaliza
   const fat=fatigue.systemic;
   if(fat>65){mult.fatigue=0.70;reasons.push(`Fatiga sistémica ${fat}% → ×0.70`);}else if(fat>45){mult.fatigue=0.85;reasons.push(`Fatiga ${fat}% → ×0.85`);}else if(fat<20)mult.fatigue=1.03;else mult.fatigue=1.0;
   const kv=safeNum(knee||0);
   if(kv>3){mult.knee=0.65;reasons.push(`Rodilla ${kv}/10 → MRV pierna ×0.65`);}else if(kv>1)mult.knee=0.88;else mult.knee=1.0;
-  const global=Math.round(mult.hrv*mult.sleep*mult.nutrition*mult.fatigue*100)/100;
+  // FLOOR: individual factors multiplied can stack to an unrealistically harsh cut
+  // (e.g. 0.85×0.82×0.85 ≈ 0.49 = −51%). Cap the reduction at ×0.70 unless a single factor
+  // is itself catastrophic (fever-level HRV collapse + sustained sleep deprivation), which
+  // only happens when fatigue alone is >65% (mult.fatigue=0.70). Normal multi-factor dips
+  // should not exceed −30%.
+  var rawGlobal=mult.hrv*mult.sleep*mult.nutrition*mult.fatigue;
+  const global=Math.round(Math.max(0.70,rawGlobal)*100)/100;
   const LOWER_M=['Cuádriceps','Isquiotibiales','Glúteo','Gemelos/Sóleo','Aductores'];
   const muscles={};
   for(const [muscle,{mev,mav,mrv}] of Object.entries(S.mavRanges)){
@@ -3346,6 +3354,7 @@ function renderMAV(){
   var _bal=null;try{if(offset===0)_bal=getWeeklyBalance();}catch(e){}
   var _oppMap=_bal?_bal.remainingOpp:{};
   var _secCtxMav={};try{if(offset===0)_secCtxMav=getSecondaryStimulusContext();}catch(e){}
+  var _contribMav={};try{if(offset===0)_contribMav=getMuscleContributions();}catch(e){}
   container.innerHTML=Object.entries(S.mavRanges).map(([muscle,{mev,mav:mavBase,mrv}])=>{
     const current=vol[muscle]||0;
     const eff=mav?.muscles[muscle];
@@ -3359,8 +3368,15 @@ function renderMAV(){
     if(current===0){col='var(--fg4)';zone='Sin series';}
     else if(current<mev){col='var(--fg3)';zone=`MEV ${current}/${mev}s`;}
     else if(current<=mavBase){col='var(--g)';zone='Rango óptimo ✓';}
+    else if(current<=mrv){col='var(--y)';zone='Parte alta del rango';}
     else if(current<=eMRV){col='var(--y)';zone='MAV→MRV';}
-    else{col='var(--r)';zone=`Sobre MRV (+${current-eMRV}s)`;}
+    else{
+      // Over effective MRV: distinguish a mild overshoot (still under BASE mrv) from a real one
+      var overBase=current-mrv;
+      if(current<=mrv){col='var(--y)';zone='Parte alta del rango';}
+      else if(overBase<=2){col='var(--y)';zone=`Parte alta (+${overBase}s sobre MRV)`;}
+      else{col='var(--r)';zone=`Sobre MRV (+${overBase}s)`;}
+    }
     const dyn=isReduced?`<div style="font-size:10px;color:var(--y);margin-top:2px;">⚠ MRV dinámico: ${mrv}→${eMRV} (×${eff.mult})</div>`:'';
     return`<div class="mav-row"><div class="mav-header"><div class="mav-muscle">${muscle}${(function(){var f=plannedFrequency(muscle);return f>0?"<span style=\"font-size:9px;color:"+(f>=2?"var(--g)":"var(--y)")+";margin-left:5px;font-family:monospace;\">F"+f+"</span>":"";}())}</div><div class="mav-nums"><span style="color:${col};font-weight:600;">${current}s</span> · MEV${mev} MAV${mavBase} MRV<span style="color:${isReduced?'var(--y)':'inherit'}">${eMRV}</span></div></div><div class="mav-track"><div class="mav-mev" style="left:${mevPct}%"></div><div class="mav-fill" style="width:${fillPct}%;background:${col};"></div><div class="mav-mrv" style="left:${mrvPct}%"></div></div><div class="mav-zone" style="color:${col};">${zone}</div>${dyn}${(function(){
       if(offset!==0)return'';
@@ -3370,6 +3386,12 @@ function renderMAV(){
       var _sec=_secCtxMav[muscle]||0;
       var _secNote=_sec>=4?'<div style="font-size:10px;color:var(--b);margin-top:1px;">+ estímulo indirecto alto ('+_sec+'s) no contado</div>':'';
       return'<div style="font-size:10px;color:var(--fg3);margin-top:2px;">Objetivo MAV: '+mavBase+' · faltan '+deficit+' · '+oppTxt+'</div>'+_secNote;
+    })()}${(function(){
+      // Per-exercise breakdown (verification: which exercises feed this muscle)
+      var contribs=_contribMav[muscle]||[];
+      if(!contribs.length)return '';
+      var items=contribs.map(function(x){return '<div style="display:flex;justify-content:space-between;font-size:10px;color:var(--fg4);padding:1px 0;"><span>'+x.name+'</span><span class="mono">'+x.sets+'s</span></div>';}).join('');
+      return '<details style="margin-top:4px;"><summary style="font-size:10px;color:var(--fg3);cursor:pointer;list-style:none;">▸ Ver desglose ('+contribs.length+' ejercicios)</summary><div style="margin-top:3px;padding-left:6px;border-left:2px solid var(--line);">'+items+'</div></details>';
     })()}</div>`;
   }).join('');
   if(mav&&mav.reasons.length&&multCard&&multList){multCard.style.display='block';multList.innerHTML=mav.reasons.map(r=>`<div style="font-size:12px;color:var(--fg2);padding:4px 0;border-bottom:1px solid var(--line);">${r}</div>`).join('')+`<div style="font-family:'Geist Mono',monospace;font-size:11px;color:var(--c);padding:6px 0 0;">Global ×${mav.global}</div>`;}
@@ -4119,6 +4141,41 @@ function classifyLaterality(exName){
 // Detect muscles receiving notable SECONDARY stimulus this week (read-only context — does
 // NOT add volume, change MAV, or touch opportunities. Used to soften false "need X raw"
 // inferences and show interpretive context for priority muscles.)
+
+// Per-muscle exercise contribution breakdown (for verification — shows WHICH exercises
+// and how many sets feed each muscle. Primary only, matching MEV/MAV counting.)
+function getMuscleContributions(){
+  var weekStart=getWeekBounds(0).start;
+  var logs=safeArr(S.logs).filter(function(l){var d=parseDate(l.date);return d&&d>=weekStart&&!l._cardio;});
+  var byMuscle={};
+  logs.forEach(function(l){
+    var exList=l._exNames||l.exercises||[];
+    exList.forEach(function(e){
+      var name=(typeof e==='string')?e:(e.name||e.title||'');
+      var sets=(typeof e==='object'&&e.sets)?safeNum(e.sets,0):0;
+      if(!name||!sets)return;
+      var d=(typeof getExDB==='function')?getExDB(name):null;
+      if(!d)return;
+      // Primary muscles (counted in MEV/MAV)
+      (d.p||[]).forEach(function(m){
+        if(!byMuscle[m])byMuscle[m]=[];
+        byMuscle[m].push({name:name,sets:sets,role:'p'});
+      });
+    });
+  });
+  // Merge same exercise within a muscle (sum sets)
+  Object.keys(byMuscle).forEach(function(m){
+    var merged={};
+    byMuscle[m].forEach(function(x){
+      var k=x.name.toLowerCase();
+      if(!merged[k])merged[k]={name:x.name,sets:0,role:x.role};
+      merged[k].sets+=x.sets;
+    });
+    byMuscle[m]=Object.values(merged).sort(function(a,b){return b.sets-a.sets;});
+  });
+  return byMuscle;
+}
+
 function getSecondaryStimulusContext(){
   var weekStart=getWeekBounds(0).start;
   var logs=safeArr(S.logs).filter(function(l){var d=parseDate(l.date);return d&&d>=weekStart&&!l._cardio;});
