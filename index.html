@@ -1541,13 +1541,16 @@ function MAVEngine(fatigue,metrics,knee){
   if(fat>65){mult.fatigue=0.70;reasons.push(`Fatiga sistémica ${fat}% → ×0.70`);}else if(fat>45){mult.fatigue=0.85;reasons.push(`Fatiga ${fat}% → ×0.85`);}else if(fat<20)mult.fatigue=1.03;else mult.fatigue=1.0;
   const kv=safeNum(knee||0);
   if(kv>3){mult.knee=0.65;reasons.push(`Rodilla ${kv}/10 → MRV pierna ×0.65`);}else if(kv>1)mult.knee=0.88;else mult.knee=1.0;
-  // FLOOR: individual factors multiplied can stack to an unrealistically harsh cut
-  // (e.g. 0.85×0.82×0.85 ≈ 0.49 = −51%). Cap the reduction at ×0.70 unless a single factor
-  // is itself catastrophic (fever-level HRV collapse + sustained sleep deprivation), which
-  // only happens when fatigue alone is >65% (mult.fatigue=0.70). Normal multi-factor dips
-  // should not exceed −30%.
+  // FLOOR: multiplied factors stack too harshly (0.85×0.82×0.85 ≈ 0.49 = −51%). For a
+  // healthy athlete in readaptation, moderate dips (HRV slightly low + sleep 6.6h) should
+  // NOT cut volume 30%. Cap normal reductions at ×0.85 (−15%). A genuinely severe single
+  // factor — systemic fatigue >65% (mult.fatigue=0.70) — can still push lower, because that
+  // signals a real problem, not a normal daily fluctuation.
   var rawGlobal=mult.hrv*mult.sleep*mult.nutrition*mult.fatigue;
-  const global=Math.round(Math.max(0.70,rawGlobal)*100)/100;
+  // If a single factor is severe (≤0.70), allow it through; otherwise floor at 0.85.
+  var minFactor=Math.min(mult.hrv,mult.sleep,mult.nutrition,mult.fatigue);
+  var floor=(minFactor<=0.70)?0.70:0.85;
+  const global=Math.round(Math.max(floor,rawGlobal)*100)/100;
   const LOWER_M=['Cuádriceps','Isquiotibiales','Glúteo','Gemelos/Sóleo','Aductores'];
   const muscles={};
   for(const [muscle,{mev,mav,mrv}] of Object.entries(S.mavRanges)){
@@ -2199,6 +2202,80 @@ function ProgressionEngine(workouts, hevyRecent, muscleFatigue, fatigue, metrics
 
 const RVL_SCHEMA_VERSION = 2;
 const ENGINE_VERSION = '6.3.0-freeze'; // Frozen: no formula changes until validation complete
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   PLAN POST-FREEZE — NO IMPLEMENTAR HASTA 6-8 SEMANAS DE DATOS LIMPIOS
+   ═══════════════════════════════════════════════════════════════════════════
+   Estado actual: motor CONGELADO. Solo corregir bugs. Acumular datos.
+   El cuello de botella ya no es el código — son las semanas de entrenamiento.
+
+   PRECONDICIÓN PARA ROMPER EL FREEZE (todas deben cumplirse):
+     - ≥6 semanas de logs con RPE/RIR registrado honestamente
+     - Plan estable (mismo split F2 Upper/Lower) durante esas semanas
+     - 0 ejercicios sin reconocer (verificar en Diagnóstico)
+     - Nombres de sesión consistentes ("Día N + tipo")
+
+   ───────────────────────────────────────────────────────────────────────────
+   FASE 1 (primero): MuscleHistory — historial longitudinal por músculo
+   ───────────────────────────────────────────────────────────────────────────
+   Reconstruir RETROACTIVAMENTE desde los logs crudos (no acumular en vivo,
+   para evitar inconsistencia si una fórmula cambió). Filtrar por _engineVer
+   para comparar solo semanas calculadas con el mismo modelo.
+   Snapshot semanal por músculo, en ventanas 7 / 28 / 84 días:
+     - volumen primario (series)
+     - frecuencia
+     - e1RM asociado
+     - avgRIR
+     - avgReps
+     - volumeLoad
+     - fatiga local
+   Materia prima YA disponible en S.logs: _ts, _engineVer, muscleSets,
+   _exNames, srpe, exHistory, exTrends. No falta capturar nada.
+
+   Salida esperada (ejemplo Glúteo):
+     Sem | Series | avgRIR | e1RM | Fatiga
+      1  |   10   |   3    | 100  |   25
+      2  |   12   |   2    | 102  |   30
+      3  |   14   |   2    | 104  |   40
+      4  |   16   |   1    | 104  |   65
+   → Esto es observación, NO inferencia. Fiable desde el día 1.
+
+   ───────────────────────────────────────────────────────────────────────────
+   FASE 2 (después de Fase 1): Respuesta muscular observada
+   ───────────────────────────────────────────────────────────────────────────
+   Tendencias por músculo a 4 semanas, descriptivas, sin prescribir:
+     "Pecho: Volumen +12%, e1RM +4%, Fatiga estable → Respuesta positiva"
+     "Glúteo: Volumen +30%, e1RM +0%, Fatiga +25% → Respuesta dudosa"
+
+   ───────────────────────────────────────────────────────────────────────────
+   FASE 3 (8-12 semanas): Curvas dosis-respuesta → MAV/MRV OBSERVADO
+   ───────────────────────────────────────────────────────────────────────────
+   "Gemelos: 12s→progresa, 16s→progresa, sin techo aún"
+   "Deltoides: 12s→progresa, 18s→no mejora, posible techo observado"
+   → ESTO es un MRV aprendido de Carlos, no de tablas genéricas.
+   Solo entonces tiene sentido: MAV adaptativo, sensibilidad al volumen/frecuencia.
+
+   ───────────────────────────────────────────────────────────────────────────
+   MEJORA VISUAL TRANSVERSAL (cuando se toque la UI): jerarquía de confianza
+   ───────────────────────────────────────────────────────────────────────────
+   Marcar visualmente el nivel de confianza de cada métrica para que una
+   inferencia no parezca un dato observado:
+     Nivel A (alta) — series, reps, peso, RPE, e1RM, frecuencia, volumeLoad
+     Nivel B (media) — fatiga local/sistémica, MAV/MRV base, estímulo efectivo
+     Nivel C (baja)  — MRV dinámico, capacidad recuperativa diaria
+   Nivel C debe verse secundario (gris/atenuado/etiqueta "estimación"),
+   nunca con el mismo peso visual que Nivel A.
+
+   ───────────────────────────────────────────────────────────────────────────
+   NO CONSTRUIR (hasta tener los datos que lo justifiquen):
+   ───────────────────────────────────────────────────────────────────────────
+   - MAV/MRV adaptativo (necesita Fase 3)
+   - Muscle Response Score numérico (necesita Fase 2)
+   - Recomendaciones automáticas de subir/bajar volumen
+   - Métricas de running avanzadas (decoupling, EF, LT1/LT2, durability)
+     → requieren CARRERAS reales en Intervals que aún no existen
+   - Motor de sustituciones dinámicas
+   ═══════════════════════════════════════════════════════════════════════════ */
 const RVL_STORAGE_KEY = 'atlas_rvl_v1';
 
 // ── Expected Variability Bands ──
@@ -3360,17 +3437,17 @@ function renderMAV(){
     const eff=mav?.muscles[muscle];
     const eMRV=eff?eff.effectiveMRV:mrv;
     const isReduced=eff?eff.isReduced:false;
-    const maxD=Math.max(mrv,eMRV)+5;
+    const maxD=Math.max(mrv,eMRV,current)+3;
     const mevPct=Math.min((mev/maxD)*100,100);
-    const mrvPct=Math.min((eMRV/maxD)*100,100);
+    const mrvPct=Math.min((mrv/maxD)*100,100); // red marker at BASE mrv (the real ceiling)
+    const eMrvPct=Math.min((eMRV/maxD)*100,100); // dynamic ceiling (muted secondary marker)
     const fillPct=Math.min((current/maxD)*100,100);
     let col,zone;
-    // Color reflects progress toward the WEEKLY MAV TARGET (Carlos treats MAV as the goal):
-    //  - below MEV: insufficient (gris)
-    //  - MEV..just under MAV: on the way, still missing sets (azul/cian) — NOT "óptimo"
-    //  - at/just below MAV (within ~1): target reached (verde ✓)
-    //  - MAV..MRV base: high but fine (amarillo suave)
-    //  - over MRV base: genuinely over (rojo si >+2)
+    // Color = progress toward MAV target, with the OVER-MRV alarm measured against the
+    // BASE mrv (true physiological ceiling), NOT the dynamically-reduced eMRV. The dynamic
+    // reduction is shown separately as recovery context — capacity and recovery are two
+    // different questions (per audit). This prevents "16 sets pecho" (under base MRV 18)
+    // from showing red just because today's recovery multiplier dropped the ceiling to 13.
     var nearMav=mavBase-1; // within 1 set of MAV counts as "reached"
     if(current===0){col='var(--fg4)';zone='Sin series';}
     else if(current<mev){col='var(--fg3)';zone=`Insuficiente · MEV ${current}/${mev}s`;}
@@ -3378,11 +3455,22 @@ function renderMAV(){
     else if(current<=mavBase){col='var(--g)';zone='En objetivo MAV ✓';}
     else if(current<=mrv){col='var(--g)';zone='Por encima del MAV ✓';}
     else{
+      // Over the TRUE (base) MRV — this is a real overshoot regardless of recovery state
       var overBase=current-mrv;
       if(overBase<=2){col='var(--y)';zone=`Parte alta (+${overBase}s sobre MRV)`;}
       else{col='var(--r)';zone=`Sobre MRV (+${overBase}s)`;}
     }
-    const dyn=isReduced?`<div style="font-size:10px;color:var(--y);margin-top:2px;">⚠ MRV dinámico: ${mrv}→${eMRV} (×${eff.mult})</div>`:'';
+    // Recovery context: the dynamic ceiling is informational, not an alarm. Flag it only
+    // when today's volume exceeds the recovery-reduced ceiling (i.e. recovery is the limiter,
+    // not capacity). Otherwise show it muted as context.
+    var dyn='';
+    if(isReduced){
+      if(current>eMRV){
+        dyn=`<div style="font-size:10px;color:var(--y);margin-top:2px;">Recuperación reducida hoy · techo ${mrv}→${eMRV} (×${eff.mult}) — vigila calidad</div>`;
+      } else {
+        dyn=`<div style="font-size:10px;color:var(--fg4);margin-top:2px;">Techo de recuperación hoy: ${eMRV} (×${eff.mult})</div>`;
+      }
+    }
     return`<div class="mav-row"><div class="mav-header"><div class="mav-muscle">${muscle}${(function(){var f=plannedFrequency(muscle);return f>0?"<span style=\"font-size:9px;color:"+(f>=2?"var(--g)":"var(--y)")+";margin-left:5px;font-family:monospace;\">F"+f+"</span>":"";}())}</div><div class="mav-nums"><span style="color:${col};font-weight:600;">${current}s</span> · MEV${mev} MAV${mavBase} MRV<span style="color:${isReduced?'var(--y)':'inherit'}">${eMRV}</span></div></div><div class="mav-track"><div class="mav-mev" style="left:${mevPct}%"></div><div class="mav-fill" style="width:${fillPct}%;background:${col};"></div><div class="mav-mrv" style="left:${mrvPct}%"></div></div><div class="mav-zone" style="color:${col};">${zone}</div>${dyn}${(function(){
       if(offset!==0)return'';
       var deficit=mavBase-current;var opp=_oppMap[muscle]||0;
@@ -3763,6 +3851,7 @@ async function fetchHevy(){
           sessionType, mismatchNote,
           durMins,
           name: w.name||w.title||'Entrenamiento',
+          start_time: w.start_time||w.created_at||null, // real session timestamp (hora) carried forward for _ts
           _stableId: w.id||w.workout_id||w.start_time||w.created_at||null,
           noRPE: !garminRPE,
           exercises:(w.exercises||[]).map(ex=>({
@@ -5473,6 +5562,8 @@ function autoLogHevySessions(){
       _hevyId:logId,
       _stableId:hs._stableId||null,
       _auto:true,
+      _ts:(hs.start_time||hs._stableId||new Date().toISOString()), // exact timestamp (hora) for AM/PM, doble sesión, interferencia
+      _engineVer:ENGINE_VERSION, // model version that produced this log — critical for longitudinal analysis
       sess:hs.name,
       dur:hs.durMins||null,
       rpe:hs.rpe||hs.hevyRPE||null,
