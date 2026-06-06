@@ -569,6 +569,8 @@ textarea.field{resize:vertical;min-height:60px;}
         <button class="btn btn-g btn-full btn-sm" style="margin-top:8px;" onclick="exportAllData()">📤 Exportar backup (JSON)</button>
         <button class="btn btn-g btn-full btn-sm" style="margin-top:8px;" onclick="importAllData()">📥 Importar backup (JSON)</button>
         <button class="btn btn-g btn-full btn-sm" style="margin-top:8px;" onclick="runCleanDuplicates()">🧹 Limpiar sesiones duplicadas</button>
+        <button class="btn btn-g btn-full btn-sm" style="margin-top:8px;" onclick="openBodyComp()">📊 Observatorio de composición corporal</button>
+        <div id="bodyCompPanel" style="display:none;margin-top:10px;"></div>
         <button class="btn btn-g btn-full btn-sm" style="margin-top:8px;" onclick="showAssignmentDebug()">🔬 Diagnóstico: asignación de sesiones</button>
         <div id="assignDebugPanel" style="display:none;margin-top:10px;"></div>
         <button class="btn btn-g btn-full btn-sm" style="margin-top:8px;" onclick="showSessionManager()">📋 Ver / borrar sesiones</button>
@@ -2275,6 +2277,53 @@ const ENGINE_VERSION = '6.3.0-freeze'; // Frozen: no formula changes until valid
    - Métricas de running avanzadas (decoupling, EF, LT1/LT2, durability)
      → requieren CARRERAS reales en Intervals que aún no existen
    - Motor de sustituciones dinámicas
+
+   ───────────────────────────────────────────────────────────────────────────
+   ROADMAP ADICIONAL (apuntado, no urgente):
+   ───────────────────────────────────────────────────────────────────────────
+   [v7] BodyCompositionHistory como ENTIDAD INDEPENDIENTE
+        Ahora el peso/composición vive dentro de weightHistory (ligado a wellness).
+        Cuando llegue MuscleHistory, conviene separarlo en su propia estructura
+        (BodyCompositionHistory) desacoplada de HRV/Sleep/Stress, porque se
+        explotará mucho más. No hacer ahora; refactor para v7.
+
+   [Tier 3, MUY ALTA prioridad] CIRCUNFERENCIAS (cinta métrica, mensual)
+        Para hipertrofia real, las circunferencias valen MÁS que la bioimpedancia.
+        Campos: cintura, brazo, pecho, muslo, gemelo. Registro manual mensual.
+        Cuando exista MuscleHistory, el cruce es oro:
+          "Volumen brazo ↑ · circunferencia brazo ↑ · peso = → hipertrofia real"
+        Ninguna bioimpedancia da esto. Construir junto con/después de MuscleHistory.
+        Sigue siendo dato observado (Nivel A), encaja con la filosofía del freeze.
+
+   ───────────────────────────────────────────────────────────────────────────
+   PIEZA CLAVE POST-FREEZE: AUDITORÍA ESTADÍSTICA + VALIDACIÓN DE HIPÓTESIS
+   ───────────────────────────────────────────────────────────────────────────
+   El orden científico correcto (que casi todas las apps se saltan):
+     1º ¿Los datos son correctos?      → calidad del dato (NUNCA congelar)
+     2º ¿Las métricas predicen algo?   → AUDITORÍA ESTADÍSTICA (esto)
+     3º ¿Las recomendaciones mejoran?  → mucho después, solo si 2º es sí
+
+   AUDITORÍA ESTADÍSTICA (a las 6-8 semanas, sobre los datos ya guardados):
+   ATLAS YA almacena ambos lados de cada relación (predicción + resultado real).
+   Con MuscleHistory, comprobar con los datos de Carlos:
+     - ¿Fatiga isquios >60% → peor rendimiento al día siguiente?  Sí/No/incierto
+     - ¿RIR registrado correlaciona con progreso (e1RM/topSet)?    Sí/No/incierto
+     - ¿Más volumen de glúteo → más progreso?                      Sí/No/incierto
+     - ¿HRV baja → peor sesión de fuerza?                          Sí/No/incierto
+   Esto convierte ATLAS de "teoría genérica" a "observaciones de Carlos".
+
+   CAPA DE VALIDACIÓN DE HIPÓTESIS (presentación de lo anterior):
+   No un veredicto binario, sino un estado que MADURA con los datos:
+     Hipótesis: "Carlos progresa mejor en glúteo con 12-16 series"
+       → Evidencia insuficiente  (semanas 1-4)
+       → Evidencia moderada       (semanas 8-12)
+       → Evidencia fuerte         (meses)
+   Respeta la incertidumbre — núcleo de la filosofía del proyecto.
+   Esto vale MÁS que cualquier dashboard nuevo: valida si el resto funciona.
+
+   NOTA: la capacidad predictiva hoy es ~3/10, y NO es un defecto — es que aún
+   no existen los datos. Sube sola con 40-60 entrenos de registro limpio.
+   El siguiente gran avance NO es programar: son las semanas de datos.
    ═══════════════════════════════════════════════════════════════════════════ */
 const RVL_STORAGE_KEY = 'atlas_rvl_v1';
 
@@ -3648,7 +3697,7 @@ async function fetchIntervals(){
   const {aid,key}=S.int;if(!aid||!key)return;
   const auth='Basic '+btoa('API_KEY:'+key);const H={'Authorization':auth,'Accept':'application/json'};
   const today=new Date().toISOString().split('T')[0];
-  const from30=new Date(Date.now()-30*864e5).toISOString().split('T')[0];
+  const from30=new Date(Date.now()-180*864e5).toISOString().split('T')[0]; // 180d: enables body-comp history reconstruction (HRV/sleep engine still uses only recent values)
   const from14=new Date(Date.now()-14*864e5).toISOString().split('T')[0];
   try{
     const [wR,fR,aR]=await Promise.all([
@@ -3713,7 +3762,12 @@ async function fetchIntervals(){
     try{const atR=await fetch(`https://intervals.icu/api/v1/athlete/${aid}`,{headers:H,mode:'cors'});if(atR.ok){const at=await atR.json();if(!S.metrics.weight&&at.icu_weight)S.metrics.weight=safeNum(at.icu_weight.toFixed(1));if(!S.metrics.restingHR&&at.icu_resting_hr)S.metrics.restingHR=at.icu_resting_hr;if(!S.metrics.vo2max&&at.icu_vo2max)S.metrics.vo2max=Math.round(at.icu_vo2max*10)/10;if(S.metrics.ctl==null&&at.ctl!=null)S.metrics.ctl=Math.round(at.ctl);if(S.metrics.atl==null&&at.atl!=null)S.metrics.atl=Math.round(at.atl);if(S.metrics.tsb==null&&at.form!=null)S.metrics.tsb=Math.round(at.form);}}catch(e){}
     S.metrics.activities=activities;safe(autoLogHevySessions,'alh');
     S._activitiesByDate={};activities.forEach(a=>{const d=(a.start_date_local||'').split('T')[0];if(d){if(!S._activitiesByDate[d])S._activitiesByDate[d]=[];S._activitiesByDate[d].push(a);}});
-    S.metrics.weightHistory=wSorted.filter(d=>d.weight||(d.fieldValues||{})['BodyFatPercent']).map(d=>({date:d.id,w:d.weight?safeNum(d.weight.toFixed(1)):null,fat:d.fatPercent||(d.fieldValues||{})['BodyFatPercent']||null}));
+    var _newWH=wSorted.filter(d=>d.weight||(d.fieldValues||{})['BodyFatPercent']).map(d=>({date:d.id,w:d.weight?safeNum(d.weight.toFixed(1)):null,fat:d.fatPercent||(d.fieldValues||{})['BodyFatPercent']||null,lean:safeNum((d.fieldValues||{})['LeanBodyMass'])||null,musc:safeNum((d.fieldValues||{})['MuscleMass']||(d.fieldValues||{})['muscleMass'])||null,water:safeNum((d.fieldValues||{})['BodyWater']||(d.fieldValues||{})['bodyWater'])||null}));
+    // MERGE with existing history so past weigh-ins (outside the 30-day sync window) are never lost.
+    var _oldWH=safeArr(S.metrics&&S.metrics.weightHistory);var _whMap={};
+    _oldWH.forEach(function(e){if(e&&e.date)_whMap[e.date]=e;});
+    _newWH.forEach(function(e){if(e&&e.date){var ex=_whMap[e.date]||{};_whMap[e.date]={date:e.date,w:e.w!=null?e.w:ex.w,fat:e.fat!=null?e.fat:ex.fat,lean:e.lean!=null?e.lean:ex.lean,musc:e.musc!=null?e.musc:ex.musc,water:e.water!=null?e.water:ex.water};}});
+    S.metrics.weightHistory=Object.values(_whMap).sort(function(a,b){return (new Date(a.date))-(new Date(b.date));});
     S.int.ok=true;save();setIntStatus('ok');
     runEngines();renderHRV();renderActivities();renderWeekZones();
     toast('Intervals sincronizado',[S.metrics.hrv?`HRV ${S.metrics.hrv}ms`:'',S._hrv?.baseline28?`base28 ${Math.round(S._hrv.baseline28)}ms`:'',S.metrics.ctl?`CTL ${Math.round(S.metrics.ctl)}`:'',S.metrics.weight?`${S.metrics.weight}kg`:'',S.metrics.protein?`Prot ${Math.round(S.metrics.protein)}g`:''].filter(Boolean).join(' · ')||'OK','✅');
@@ -4240,6 +4294,93 @@ function classifyLaterality(exName){
 
 // Per-muscle exercise contribution breakdown (for verification — shows WHICH exercises
 // and how many sets feed each muscle. Primary only, matching MEV/MAV counting.)
+
+// ── BODY COMPOSITION OBSERVATORY (pure data, zero inference, zero recommendations) ──
+function openBodyComp(){
+  var p=safeDOM('bodyCompPanel');if(!p)return;
+  if(p.style.display==='none'||!p.style.display){p.style.display='block';renderBodyComp();}
+  else{p.style.display='none';}
+}
+var _compRange=180; // default window in days
+function setCompRange(days){_compRange=days;renderBodyComp();}
+function renderBodyComp(){
+  var panel=safeDOM('bodyCompPanel');if(!panel)return;
+  var hist=safeArr(S.metrics&&S.metrics.weightHistory).filter(function(d){return d&&(d.w||d.fat||d.lean||d.musc||d.water);});
+  if(!hist.length){panel.innerHTML='<div style="font-size:12px;color:var(--fg4);padding:10px;">Sin datos de báscula todavía. Sincroniza una pesada con composición corporal.</div>';return;}
+  // Sort by date ascending
+  hist=hist.slice().sort(function(a,b){return (new Date(a.date))-(new Date(b.date));});
+  // Filter by range
+  var now=new Date();var cutoff=new Date(now.getTime()-_compRange*24*3600000);
+  var inRange=(_compRange>=9999)?hist:hist.filter(function(d){return new Date(d.date)>=cutoff;});
+  if(inRange.length<1)inRange=hist.slice(-1);
+  var first=inRange[0],last=inRange[inRange.length-1];
+
+  // ── Range selector ──
+  var ranges=[[30,'30d'],[90,'90d'],[180,'180d'],[9999,'Todo']];
+  var selHtml='<div style="display:flex;gap:6px;margin-bottom:12px;">'+ranges.map(function(r){
+    var active=_compRange===r[0];
+    return '<button onclick="setCompRange('+r[0]+')" style="flex:1;padding:6px;border-radius:6px;border:none;font-size:11px;cursor:pointer;background:'+(active?'var(--accent)':'var(--bg3)')+';color:'+(active?'#000':'var(--fg2)')+';font-weight:'+(active?'600':'400')+';">'+r[1]+'</button>';
+  }).join('')+'</div>';
+
+  // ── VISTA 1: Evolución corporal (latest values) ──
+  function metricCard(label,val,unit,color){
+    return '<div style="text-align:center;padding:6px;"><div style="font-family:monospace;font-size:17px;color:'+(color||'var(--fg)')+';">'+(val!=null?val:'—')+'</div><div style="font-size:9px;color:var(--fg3);">'+label+(unit?' ('+unit+')':'')+'</div></div>';
+  }
+  // Derive fat kg and lean from weight+fat% when lean not directly reported
+  var lastFatKg=(last.w&&last.fat)?+(last.w*last.fat/100).toFixed(1):null;
+  var lastLean=last.lean||((last.w&&lastFatKg!=null)?+(last.w-lastFatKg).toFixed(1):null);
+  // 7-day moving average of weight (water/glycogen/salt move daily weight 1-3kg; trend is truer)
+  var last7=inRange.filter(function(d){return d.w&&(new Date(last.date)-new Date(d.date))<=7*24*3600000;});
+  var avg7=last7.length?+(last7.reduce(function(a,d){return a+d.w;},0)/last7.length).toFixed(1):null;
+  var v1='<div style="font-size:10px;color:var(--fg3);text-transform:uppercase;letter-spacing:0.5px;margin-bottom:6px;">Evolución corporal · último registro</div>';
+  if(last.w&&avg7!=null){
+    v1+='<div style="display:flex;justify-content:space-between;align-items:baseline;padding:6px 8px;background:var(--bg3);border-radius:6px;margin-bottom:8px;"><span style="font-size:11px;color:var(--fg3);">Peso hoy <span style="font-family:monospace;color:var(--fg);font-size:14px;">'+last.w+'</span></span><span style="font-size:11px;color:var(--fg3);">Media 7d <span style="font-family:monospace;color:var(--accent);font-size:14px;">'+avg7+'</span></span></div>';
+  }
+  v1+='<div style="display:grid;grid-template-columns:repeat(3,1fr);gap:4px;">'+
+    metricCard('Peso','kg'==='kg'?last.w:last.w,'kg','var(--fg)')+
+    metricCard('% grasa',last.fat,'%','var(--o)')+
+    metricCard('Kg grasa',lastFatKg,'kg','var(--o)')+
+    metricCard('Masa magra',lastLean,'kg','var(--g)')+
+    metricCard('Músculo',last.musc,'kg','var(--g)')+
+    metricCard('Agua',last.water,'%','var(--b)')+
+  '</div>';
+
+  // ── VISTA 2: Velocidad de cambio (first vs last in range) ──
+  function delta(a,b){if(a==null||b==null)return null;return +(b-a).toFixed(1);}
+  function deltaRow(label,d,unit,goodDown){
+    if(d==null)return '';
+    var sign=d>0?'+':'';
+    var col=d===0?'var(--fg3)':(goodDown?(d<0?'var(--g)':'var(--o)'):(d>0?'var(--g)':'var(--o)'));
+    return '<div style="display:flex;justify-content:space-between;font-size:12px;padding:3px 0;"><span style="color:var(--fg2);">'+label+'</span><span style="font-family:monospace;color:'+col+';">'+sign+d+' '+unit+'</span></div>';
+  }
+  var firstFatKg=(first.w&&first.fat)?+(first.w*first.fat/100).toFixed(1):null;
+  var firstLean=first.lean||((first.w&&firstFatKg!=null)?+(first.w-firstFatKg).toFixed(1):null);
+  var daysSpan=Math.max(1,Math.round((new Date(last.date)-new Date(first.date))/(24*3600000)));
+  var v2='<div style="margin-top:16px;"><div style="font-size:10px;color:var(--fg3);text-transform:uppercase;letter-spacing:0.5px;margin-bottom:6px;">Velocidad de cambio · '+daysSpan+' días ('+inRange.length+' registros)</div>';
+  v2+=deltaRow('Peso',delta(first.w,last.w),'kg',false)
+    +deltaRow('Grasa',delta(firstFatKg,lastFatKg),'kg',true)
+    +deltaRow('% grasa',delta(first.fat,last.fat),'%',true)
+    +deltaRow('Masa magra',delta(firstLean,lastLean),'kg',false)
+    +deltaRow('Músculo',delta(first.musc,last.musc),'kg',false)
+    +deltaRow('Agua',delta(first.water,last.water),'%',false);
+  v2+='</div>';
+
+  // ── VISTA 3: Contexto de entrenamiento (NO causality, just side-by-side) ──
+  var logs=safeArr(S.logs).filter(function(l){var d=new Date(l.date.split('/').reverse().join('-'));return d>=cutoff||_compRange>=9999;});
+  var strengthSessions=logs.filter(function(l){return !l._cardio&&l.muscleSets;}).length;
+  var totalStrengthSets=0;logs.forEach(function(l){if(l.muscleSets)Object.values(l.muscleSets).forEach(function(s){totalStrengthSets+=safeNum(s,0);});});
+  var cardioKm=0;logs.forEach(function(l){if(l._km)cardioKm+=safeNum(l._km,0);});
+  var v3='<div style="margin-top:16px;padding:10px;background:var(--bg3);border-radius:8px;"><div style="font-size:10px;color:var(--fg3);text-transform:uppercase;letter-spacing:0.5px;margin-bottom:8px;">Contexto de entrenamiento · mismo periodo</div>';
+  v3+='<div style="display:flex;justify-content:space-between;font-size:12px;padding:2px 0;"><span style="color:var(--fg2);">Sesiones de fuerza</span><span style="font-family:monospace;color:var(--fg);">'+strengthSessions+'</span></div>';
+  v3+='<div style="display:flex;justify-content:space-between;font-size:12px;padding:2px 0;"><span style="color:var(--fg2);">Volumen total (series)</span><span style="font-family:monospace;color:var(--fg);">'+Math.round(totalStrengthSets)+'</span></div>';
+  if(cardioKm>0)v3+='<div style="display:flex;justify-content:space-between;font-size:12px;padding:2px 0;"><span style="color:var(--fg2);">Km carrera</span><span style="font-family:monospace;color:var(--fg);">'+cardioKm.toFixed(1)+'</span></div>';
+  v3+='<div style="font-size:9px;color:var(--fg4);margin-top:6px;font-style:italic;">Solo observación. ATLAS no infiere causalidad entre estos datos.</div>';
+  v3+='</div>';
+
+  var note='<div style="font-size:10px;color:var(--fg4);font-style:italic;margin-bottom:10px;padding:6px 8px;border-left:2px solid var(--line);">Las tendencias son más fiables que las mediciones individuales. La bioimpedancia puede confundir agua, glucógeno e inflamación con masa magra.</div>';
+  panel.innerHTML=selHtml+note+v1+v2+v3;
+}
+
 function getMuscleContributions(){
   var weekStart=getWeekBounds(0).start;
   var logs=safeArr(S.logs).filter(function(l){var d=parseDate(l.date);return d&&d>=weekStart&&!l._cardio;});
