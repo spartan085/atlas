@@ -2203,7 +2203,8 @@ function ProgressionEngine(workouts, hevyRecent, muscleFatigue, fatigue, metrics
 // }
 
 const RVL_SCHEMA_VERSION = 2;
-const ENGINE_VERSION = '6.3.0-freeze'; // Frozen: no formula changes until validation complete
+const VALIDATION_FREEZE_NO_AUTOCAL = true; // 6.3.1: autocalibracion del AdaptationEngine desactivada durante la validacion
+const ENGINE_VERSION = '6.3.1-freeze'; // Frozen: no formula changes until validation complete
 
 /* ═══════════════════════════════════════════════════════════════════════════
    PLAN POST-FREEZE — NO IMPLEMENTAR HASTA 6-8 SEMANAS DE DATOS LIMPIOS
@@ -2406,10 +2407,14 @@ function buildSnapshot(type, data){
       ),
     },
     outcome: data.type === 'outcome' ? {
-      actualRPE: data.actualRPE,
+      // OutcomeStrong — observado, senal PRIMARIA de validacion (PR, ppd, delta e1RM>banda, observables crudos)
+      strong: data.strong || {},
+      e1rmDeltas: data.e1rmDeltas||{}, // top-level por compatibilidad (AdaptationEngine lo lee)
+      // OutcomeWeak — percepcion, AUXILIAR (nunca primaria para hipotesis fisiologicas)
+      weak: { actualRPE: data.actualRPE, actualsRPE: data.actualsRPE },
+      actualRPE: data.actualRPE,   // top-level por compatibilidad (computeMismatch)
       actualsRPE: data.actualsRPE,
       kneePost: data.kneePost,
-      e1rmDeltas: data.e1rmDeltas||{},
       notes: data.notes||'',
       // Mismatch uses variability bands — NOT raw comparison
       mismatchSignal: computeMismatch(data, f),
@@ -2424,7 +2429,7 @@ function buildSnapshot(type, data){
 
 // ── Mismatch computation with variability bands ──
 function computeMismatch(outcomeData, fatigue){
-  if(!fatigue || outcomeData.actualRPE == null) return 'unknown';
+  if(!fatigue || outcomeData.actualRPE == null || outcomeData.actualRPE <= 0) return 'unknown';
   const predictedSystemic = fatigue.systemic;
   const actualRPE = safeNum(outcomeData.actualRPE);
 
@@ -2443,6 +2448,12 @@ function computeMismatch(outcomeData, fatigue){
 function saveValidationSnapshot(type, data){
   try{
     const snapshots = getValidationSnapshots();
+    if(type==='prediction'){
+      // 6.3.1 — una sola prediccion por dia (la PRIMERA, pre-sesion). runEngines dispara en cada
+      // pulsacion; sin esto el buffer se inunda de duplicados del mismo dia y expulsa el historico.
+      var _pdk = new Date().toISOString().split('T')[0]; // prediction_day_key
+      if(snapshots.some(function(s){return s.type==='prediction' && s.date===_pdk;})) return;
+    }
     const snap = buildSnapshot(type, {...data, type});
     snapshots.push(snap);
     // Keep last 90 snapshots (~45 days of data)
@@ -2515,7 +2526,7 @@ function AdaptationEngine(snapshots){
     signals.push({type:'over_prediction', count:overPred,
       message:`Fatiga sobreestimada en ${overPred} sesiones (fuera de banda variabilidad)`,
       confidence: overPred >= 6 ? 'alta' : 'moderada'});
-    calibrations.systemicSensitivity = {
+    if(!VALIDATION_FREEZE_NO_AUTOCAL) calibrations.systemicSensitivity = {
       direction:'reduce', factor:0.92,
       reason:`${overPred} sesiones con RPE real < esperado más allá de variabilidad normal`,
       confidence: overPred >= 6 ? 0.78 : 0.62
@@ -2525,7 +2536,7 @@ function AdaptationEngine(snapshots){
     signals.push({type:'under_prediction', count:underPred,
       message:`Fatiga subestimada en ${underPred} sesiones (fuera de banda variabilidad)`,
       confidence: underPred >= 6 ? 'alta' : 'moderada'});
-    calibrations.systemicSensitivity = {
+    if(!VALIDATION_FREEZE_NO_AUTOCAL) calibrations.systemicSensitivity = {
       direction:'increase', factor:1.08,
       reason:`${underPred} sesiones con RPE real > esperado más allá de variabilidad normal`,
       confidence: underPred >= 6 ? 0.78 : 0.62
@@ -2549,10 +2560,10 @@ function AdaptationEngine(snapshots){
     });
     if(predictedGood.length >= 2){
       const hitRate = Math.round(predictedGood.filter(p=>
-        Object.values(p.out.outcome?.e1rmDeltas||{}).some(d=>d.pctDelta&&d.pctDelta>0)
+        Object.values(p.out.outcome?.e1rmDeltas||{}).some(d=>d.pctDelta&&d.pctDelta>6)
       ).length/predictedGood.length*100);
       signals.push({type:'e1rm_accuracy', value:hitRate,
-        message:`Readiness alta → mejora e1RM real: ${hitRate}% (${predictedGood.length} sesiones)`});
+        message:`Readiness alta → e1RM >6% sobre ruido: ${hitRate}% · informativo, NO validacion (${predictedGood.length} ses)`});
     }
   }
 
@@ -2605,7 +2616,7 @@ const RULES=[
   {id:'knee_pain_high',priority:10,cond:(f,i)=>f.signals.knee?.warn,action:'🦵 Protocolo rodilla activo. Pre-activación obligatoria. Para cualquier ejercicio >3/10.',conf:1.0},
   {id:'severe_fatigue',priority:9,cond:(f,i)=>f.systemic>70,action:'🔴 Fatiga sistémica alta. Descanso activo o Z1 máx 30min.',conf:0.9},
   {id:'high_interference',priority:8,cond:(f,i)=>i.blockLower,action:'⚠ Alta interferencia running→pierna. Evita fuerza inferior hoy.',conf:0.85},
-  {id:'hrv_suppressed',priority:7,cond:(f,i)=>S._hrv?.state==='suppressed',action:'📉 HRV suprimida. Reduce volumen 25-35%. Evita axiales pesados.',conf:0.85},
+  {id:'hrv_suppressed',priority:7,cond:(f,i)=>S._hrv?.state==='suppressed'&&S._hrvStab?.confirmed,action:'📉 HRV suprimida. Reduce volumen 10-20% (confirmada 2+ senales). Evita axiales pesados.',conf:0.85},
   {id:'hrv_rhr_coupling',priority:7,cond:(f,i)=>S._hrv?.coupling==='suppressed_strong',action:'⚠ HRV↓+FCr↑ simultáneos. Señal doble supresión autonómica.',conf:0.9},
   {id:'high_doms_lower',priority:6,cond:(f,i)=>f.drivers.includes('high_doms_lower'),action:'🦵 DOMS inferior alto. Reduce pierna 20-25%. Evita fallo en quad.',conf:0.8},
   {id:'low_sleep',priority:6,cond:(f,i)=>f.drivers.includes('low_sleep'),action:'😴 Sueño insuficiente. MAV reducido. Evita fallo muscular.',conf:0.85},
@@ -2661,6 +2672,7 @@ function runEngines(){
   // ── Engine execution order (dependencies matter) ──
   // 1. HRV first — needed by ConfidenceEngine and FatigueEngine
   S._hrv=HRVEngine(S._wellnessHistory||[]);
+  S._hrvStab=HRVStabilityCheck(S._hrv,S.metrics,S.logs||[]); // 6.3.1: mismo criterio que MAVEngine
   // 2. Confidence — needed by MuscleFatigueEngine for per-muscle conf
   S._confidence=ConfidenceEngine(S._wellnessHistory||[],S.logs,S._hevyRecent||[],S.metrics);
   // 3. MuscleFatigue — uses S._hrv and S._confidence
@@ -3670,10 +3682,12 @@ function saveLog(){
       }
     });
   }
-  storePerformanceOutcome({
-    sess, rpe:safeNum(rpe)||0, sRPE:srpe,
-    knee:safeNum(knee)||0, notes, e1rmDeltas
-  });
+  if(safeNum(rpe)>0){ // 6.3.1: solo outcome con RPE real (evita mismatch falso)
+    storePerformanceOutcome({
+      sess, actualRPE:safeNum(rpe), actualsRPE:srpe, kneePost:safeNum(knee)||0,
+      notes, e1rmDeltas, strong:collectStrongOutcome()
+    });
+  }
   toast('Sesión guardada',`${sess} · sRPE ${srpe}`,'✅');
   ['logDur','logRPE','logKnee','logNotes'].forEach(id=>{const e=safeDOM(id);if(e)e.value='';});
   if(safeDOM('logSess'))safeDOM('logSess').value='';_recFollow=null;setRecFollow(null);calcSRPE();
@@ -3921,6 +3935,7 @@ async function fetchHevy(){
     save();
     const hSt=safeDOM('hevyStatus');if(hSt)hSt.innerHTML='<span class="sdot-sm sdot-g"></span><span style="color:var(--g);">Conectado</span>';
     renderMAV();runEngines();
+    flushPendingOutcomes(); // 6.3.1: cierra el bucle de validacion con el motor ya recalculado
     safe(buildWeeklyAdaptationSnapshot,'wsnap'); // build AFTER weeklyVol is populated (was running on init with empty vol → zeros)
     safe(renderWeekSummary,'rws');
     toast('Hevy sincronizado',`${workouts.length} sesiones · ${recentHevySess.length} recientes (72h)`,'💪',5000);
@@ -5675,6 +5690,36 @@ function populateLogSessions(){
 // ══ AUTO-LOG FROM HEVY ══
 // Each Hevy session auto-creates a log entry. No manual data entry needed.
 // Only recFollow + knee are added by the user (one-tap on the row).
+// ══ 6.3.1 — OUTCOME DE VALIDACION (captura, no juicio) ══
+function collectStrongOutcome(){
+  var strong={ e1rmDeltas:{}, byExercise:{} };
+  var tr=S._progression&&S._progression.exTrends;
+  if(tr){
+    Object.keys(tr).forEach(function(name){
+      var t=tr[name]; if(!t)return;
+      if(t.sessions>=2 && t.slope!==0){
+        strong.e1rmDeltas[name]={predicted:t.baseline,actual:t.latest,delta:Math.round((t.latest-t.baseline)*10)/10,pctDelta:t.pctChange};
+      }
+      strong.byExercise[name]={
+        e1rm:t.latest||null, lastKg:t.lastKg||null, lastReps:t.lastReps||null,
+        topSet:t.topSet||null, avgRIR:(t.avgRIR!=null?t.avgRIR:null), avgReps:(t.avgReps!=null?t.avgReps:null),
+        volumeLoad:t.volumeLoad||null,
+        loadPR:!!t.loadPR, repsPR:!!t.repsPR, e1rmPR:!!t.e1rmPR,
+        ppd:t.ppd||null, rpeDrift:(t.rpeDrift!=null?t.rpeDrift:null), trend:t.trend||null
+      };
+    });
+  }
+  return strong;
+}
+function flushPendingOutcomes(){
+  var q=safeArr(S._pendingOutcomes); if(!q.length)return;
+  S._pendingOutcomes=[];
+  var strong=collectStrongOutcome();
+  q.forEach(function(o){
+    storePerformanceOutcome({ sess:o.sess, actualRPE:o.actualRPE, actualsRPE:o.actualsRPE, kneePost:0,
+      notes:'auto:hevy', e1rmDeltas:strong.e1rmDeltas, strong:strong });
+  });
+}
 function autoLogHevySessions(){
   if(!S._hevyRecent||!S._hevyRecent.length)return;
   if(!S.logs)S.logs=[];
@@ -5725,6 +5770,7 @@ function autoLogHevySessions(){
       atlasRec:S._decision?S._decision.recommendation:null
     });
     changed=true;
+    (function(){var _t=new Date();var _hoy=hsDate.getFullYear()===_t.getFullYear()&&hsDate.getMonth()===_t.getMonth()&&hsDate.getDate()===_t.getDate();var _rpe=safeNum(hs.rpe||hs.hevyRPE,0);if(_hoy&&_rpe>0){if(!S._pendingOutcomes)S._pendingOutcomes=[];S._pendingOutcomes.push({sess:hs.name,actualRPE:_rpe,actualsRPE:safeNum(hs.sRPE,0)});}})(); // 6.3.1: outcome de validacion
   });
   // ── AUTO-LOG RUNS/CARDIO FROM INTERVALS ──
   var acts=safeArr(S.metrics.activities);
