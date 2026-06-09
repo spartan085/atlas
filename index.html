@@ -2204,7 +2204,7 @@ function ProgressionEngine(workouts, hevyRecent, muscleFatigue, fatigue, metrics
 
 const RVL_SCHEMA_VERSION = 2;
 const VALIDATION_FREEZE_NO_AUTOCAL = true; // 6.3.1: autocalibracion del AdaptationEngine desactivada durante la validacion
-const ENGINE_VERSION = '6.3.1-freeze'; // Frozen: no formula changes until validation complete
+const ENGINE_VERSION = '6.3.2-freeze'; // Frozen: no formula changes until validation complete
 
 /* ═══════════════════════════════════════════════════════════════════════════
    PLAN POST-FREEZE — NO IMPLEMENTAR HASTA 6-8 SEMANAS DE DATOS LIMPIOS
@@ -2448,15 +2448,28 @@ function computeMismatch(outcomeData, fatigue){
 function saveValidationSnapshot(type, data){
   try{
     const snapshots = getValidationSnapshots();
-    if(type==='prediction'){
-      // 6.3.1 — una sola prediccion por dia (la PRIMERA, pre-sesion). runEngines dispara en cada
-      // pulsacion; sin esto el buffer se inunda de duplicados del mismo dia y expulsa el historico.
-      var _pdk = new Date().toISOString().split('T')[0]; // prediction_day_key
-      if(snapshots.some(function(s){return s.type==='prediction' && s.date===_pdk;})) return;
-    }
     const snap = buildSnapshot(type, {...data, type});
+    if(type==='prediction'){
+      // 6.3.2 — 1 prediccion/dia, capturada CON datos (post-sync). El arranque en frio guarda una
+      // prediccion vacia (hrv:'no_data') antes de que el sync baje HRV/sueno; en cuanto el sync
+      // re-ejecuta los motores y llega el dato real, esa vacia se REEMPLAZA una sola vez. Despues,
+      // intocable. NO cambia ninguna formula: solo mueve el INSTANTE de captura de pre-sync a post-sync.
+      var _pdk = snap.date; // prediction_day_key
+      var _same = snapshots.filter(function(s){return s.type==='prediction' && s.date===_pdk;});
+      if(_same.length){
+        var _prev = _same[_same.length-1];
+        var _prevBlank = !_prev.dataQuality || _prev.dataQuality.hrv === 'no_data';
+        var _nowData = snap.dataQuality && snap.dataQuality.hrv !== 'no_data';
+        if(_prevBlank && _nowData){
+          var _cleaned = snapshots.filter(function(s){return !(s.type==='prediction' && s.date===_pdk);});
+          _cleaned.push(snap);
+          localStorage.setItem(RVL_STORAGE_KEY, JSON.stringify(_cleaned.slice(-90)));
+        }
+        return; // 1 prediccion/dia: no duplicar
+      }
+    }
     snapshots.push(snap);
-    // Keep last 90 snapshots (~45 days of data)
+    // Keep last 90 snapshots
     localStorage.setItem(RVL_STORAGE_KEY, JSON.stringify(snapshots.slice(-90)));
   }catch(e){}
 }
