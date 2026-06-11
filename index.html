@@ -825,6 +825,7 @@ const EXERCISE_INTELLIGENCE = {
   'curl de pierna':{p:['Isquiotibiales'],s:[],ax:0.1,ecc:1.0,sys:0.30,kn:0.1,lb:0.05,sfr:0.92,hl:36,pat:'isolation',stimQ:0.85,lenMult:1.0,tags:['bilateral']},
   'leg curl':{p:['Isquiotibiales'],s:[],ax:0.1,ecc:1.0,sys:0.30,kn:0.1,lb:0.05,sfr:0.92,hl:36,pat:'isolation',stimQ:0.85,lenMult:1.0,tags:['bilateral']},
   'jm press':{p:['Tríceps'],s:[],ax:0.08,ecc:1.2,sys:0.28,kn:0.0,lb:0.1,sfr:0.86,hl:36,pat:'isolation',stimQ:0.88,lenMult:1.15,tags:['isolation','stretch-mediated']},
+  'press jm':{p:['Tríceps'],s:[],ax:0.08,ecc:1.2,sys:0.28,kn:0.0,lb:0.1,sfr:0.86,hl:36,pat:'isolation',stimQ:0.88,lenMult:1.15,tags:['isolation','stretch-mediated']}, // 6.3.3 alias: Hevy lo nombra "Press JM (Barra)" (orden invertido vs 'jm press'). Mismos priors. Captura, no fórmula.
   'elevacion lateral':{p:['Deltoides'],s:[],ax:0.02,ecc:0.85,sys:0.22,kn:0.0,lb:0.02,sfr:0.90,hl:26,pat:'isolation',stimQ:0.85,lenMult:1.00,tags:['isolation','side-delt']},
   'elevacion frontal':{p:['Deltoides'],s:[],ax:0.05,ecc:0.85,sys:0.25,kn:0.0,lb:0.05,sfr:0.82,hl:28,pat:'isolation',stimQ:0.78,lenMult:1.00,tags:['isolation','front-delt']},
   'empuje de cadera':{p:['Glúteo'],s:['Isquiotibiales'],ax:0.2,ecc:0.85,sys:0.55,kn:0.15,lb:0.25,sfr:0.95,hl:40,pat:'hip-ext',stimQ:0.90,lenMult:1.00,tags:['bilateral','high-sfr','glute']},
@@ -910,6 +911,7 @@ const EXERCISE_INTELLIGENCE = {
   'jalon':               {p:['Dorsal'],s:['Bíceps'],ax:0.12,ecc:1.1,sys:0.52,kn:0.0,lb:0.18,sfr:0.90,hl:44,pat:'pull-v',stimQ:0.88,lenMult:1.12,tags:['bilateral','stretch-mediated']},
   'dominadas':           {p:['Dorsal'],s:['Bíceps'],ax:0.1,ecc:1.15,sys:0.6,kn:0.0,lb:0.2,sfr:0.90,hl:46,pat:'pull-v',stimQ:0.90,lenMult:1.08,tags:['bodyweight','compound','stretch-mediated']},
   'pullover':            {p:['Dorsal'],s:['Pectoral'],ax:0.12,ecc:1.2,sys:0.42,kn:0.0,lb:0.18,sfr:0.92,hl:42,pat:'pull-v',stimQ:0.90,lenMult:1.15,tags:['stretch-mediated']},
+  'pull over':           {p:['Dorsal'],s:['Pectoral'],ax:0.12,ecc:1.2,sys:0.42,kn:0.0,lb:0.18,sfr:0.92,hl:42,pat:'pull-v',stimQ:0.90,lenMult:1.15,tags:['stretch-mediated']}, // 6.3.3 alias: Hevy lo nombra "Pull Over" (con espacio) → no casaba con 'pullover'. Mismos priors. Captura, no fórmula.
   'remo':                {p:['Dorsal'],s:['Bíceps'],ax:0.32,ecc:1.05,sys:0.58,kn:0.0,lb:0.38,sfr:0.86,hl:46,pat:'pull-h',stimQ:0.88,lenMult:1.05,tags:['bilateral','compound']},
   'row':                 {p:['Dorsal'],s:['Bíceps'],ax:0.32,ecc:1.05,sys:0.58,kn:0.0,lb:0.38,sfr:0.86,hl:46,pat:'pull-h',stimQ:0.88,lenMult:1.05,tags:['bilateral']},
   'face pull':           {p:['Deltoides'],s:[],ax:0.02,ecc:0.8,sys:0.2,kn:0.0,lb:0.02,sfr:0.96,hl:24,pat:'pull-h',stimQ:0.78,lenMult:1.00,tags:['rehab','rear-delt','low-sys']},
@@ -2192,19 +2194,19 @@ function ProgressionEngine(workouts, hevyRecent, muscleFatigue, fatigue, metrics
 // 2. Expected variability bands — mismatch only fires when deviation > normal noise
 // 3. Conservative adaptation — 4+ consistent signals required, human reviews before applying
 //
-// Schema v2:
-// { schemaVersion, timestamp, date, type,
+// Schema v3 (6.3.3 — solo añade metadatos de captura, retrocompatible con v2):
+// { schemaVersion, timestamp, date, type, predictionTiming,
 //   raw: {hrv, rhr, sleep, sleepScore, bb, steps, kcal, protein},
 //   derived: {autonomic, mechanical, systemic, cardioScore, upperScore, lowerScore},
 //   prediction: {readiness, activeRules, muscleFatigue, progressionTypes},
-//   outcome: {actualRPE, actualsRPE, kneePost, mismatch, e1rmDeltas},
+//   outcome: {strong:{byExercise...}, e1rmDeltas, weak, actualRPE, kneePost, mismatchSignal},
 //   confidence: {hrv, sleep, strength, overall},
-//   context: {session, density, notes}
-// }
+//   context: {session, decayFlags} }
+// predictionTiming ∈ {pre_session, post_session, null}: §8 anti-leakage. v2 lo trae como undefined → tratar como desconocido.
 
-const RVL_SCHEMA_VERSION = 2;
+const RVL_SCHEMA_VERSION = 3; // 6.3.3: +predictionTiming. Lectura retrocompatible (getValidationSnapshots filtra solo por timestamp).
 const VALIDATION_FREEZE_NO_AUTOCAL = true; // 6.3.1: autocalibracion del AdaptationEngine desactivada durante la validacion
-const ENGINE_VERSION = '6.3.2-freeze'; // Frozen: no formula changes until validation complete
+const ENGINE_VERSION = '6.3.3-freeze'; // Frozen: no formula changes until validation complete. 6.3.3 = SOLO captura/persistencia (A1 export único, A2 _exDetail crudo por serie, A4 predictionTiming, + alias recon. Hevy: 'pull over'/'press jm'). Ninguna fórmula/constante fisiológica modificada → formula-equivalente a 6.3.2/6.3.1/6.3.0 (ver enmienda protocolo).
 
 /* ═══════════════════════════════════════════════════════════════════════════
    PLAN POST-FREEZE — NO IMPLEMENTAR HASTA 6-8 SEMANAS DE DATOS LIMPIOS
@@ -2233,7 +2235,10 @@ const ENGINE_VERSION = '6.3.2-freeze'; // Frozen: no formula changes until valid
      - volumeLoad
      - fatiga local
    Materia prima YA disponible en S.logs: _ts, _engineVer, muscleSets,
-   _exNames, srpe, exHistory, exTrends. No falta capturar nada.
+   _exNames, srpe y — desde 6.3.3 — _exDetail (kg/reps/rpe CRUDOS por serie y
+   ejercicio). CORRECCIÓN 6.3.3: las versiones previas afirmaban aquí que
+   exHistory/exTrends estaban en los logs; NO lo estaban (eran runtime-only y NO
+   se serializaban). La materia prima por-ejercicio del §7 vive ahora en _exDetail.
 
    Salida esperada (ejemplo Glúteo):
      Sem | Series | avgRIR | e1RM | Fatiga
@@ -2377,12 +2382,25 @@ function buildSnapshot(type, data){
   const sourcesConnected = [S.int.ok, !!(S.hevy?.key), !!(S.claude?.key)].filter(Boolean).length;
   dataQuality.sources = sourcesConnected === 3 ? 'complete' : sourcesConnected === 2 ? 'partial' : 'minimal';
 
+  // ── 6.3.3 (A4): pre/post-session timing del par (§8 del protocolo) ──
+  // Una predicción solo es predictor LIMPIO si se capturó ANTES de entrenar. Si ya existe
+  // un log de fuerza de HOY cuando se construye la predicción, está contaminada por la sesión
+  // y se marca 'post_session' para analizarla aparte (o descartarla). Metadato de captura, sin fórmula.
+  var _predTiming = null;
+  if(type === 'prediction'){
+    var _t = new Date();
+    var _todayDMY = String(_t.getDate()).padStart(2,'0')+'/'+String(_t.getMonth()+1).padStart(2,'0')+'/'+_t.getFullYear();
+    var _strengthLoggedToday = safeArr(S.logs).some(function(l){ return l && !l._cardio && l.date === _todayDMY; });
+    _predTiming = _strengthLoggedToday ? 'post_session' : 'pre_session';
+  }
+
   return {
     schemaVersion: RVL_SCHEMA_VERSION,
     engineVersion: ENGINE_VERSION,
     timestamp: Date.now(),
     date: new Date().toISOString().split('T')[0],
     type,
+    predictionTiming: _predTiming, // 6.3.3 (A4): 'pre_session' | 'post_session' | null(outcome)
     dataQuality,
     raw: {
       hrv: m.hrv, rhr: m.restingHR, sleep: m.sleep ? safeNum(m.sleep) : null,
@@ -4135,17 +4153,11 @@ function importAllData(){
   inp.click();
 }
 
-function exportAllData(){
-  try{
-    var payload={exported:new Date().toISOString(),version:'ATLAS v6.0 Validation',profile:'Carlos',metrics:S.metrics||{},logs:S.logs||[],weeklyVol:S.weeklyVol||{},currentMeso:S.currentMeso||1,
-      weeklySnapshots:(function(){try{return JSON.parse(localStorage.getItem('atlas_weekly_v1')||'[]');}catch(e){return [];}})(),
-      rvlSnapshots:(function(){try{return JSON.parse(localStorage.getItem('atlas_rvl_v1')||'[]');}catch(e){return [];}})()};
-    var blob=new Blob([JSON.stringify(payload,null,2)],{type:'application/json'});
-    var url=URL.createObjectURL(blob);var a=document.createElement('a');a.href=url;a.download='atlas_export_'+new Date().toISOString().split('T')[0]+'.json';document.body.appendChild(a);a.click();document.body.removeChild(a);
-    setTimeout(function(){URL.revokeObjectURL(url);},100);
-    toast('Datos exportados',payload.logs.length+' logs · '+payload.weeklySnapshots.length+' semanas','✅');
-  }catch(e){toast('Error',e.message,'⚠️');}
-}
+// 6.3.3: exportAllData duplicada ELIMINADA. Antes existían dos definiciones con el
+// mismo nombre; en JS la segunda pisaba a la primera, así que la que corría NO guardaba
+// las API keys, NO actualizaba atlas_last_export y NO cerraba el banner de backup, y
+// generaba 'atlas_export_*.json' en vez del 'atlas_backup_*.json' que cita el protocolo.
+// Ahora hay una única función (la completa, arriba) que produce atlas_backup_*.json.
 function showDebug(){const el=safeDOM('debugPanel'),c=safeDOM('debugContent');if(!el||!c)return;el.style.display='block';c.textContent=JSON.stringify({raw_wellness:S._rawWellness,hrv_engine:S._hrv,fatigue:{...S._fatigue,signals:Object.fromEntries(Object.entries(S._fatigue?.signals||{}).slice(0,8))},muscle_fatigue:S._muscleFatigue,interference:S._interference,mav:S._mav?{global:S._mav.global,reasons:S._mav.reasons}:null,recs:S._recs?.actions?.map(a=>a.id),hevy_recent:S._hevyRecent?.map(s=>({name:s.name,muscles:s.muscles,hasUpper:s.hasUpper,hasLower:s.hasLower,muscleSets:s.muscleSets,sRPE:s.sRPE,rpe:s.rpe}))},null,2);}
 
 // ══ WEEK UTILITIES ══
@@ -5772,6 +5784,18 @@ function autoLogHevySessions(){
       garminRPE:hs.rpe||null,
       muscleSets:hs.muscleSets||null,
       _exNames:(hs.exercises||[]).map(function(ex){return {name:ex.title||'',sets:(ex.sets||[]).filter(function(s){return safeInt((s&&s.reps)||0)>0;}).length};}).filter(function(e){return e.name&&e.sets>0;}),
+      // 6.3.3 (A2): MATERIA PRIMA cruda por ejercicio/serie para el detrend offline (§7 del protocolo).
+      // Solo observables BRUTOS (kg, reps, rpe). NADA cocinado: ni e1RM, ni avgRIR, ni topSet —
+      // el script offline los re-deriva con datos pasados (leave-future-out). No toca ninguna fórmula.
+      _exDetail:(hs.exercises||[]).map(function(ex){
+        var _sets=(ex.sets||[]).filter(function(s){return safeInt((s&&s.reps)||0)>0;}).map(function(s){
+          var _kg=safeNum((s&&(s.weight_kg!=null?s.weight_kg:s.weight))||0);
+          var _reps=safeInt((s&&s.reps)||0);
+          var _rpe=safeNum((s&&(s.rpe!=null?s.rpe:s.rpe_rating))||0);
+          return {kg:(_kg>0?_kg:null), reps:_reps, rpe:(_rpe>0?_rpe:null)};
+        });
+        return {name:ex.title||ex.exercise_template_title||ex.name||'', sets:_sets};
+      }).filter(function(e){return e.name&&e.sets.length>0;}),
       effectiveSets:Object.keys(sessEff).length?sessEff:null,
       muscleFatigue:Object.keys(sessMF).length?sessMF:null,
       hrv:S.metrics.hrv||null,sleep:S.metrics.sleep||null,
