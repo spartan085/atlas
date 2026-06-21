@@ -569,6 +569,8 @@ textarea.field{resize:vertical;min-height:60px;}
         <button class="btn btn-g btn-full btn-sm" style="margin-top:8px;" onclick="exportAllData()">📤 Exportar backup (JSON)</button>
         <button class="btn btn-g btn-full btn-sm" style="margin-top:8px;" onclick="importAllData()">📥 Importar backup (JSON)</button>
         <button class="btn btn-g btn-full btn-sm" style="margin-top:8px;" onclick="runCleanDuplicates()">🧹 Limpiar sesiones duplicadas</button>
+        <button class="btn btn-g btn-full btn-sm" style="margin-top:8px;border-color:var(--c);color:var(--c);" onclick="toggleKneeTracker()">🦵 Seguimiento de rodilla (24h/48h)</button>
+        <div id="kneeTrackerPanel" style="display:none;margin-top:10px;"></div>
         <button class="btn btn-g btn-full btn-sm" style="margin-top:8px;" onclick="openBodyComp()">📊 Observatorio de composición corporal</button>
         <div id="bodyCompPanel" style="display:none;margin-top:10px;"></div>
         <button class="btn btn-g btn-full btn-sm" style="margin-top:8px;" onclick="showAssignmentDebug()">🔬 Diagnóstico: asignación de sesiones</button>
@@ -729,13 +731,15 @@ function save(){
     })
     .slice(-1000);
 
-  // Prune RVL snapshots in localStorage
+  // Prune RVL snapshots in localStorage (6.3.4: coherente con RVL_MAX_SNAPSHOTS, no 90.
+  // Hoy es no-op porque el RVL se guarda como array plano, no {snapshots:[]}; se mantiene
+  // por si una versión futura cambia la forma, para que NO vuelva a capar a 90 en silencio.)
   try{
     var rvlRaw=localStorage.getItem('atlas_rvl_v1');
     if(rvlRaw){
       var rvl=JSON.parse(rvlRaw);
-      if(rvl&&rvl.snapshots&&rvl.snapshots.length>90){
-        rvl.snapshots=rvl.snapshots.slice(-90);
+      if(rvl&&rvl.snapshots&&rvl.snapshots.length>RVL_MAX_SNAPSHOTS){
+        rvl.snapshots=rvl.snapshots.slice(-RVL_MAX_SNAPSHOTS);
         localStorage.setItem('atlas_rvl_v1',JSON.stringify(rvl));
       }
     }
@@ -2206,7 +2210,7 @@ function ProgressionEngine(workouts, hevyRecent, muscleFatigue, fatigue, metrics
 
 const RVL_SCHEMA_VERSION = 3; // 6.3.3: +predictionTiming. Lectura retrocompatible (getValidationSnapshots filtra solo por timestamp).
 const VALIDATION_FREEZE_NO_AUTOCAL = true; // 6.3.1: autocalibracion del AdaptationEngine desactivada durante la validacion
-const ENGINE_VERSION = '6.3.3-freeze'; // Frozen: no formula changes until validation complete. 6.3.3 = SOLO captura/persistencia (A1 export único, A2 _exDetail crudo por serie, A4 predictionTiming, + alias recon. Hevy: 'pull over'/'press jm'). Ninguna fórmula/constante fisiológica modificada → formula-equivalente a 6.3.2/6.3.1/6.3.0 (ver enmienda protocolo).
+const ENGINE_VERSION = '6.3.4-freeze'; // Frozen: no formula changes until validation complete. 6.3.4 = SOLO captura/persistencia/UI: dedup de outcomes (simétrico a predicciones), export SIN claves API + import que no pisa keys vivas, captura de rodilla 24h/48h (Nivel A), degradación visual de paneles no-validados (SFR/MAV/calidad) a "experimental" (§11), panel de madurez §3, tope RVL 90→600. Ninguna fórmula/constante fisiológica modificada → formula-equivalente a 6.3.3/6.3.2/6.3.1/6.3.0 (ver enmienda protocolo).
 
 /* ═══════════════════════════════════════════════════════════════════════════
    PLAN POST-FREEZE — NO IMPLEMENTAR HASTA 6-8 SEMANAS DE DATOS LIMPIOS
@@ -2332,6 +2336,25 @@ const ENGINE_VERSION = '6.3.3-freeze'; // Frozen: no formula changes until valid
    El siguiente gran avance NO es programar: son las semanas de datos.
    ═══════════════════════════════════════════════════════════════════════════ */
 const RVL_STORAGE_KEY = 'atlas_rvl_v1';
+// 6.3.4: el tope de 90 podia tragarse el inicio del periodo en un estudio de 8 semanas
+// (1 prediccion/dia + outcomes > 90). El RVL es pequeno; subimos el tope para preservar
+// el split-half sobre el periodo COMPLETO (protocolo §8). Captura/persistencia, sin formula.
+const RVL_MAX_SNAPSHOTS = 600;
+// 6.3.4: firma de contenido de un outcome, para deduplicar resultados RE-capturados por
+// sincronizaciones repetidas el mismo dia (verificado en backups: hasta 7 copias identicas/dia).
+// NO colapsa por fecha sola: una doble sesion AM/PM legitima tiene firma distinta y se conserva.
+function outcomeSignature(snap){
+  try{
+    var o = snap && snap.outcome; if(!o) return 'none';
+    var sess = (snap.context && snap.context.session) || '';
+    var byx = (o.strong && o.strong.byExercise) || {};
+    var sig = Object.keys(byx).sort().map(function(k){
+      var b = byx[k] || {};
+      return k+':'+(b.topSet!=null?b.topSet:'')+'x'+(b.lastKg!=null?b.lastKg:'')+'@'+(b.lastReps!=null?b.lastReps:'');
+    }).join('|');
+    return sess+'#'+sig+'#'+(o.actualRPE!=null?o.actualRPE:'')+'#'+(o.actualsRPE!=null?o.actualsRPE:'');
+  }catch(e){ return 'sig_'+(snap&&snap.timestamp||Math.random()); }
+}
 
 // ── Expected Variability Bands ──
 // Human performance variability — what NOT to treat as signal
@@ -2481,14 +2504,24 @@ function saveValidationSnapshot(type, data){
         if(_prevBlank && _nowData){
           var _cleaned = snapshots.filter(function(s){return !(s.type==='prediction' && s.date===_pdk);});
           _cleaned.push(snap);
-          localStorage.setItem(RVL_STORAGE_KEY, JSON.stringify(_cleaned.slice(-90)));
+          localStorage.setItem(RVL_STORAGE_KEY, JSON.stringify(_cleaned.slice(-RVL_MAX_SNAPSHOTS)));
         }
         return; // 1 prediccion/dia: no duplicar
       }
     }
+    if(type==='outcome'){
+      // 6.3.4 — dedup de outcomes (simetrico a predicciones). Cada sync que re-corria los
+      // motores re-escribia el MISMO resultado, inflando ~3x los pares predicción↔outcome y
+      // rompiendo OOS/split-half offline. Si ya existe un outcome con identica firma de contenido
+      // ESE MISMO DIA, no se vuelve a guardar. Captura/persistencia, ninguna formula tocada.
+      var _osig = outcomeSignature(snap);
+      var _dupe = snapshots.some(function(s){
+        return s.type==='outcome' && s.date===snap.date && outcomeSignature(s)===_osig;
+      });
+      if(_dupe) return; // resultado ya capturado hoy
+    }
     snapshots.push(snap);
-    // Keep last 90 snapshots
-    localStorage.setItem(RVL_STORAGE_KEY, JSON.stringify(snapshots.slice(-90)));
+    localStorage.setItem(RVL_STORAGE_KEY, JSON.stringify(snapshots.slice(-RVL_MAX_SNAPSHOTS)));
   }catch(e){}
 }
 
@@ -3176,6 +3209,43 @@ function renderValidationPanel(){
   el.innerHTML=html;
 }
 
+// ══ 6.3.4 — MOTOR DE MADUREZ DE EVIDENCIA ══
+// Traduce la COMPUERTA DURA §3 a estado leíble. NO concluye nada: la app no puede correr
+// el nulo + OOS + split-half (§13) — eso es offline. Su único trabajo es impedir que un
+// indicador de captura se lea como evidencia, y mostrar cuántas semanas faltan.
+function EvidenceMaturityEngine(){
+  var snaps=getValidationSnapshots();
+  var preds=snaps.filter(function(s){return s.type==='prediction';});
+  var outs=snaps.filter(function(s){return s.type==='outcome';});
+  var seen={}, uniqOut=0, outDays={};
+  outs.forEach(function(s){
+    var k=(s.date||'')+'§'+outcomeSignature(s);
+    if(!seen[k]){seen[k]=1;uniqOut++;}
+    if(s.date)outDays[s.date]=1;
+  });
+  var allDates=snaps.map(function(s){return s.date;}).filter(Boolean).sort();
+  var spanDays=0, weeks=0;
+  if(allDates.length>=2){
+    var d0=new Date(allDates[0]).getTime(), d1=new Date(allDates[allDates.length-1]).getTime();
+    if(isFinite(d0)&&isFinite(d1)){ spanDays=Math.round((d1-d0)/864e5); weeks=Math.max(0,Math.round(spanDays/7*10)/10); }
+  }
+  var strengthLogs=safeArr(S.logs).filter(function(l){return l && !l._cardio && (l._exDetail||l.muscleSets);});
+  var totSets=0, rpeSets=0;
+  strengthLogs.forEach(function(l){ safeArr(l._exDetail).forEach(function(e){ safeArr(e.sets).forEach(function(st){ totSets++; if(st&&st.rpe!=null)rpeSets++; }); }); });
+  var rpeCov=totSets?Math.round(rpeSets/totSets*100):null;
+  var wk=0; try{wk=(JSON.parse(localStorage.getItem('atlas_weekly_v1')||'[]')||[]).length;}catch(e){}
+  var vers={}; snaps.forEach(function(s){if(s.engineVersion)vers[s.engineVersion]=1;});
+  var verList=Object.keys(vers);
+  var WEEKS_TARGET=6;
+  var gatePass = weeks>=WEEKS_TARGET && rpeCov!=null && rpeCov>=80 && uniqOut>=1 && wk>=WEEKS_TARGET;
+  return {
+    weeks:weeks, weeksTarget:WEEKS_TARGET, spanDays:spanDays,
+    uniqueOutcomes:uniqOut, rawOutcomes:outs.length, outcomeDays:Object.keys(outDays).length,
+    predictions:preds.length, strengthSessions:strengthLogs.length, weeklySnapshots:wk,
+    rpeCoverage:rpeCov, engineVersions:verList, gatePass:gatePass
+  };
+}
+
 function renderValidationDashboard(){
   const el=safeDOM('validationDashboard');
   const vEl=safeDOM('vd-version');
@@ -3197,7 +3267,7 @@ function renderValidationDashboard(){
   // ── Section 2: Data quality distribution ──
   const recentSnaps=snapshots.filter(s=>Date.now()-s.timestamp<30*864e5);
   const freshCount=recentSnaps.filter(s=>s.dataQuality?.hrv==='fresh').length;
-  const staleCount=recentSnaps.filter(s=>s.dataQuality?.hrv==='stale_data').length;
+  const staleCount=recentSnaps.filter(s=>s.dataQuality?.hrv==='stale').length; // 6.3.4 fix: buildSnapshot escribe 'stale', no 'stale_data'
   const noDataCount=recentSnaps.filter(s=>s.dataQuality?.hrv==='no_data').length;
   const contradictCount=recentSnaps.filter(s=>s.dataQuality?.contradiction&&s.dataQuality.contradiction!=='none').length;
 
@@ -3236,7 +3306,26 @@ function renderValidationDashboard(){
       ${rows.join('')}
     </div>`;
 
-  el.innerHTML=section('Snapshots',[ 
+  // ── Section 0 (6.3.4): ESTADO DE EVIDENCIA — compuerta dura §3 + madurez ──
+  const mat=EvidenceMaturityEngine();
+  const gateColor=mat.gatePass?'var(--g)':'var(--y)';
+  const gateVerdict=mat.gatePass
+    ? 'Compuerta §3 superada → el export es admisible para el análisis offline'
+    : 'Datos NO analizables aún — compuerta §3 no superada';
+  const maturityHtml=`
+    <div style="border:1px solid ${gateColor};border-radius:10px;padding:11px;margin-bottom:14px;background:rgba(255,255,255,0.02);">
+      <div style="font-family:'Geist Mono',monospace;font-size:9px;letter-spacing:2px;color:${gateColor};text-transform:uppercase;margin-bottom:6px;">Estado de evidencia · §3</div>
+      <div style="font-size:12px;color:var(--fg);line-height:1.4;margin-bottom:8px;">${mat.gatePass?'✅':'⏳'} ${gateVerdict}</div>
+      ${row('Duración del bloque',`${mat.weeks}/${mat.weeksTarget} sem`,mat.weeks>=mat.weeksTarget?'ok':'warn')}
+      ${row('Sesiones de fuerza limpias',`${mat.strengthSessions}`,mat.strengthSessions>=12?'ok':'warn')}
+      ${row('Outcomes únicos / brutos',`${mat.uniqueOutcomes} / ${mat.rawOutcomes}`,mat.rawOutcomes>mat.uniqueOutcomes?'warn':'ok')}
+      ${row('Snapshots semanales',`${mat.weeklySnapshots}`,mat.weeklySnapshots>=mat.weeksTarget?'ok':'warn')}
+      ${row('Cobertura RPE / serie',mat.rpeCoverage!=null?`${mat.rpeCoverage}%`:'—',mat.rpeCoverage!=null&&mat.rpeCoverage>=80?'ok':'warn')}
+      ${row('Versiones de motor en datos',mat.engineVersions.join(', ')||'—',mat.engineVersions.length<=1?'ok':'warn')}
+      <div style="font-size:9px;color:var(--fg4);margin-top:8px;line-height:1.45;">Estos números son <b style="color:var(--fg3);">captura, no evidencia</b>. Ninguna hipótesis (H1-H7) se valida dentro de la app: requiere modelo nulo + fuera-de-muestra + split-half, que corren <b style="color:var(--fg3);">offline</b> sobre el export (§2, §13). Hasta ≥${mat.weeksTarget} semanas el veredicto honesto es "insuficiente", nunca "débil a favor" (§11).</div>
+    </div>`;
+
+  el.innerHTML=maturityHtml+section('Snapshots',[ 
     row('Total snapshots',total,total>10?'ok':total>4?'warn':'bad'),
     row('Predicciones / Resultados',`${preds} / ${outcomes}`,outcomes>3?'ok':outcomes>0?'warn':'bad'),
     row('Schema v2',`${v2snaps}/${total}`,v2snaps===total?'ok':'warn'),
@@ -4021,7 +4110,8 @@ function showValidation(){
 
   // Validation scoring
   html+='<div style="padding:10px;background:var(--bg3);border-radius:8px;margin-bottom:8px;">';
-  html+='<div style="font-size:11px;color:var(--fg3);font-family:monospace;margin-bottom:6px;">CALIDAD DE PREDICCIÓN</div>';
+  html+='<div style="font-size:11px;color:var(--fg3);font-family:monospace;margin-bottom:2px;">CALIDAD DE PREDICCIÓN <span style="color:var(--o);">⚗ EXPERIMENTAL</span></div>';
+  html+='<div style="font-size:9px;color:var(--fg4);margin-bottom:6px;line-height:1.4;">Indicador, no evidencia. Basado en RPE (outcome débil/auxiliar §4.4) y en texto de la recomendación, sin modelo nulo ni OOS. La validación real es offline (§2).</div>';
   if(scoring.available){
     html+='<div style="font-size:12px;color:var(--fg2);">Acertadas: <span style="color:var(--g);">'+scoring.accurateRate+'%</span></div>';
     html+='<div style="font-size:11px;color:var(--fg3);margin-top:3px;">Sobreprotectoras: '+scoring.overprotectiveRate+'% · Fatiga no detectada: '+scoring.missedRate+'%</div>';
@@ -4041,7 +4131,8 @@ function showValidation(){
   // P2: Exercise Response — profitability classification
   var exResp=ExerciseResponseEngine();
   html+='<div style="padding:10px;background:var(--bg3);border-radius:8px;margin-top:8px;">';
-  html+='<div style="font-size:11px;color:var(--fg3);font-family:monospace;margin-bottom:6px;">RENTABILIDAD POR EJERCICIO</div>';
+  html+='<div style="font-size:11px;color:var(--fg3);font-family:monospace;margin-bottom:2px;">RENTABILIDAD POR EJERCICIO <span style="color:var(--o);">⚗ EXPERIMENTAL</span></div>';
+  html+='<div style="font-size:9px;color:var(--fg4);margin-bottom:6px;line-height:1.4;">No validado. Es un prior tipo SFR sin detrend ni nulo; confundido por readaptación (§7). Direccional, no conclusión. Requiere bloques A/B (§H7).</div>';
   if(exResp.available){
     exResp.exercises.forEach(function(e){
       html+='<div style="display:flex;justify-content:space-between;font-size:11px;padding:2px 0;"><span style="color:var(--fg2);">'+e.name.slice(0,24)+'</span><span style="color:'+e.col+';">'+e.label+' ('+(e.gain>=0?'+':'')+e.gain+'%)</span></div>';
@@ -4052,7 +4143,8 @@ function showValidation(){
   // P1: Observed MAV/MRV
   var obsMAV=ObservedMAVEngine();
   html+='<div style="padding:10px;background:var(--bg3);border-radius:8px;margin-top:8px;">';
-  html+='<div style="font-size:11px;color:var(--fg3);font-family:monospace;margin-bottom:6px;">MAV/MRV OBSERVADO (TU CUERPO)</div>';
+  html+='<div style="font-size:11px;color:var(--fg3);font-family:monospace;margin-bottom:2px;">MAV/MRV OBSERVADO <span style="color:var(--o);">⚗ EXPERIMENTAL</span></div>';
+  html+='<div style="font-size:9px;color:var(--fg4);margin-bottom:6px;line-height:1.4;">Datos insuficientes para validar. MAV/MRV es Fase-3 (8-12 sem, §12) y aquí va sin descontar la curva de readaptación. Estimación, no tu límite real.</div>';
   if(obsMAV.available){
     var anyM=false;
     Object.keys(obsMAV.muscles).forEach(function(m){
@@ -4087,15 +4179,19 @@ function exportAllData(){
   try{
     var payload={
       exported:new Date().toISOString(),
-      version:'ATLAS v6.0 Validation',
+      version:'ATLAS '+ENGINE_VERSION,
       profile:'Carlos',
       metrics:S.metrics||{},
       logs:S.logs||[],
       weeklyVol:S.weeklyVol||{},
       currentMeso:S.currentMeso||1,
-      int:S.int||null,
-      hevyKey:S.hevyKey||(S.hevy&&S.hevy.key)||null,
-      claudeKey:S.claudeKey||null,
+      // 6.3.4 SEGURIDAD: el backup ya NO contiene claves API. Antes incrustaba la key de Hevy
+      // e intervals.icu en texto plano y la app pedia "Guardalo en iCloud" → fuga de credenciales.
+      // Se conserva solo el athlete-id (identifica al sujeto del analisis, no es un secreto).
+      // Tras importar en un dispositivo nuevo, re-introduce las keys en Datos.
+      int:S.int?{aid:S.int.aid||'',key:null,ok:false}:null,
+      hevyKey:null,
+      claudeKey:null,
       weeklySnapshots:(function(){try{return JSON.parse(localStorage.getItem('atlas_weekly_v1')||'[]');}catch(e){return [];}})(),
       rvlSnapshots:(function(){try{return JSON.parse(localStorage.getItem('atlas_rvl_v1')||'[]');}catch(e){return [];}})()
     };
@@ -4108,7 +4204,7 @@ function exportAllData(){
     a.click();
     document.body.removeChild(a);
     setTimeout(function(){URL.revokeObjectURL(url);},100);
-    try{localStorage.setItem('atlas_last_export',String(Date.now()));}catch(e){}var _br=safeDOM('backupReminder');if(_br)_br.style.display='none';toast('Backup exportado',payload.logs.length+' logs · '+payload.weeklySnapshots.length+' sem · Guárdalo en iCloud','✅');
+    try{localStorage.setItem('atlas_last_export',String(Date.now()));}catch(e){}var _br=safeDOM('backupReminder');if(_br)_br.style.display='none';toast('Backup exportado',payload.logs.length+' logs · '+payload.weeklySnapshots.length+' sem · sin claves, seguro en iCloud','✅');
   }catch(e){
     toast('Error exportando',e.message,'⚠️');
   }
@@ -4132,8 +4228,9 @@ function importAllData(){
         // Restore weekly volume + meso
         if(data.weeklyVol)S.weeklyVol=data.weeklyVol;
         if(data.currentMeso)S.currentMeso=data.currentMeso;
-        // Restore API keys
-        if(data.int)S.int=data.int;
+        // Restore API keys — 6.3.4: el backup ya no trae claves. Si un backup antiguo SÍ las
+        // trae, se respetan; pero NUNCA se sobrescribe una key viva del dispositivo con un null.
+        if(data.int){ var _ek=(S.int&&S.int.key)||''; S.int=Object.assign({},S.int,data.int); if(!S.int.key&&_ek)S.int.key=_ek; }
         if(data.hevyKey){S.hevyKey=data.hevyKey;if(S.hevy)S.hevy.key=data.hevyKey;}
         if(data.claudeKey)S.claudeKey=data.claudeKey;
         // Restore localStorage snapshots
@@ -5804,6 +5901,11 @@ function autoLogHevySessions(){
       readiness:S._readiness?S._readiness.overall:null,
       fatigue:S._fatigue?Math.round(S._fatigue.systemic):null,
       knee:null, recFollow:null,
+      // 6.3.4 (Nivel A) — captura de tolerancia de rodilla (limitador mecanico dominante de Carlos).
+      // OUTCOME rezagado, NO input del dia: se mide DESPUES del estimulo. null = no registrado;
+      // {v:0,logged:true} = sin dolor real. El script offline une dosis (series dominantes + carrera)
+      // con dolor 24/48h. Observacion pura, freeze-legal (no toca ninguna formula).
+      kneeCapture:{intra:{v:null,logged:false},h24:{v:null,logged:false},h48:{v:null,logged:false}},
       atlasRec:S._decision?S._decision.recommendation:null
     });
     changed=true;
@@ -5819,7 +5921,18 @@ function autoLogHevySessions(){
     if(isNaN(aDate.getTime()))return;
     var ds=String(aDate.getDate()).padStart(2,'0')+'/'+String(aDate.getMonth()+1).padStart(2,'0')+'/'+aDate.getFullYear();
     var logId='int_'+(a.id||a.name||type)+'_'+ds;
-    var existing=S.logs.find(function(l){return l._intId===logId;});
+    // 6.3.4: dedup robusto. Si intervals devuelve la misma actividad con id distinto (o sin id),
+    // el match por _intId fallaba y se duplicaba (verificado: "Níjar Caminar" x2). Match secundario
+    // por fecha+nombre+duración. Infla interferencia/running-cost (relevante a H5).
+    var existing=S.logs.find(function(l){
+      if(l._intId===logId)return true;
+      if(l._cardio && l.date===ds){
+        var _nm=a.name||type;
+        var _dur=a.moving_time?Math.round(a.moving_time/60):(a.elapsed_time?Math.round(a.elapsed_time/60):null);
+        if((l.sess||'')===_nm && safeNum(l.dur)===safeNum(_dur))return true;
+      }
+      return false;
+    });
     if(existing)return;
     var durMin=a.moving_time?Math.round(a.moving_time/60):(a.elapsed_time?Math.round(a.elapsed_time/60):null);
     var rpe=safeNum(a.icu_rpe,0)||null;
@@ -5836,6 +5949,7 @@ function autoLogHevySessions(){
       deepSleepMin:S.metrics.deepSleep||null,remSleepMin:S.metrics.remSleep||null,qualitySleepPct:S.metrics.qualitySleepPct||null,
       readiness:S._readiness?S._readiness.overall:null,
       knee:null, recFollow:null,
+      kneeCapture:{intra:{v:null,logged:false},h24:{v:null,logged:false},h48:{v:null,logged:false}}, // 6.3.4 Nivel A (carrera = dosis mecanica de rodilla)
       atlasRec:S._decision?S._decision.recommendation:null
     });
     changed=true;
@@ -5893,14 +6007,89 @@ function cleanDuplicateHevyLogs(){
   }
   return 0;
 }
+// 6.3.4 — limpieza retroactiva de outcomes duplicados ya guardados en el RVL.
+// Conserva el PRIMER outcome de cada (fecha + firma de contenido) y descarta las re-capturas.
+// Las predicciones no se tocan (ya eran 1/dia). Devuelve cuantos outcomes se eliminaron.
+function cleanDuplicateOutcomes(){
+  try{
+    var snaps=getValidationSnapshots();
+    var seen={}; var out=[]; var removed=0;
+    snaps.forEach(function(s){
+      if(s.type!=='outcome'){ out.push(s); return; }
+      var key=s.date+'§'+outcomeSignature(s);
+      if(seen[key]){ removed++; return; }
+      seen[key]=true; out.push(s);
+    });
+    if(removed>0) localStorage.setItem(RVL_STORAGE_KEY, JSON.stringify(out.slice(-RVL_MAX_SNAPSHOTS)));
+    return removed;
+  }catch(e){ return 0; }
+}
 function runCleanDuplicates(){
   var n=cleanDuplicateHevyLogs();
-  if(n>0){
-    alert('Eliminados '+n+' registro(s) duplicado(s). Sincroniza o recarga para ver el microciclo actualizado.');
+  var no=cleanDuplicateOutcomes();
+  if(n>0||no>0){
+    alert('Eliminados '+n+' log(s) duplicado(s) y '+no+' outcome(s) de validación duplicado(s). Recargando…');
     try{location.reload();}catch(e){}
   } else {
-    alert('No se encontraron sesiones duplicadas.');
+    alert('No se encontraron duplicados (ni sesiones ni outcomes).');
   }
+}
+
+// ══ 6.3.4 — SEGUIMIENTO DE RODILLA (captura Nivel A, sin modelo) ══
+// Registra dolor intra-sesion / 24h / 48h por sesion. null != 0: "sin dolor" es un dato,
+// "no registrado" es ausencia. NO infiere capacidad (eso es Nivel C, espera a tener semanas).
+function setLogKnee(logKey, phase, value){
+  var l=safeArr(S.logs).find(function(x){return (x._hevyId||x._intId)===logKey;});
+  if(!l)return;
+  if(['intra','h24','h48'].indexOf(phase)<0)return;
+  if(!l.kneeCapture)l.kneeCapture={intra:{v:null,logged:false},h24:{v:null,logged:false},h48:{v:null,logged:false}};
+  var v=Math.max(0,Math.min(10,safeNum(value,0)));
+  l.kneeCapture[phase]={v:v,logged:true};
+  // peak legacy (campo 'knee') para no romper lecturas antiguas; no se usa para inferir nada
+  l.knee=Math.max(safeNum(l.knee,0),(l.kneeCapture.intra.v||0),(l.kneeCapture.h24.v||0),(l.kneeCapture.h48.v||0));
+  save();
+  if(typeof renderKneeTracker==='function')renderKneeTracker();
+  toast('Rodilla registrada',phase.replace('h','')+(phase==='intra'?'':'h')+' = '+v+'/10','🦵');
+}
+function renderKneeTracker(){
+  var el=safeDOM('kneeTrackerPanel'); if(!el) return;
+  var now=Date.now();
+  var logs=safeArr(S.logs).filter(function(l){
+    if(!(l._hevyId||l._intId))return false;
+    var d=parseDate(l.date); if(!d)return false;
+    var ageH=(now-d.getTime())/3600000;
+    var isRun=l._cardio && /run|trail|carrera|caminar|walk|correr/i.test((l.sess||'')+' '+(l.actType||''));
+    var isStrength=!l._cardio;
+    return ageH>=-2 && ageH<=120 && (isStrength||isRun);
+  }).sort(function(a,b){var da=parseDate(a.date),db=parseDate(b.date);return (db?db.getTime():0)-(da?da.getTime():0);});
+  if(!logs.length){ el.innerHTML='<div style="font-size:11px;color:var(--fg4);">Sin sesiones de fuerza/carrera en los últimos 5 días.</div>'; return; }
+  var scale=function(logKey,phase,cur){
+    var b='';
+    for(var n=0;n<=8;n++){
+      var on=(cur!=null&&cur===n);
+      var bg=on?(n>=3?'var(--r)':n>=1?'var(--y)':'var(--g)'):'var(--bg3)';
+      var fg=on?'#000':'var(--fg3)';
+      b+='<button onclick="setLogKnee(\''+logKey+'\',\''+phase+'\','+n+')" style="min-width:26px;flex:1;padding:5px 0;border-radius:6px;font-size:11px;border:1px solid var(--line);background:'+bg+';color:'+fg+';cursor:pointer;">'+n+'</button>';
+    }
+    return '<div style="display:flex;gap:3px;flex-wrap:wrap;margin-top:3px;">'+b+'</div>';
+  };
+  var fmt=function(o){return o&&o.logged?(o.v===0?'sin dolor':o.v+'/10'):'—';};
+  el.innerHTML='<div style="font-size:10px;color:var(--fg3);margin-bottom:8px;">0 = sin dolor · escala intra-sesión / 24h / 48h. Solo registra lo que sientas; vacío = no medido.</div>'+logs.map(function(l){
+    var lk=l._hevyId||l._intId; var kc=l.kneeCapture||{};
+    var d=parseDate(l.date); var ageH=d?(now-d.getTime())/3600000:0;
+    var show24=ageH>=18, show48=ageH>=42;
+    return '<div style="padding:9px;border:1px solid var(--line);border-radius:8px;margin-bottom:8px;background:var(--bg2);">'
+      +'<div style="font-size:11px;color:var(--fg);margin-bottom:6px;">'+(l._cardio?'🏃 ':'🏋️ ')+(l.sess||'Sesión')+' · '+l.date+'</div>'
+      +'<div style="font-size:10px;color:var(--fg2);">Intra-sesión · '+fmt(kc.intra)+'</div>'+scale(lk,'intra',(kc.intra||{}).v)
+      +(show24?'<div style="font-size:10px;color:var(--fg2);margin-top:8px;">24h · '+fmt(kc.h24)+'</div>'+scale(lk,'h24',(kc.h24||{}).v):'<div style="font-size:10px;color:var(--fg4);margin-top:8px;">24h — disponible mañana</div>')
+      +(show48?'<div style="font-size:10px;color:var(--fg2);margin-top:8px;">48h · '+fmt(kc.h48)+'</div>'+scale(lk,'h48',(kc.h48||{}).v):(show24?'<div style="font-size:10px;color:var(--fg4);margin-top:8px;">48h — disponible pasado mañana</div>':''))
+      +'</div>';
+  }).join('');
+}
+function toggleKneeTracker(){
+  var p=safeDOM('kneeTrackerPanel'); if(!p)return;
+  if(p.style.display==='none'||!p.style.display){ p.style.display='block'; renderKneeTracker(); }
+  else { p.style.display='none'; }
 }
 
 function removeSessionFromDay(targetDay){
