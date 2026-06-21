@@ -416,6 +416,12 @@ textarea.field{resize:vertical;min-height:60px;}
           <button class="week-btn" id="weekNextBtn" onclick="changeWeek(1)" style="opacity:0.3;">›</button>
         </div>
       </div>
+      <div style="display:flex;gap:5px;padding:8px 14px 0;align-items:center;">
+        <button id="vw-7"   class="vw-btn" onclick="setVolWindow('7')"   style="flex:1;padding:6px 0;border-radius:6px;font-size:11px;border:1px solid var(--line);background:var(--bg3);color:var(--fg3);cursor:pointer;">7 días</button>
+        <button id="vw-14"  class="vw-btn" onclick="setVolWindow('14')"  style="flex:1;padding:6px 0;border-radius:6px;font-size:11px;border:1px solid var(--line);background:var(--bg3);color:var(--fg3);cursor:pointer;">14 días</button>
+        <button id="vw-28"  class="vw-btn" onclick="setVolWindow('28')"  style="flex:1;padding:6px 0;border-radius:6px;font-size:11px;border:1px solid var(--line);background:var(--bg3);color:var(--fg3);cursor:pointer;">28 días</button>
+        <button id="vw-cal" class="vw-btn" onclick="setVolWindow('cal')" style="flex:1;padding:6px 0;border-radius:6px;font-size:11px;border:1px solid var(--line);background:var(--bg3);color:var(--fg3);cursor:pointer;">Semana</button>
+      </div>
       <div style="display:flex;gap:6px;flex-wrap:wrap;padding:6px 14px 0;align-items:center;">
         <span style="font-size:10px;color:var(--fg3);display:flex;align-items:center;gap:3px;"><span style="width:8px;height:2px;background:var(--b);display:inline-block;"></span>MEV</span>
         <span style="font-size:10px;color:var(--fg3);display:flex;align-items:center;gap:3px;"><span style="width:8px;height:2px;background:var(--r);display:inline-block;"></span>MRV efectivo</span>
@@ -691,7 +697,7 @@ const S = {
     fatPct:null,musclePct:null,waterPct:null,kcal:null,protein:null,carbs:null,fat:null,
     ctl:null,atl:null,tsb:null,hrv7:[],_nutDate:null,activities:[],weightHistory:[]},
   hevy:null, logs:[], weekDays:new Set(), weekStart:'',
-  weekOffset:0, logWeekOffset:0, weeklyVol:{},
+  weekOffset:0, logWeekOffset:0, weeklyVol:{}, volWindow:'7', // 6.3.5: ventana de visualización de series (7/14/28 días rolling, o 'cal' semana-calendario). Default 7d para Upper/Lower.
   mavRanges:{
     'Cuádriceps':    {mev:6, mav:10,mrv:16},
     'Isquiotibiales':{mev:7, mav:12,mrv:18},
@@ -753,6 +759,7 @@ function save(){
     weekDays:[...S.weekDays],
     weekStart:S.weekStart,
     weekOffset:S.weekOffset,
+    volWindow:S.volWindow,
     logWeekOffset:S.logWeekOffset,
     hevy:S.hevy?{key:S.hevy.key,totalWorkouts:S.hevy.totalWorkouts,workouts:S.hevy.workouts}:null,
     currentMeso:S.currentMeso||1,
@@ -789,6 +796,7 @@ function loadPersisted(){
       if(p.weekDays)S.weekDays=new Set(p.weekDays);
       if(p.weekStart)S.weekStart=p.weekStart;
       if(p.weekOffset!=null)S.weekOffset=p.weekOffset;
+      if(p.volWindow)S.volWindow=p.volWindow; // 6.3.5
       if(p.logWeekOffset!=null)S.logWeekOffset=p.logWeekOffset;
       if(p.hevy)S.hevy=p.hevy;
       if(p.currentMeso)S.currentMeso=p.currentMeso;
@@ -2210,7 +2218,7 @@ function ProgressionEngine(workouts, hevyRecent, muscleFatigue, fatigue, metrics
 
 const RVL_SCHEMA_VERSION = 3; // 6.3.3: +predictionTiming. Lectura retrocompatible (getValidationSnapshots filtra solo por timestamp).
 const VALIDATION_FREEZE_NO_AUTOCAL = true; // 6.3.1: autocalibracion del AdaptationEngine desactivada durante la validacion
-const ENGINE_VERSION = '6.3.4-freeze'; // Frozen: no formula changes until validation complete. 6.3.4 = SOLO captura/persistencia/UI: dedup de outcomes (simétrico a predicciones), export SIN claves API + import que no pisa keys vivas, captura de rodilla 24h/48h (Nivel A), degradación visual de paneles no-validados (SFR/MAV/calidad) a "experimental" (§11), panel de madurez §3, tope RVL 90→600. Ninguna fórmula/constante fisiológica modificada → formula-equivalente a 6.3.3/6.3.2/6.3.1/6.3.0 (ver enmienda protocolo).
+const ENGINE_VERSION = '6.3.5-freeze'; // Frozen: no formula changes. 6.3.5 = SOLO visualización + fix de persistencia: selector de ventana de series por músculo (7/14/28 días rolling — reagregación pura, umbrales semanales escalados ×nº-semanas para comparación honesta — o semana-calendario), y FIX de validateLog que descartaba campos no-core de los logs en cada carga (kneeCapture se perdía). Ninguna fórmula/constante fisiológica modificada → formula-equivalente a 6.3.4/6.3.3/6.3.0.
 
 /* ═══════════════════════════════════════════════════════════════════════════
    PLAN POST-FREEZE — NO IMPLEMENTAR HASTA 6-8 SEMANAS DE DATOS LIMPIOS
@@ -3606,16 +3614,21 @@ function renderMAV(){
   const container=safeDOM('mavBars');const multCard=safeDOM('mavMultCard');const multList=safeDOM('mavMultList');
   if(!container)return;
   const mav=S._mav;
-  const offset=S.weekOffset||0;
-  const vol=getWeeklyVolForOffset(offset);
-  updateWeekSelector();
-  var _bal=null;try{if(offset===0)_bal=getWeeklyBalance();}catch(e){}
+  const volWindow=String(S.volWindow||'7');
+  const isRolling=(volWindow!=='cal');
+  const offset=isRolling?0:(S.weekOffset||0);
+  const vol=isRolling?getRollingVolForDays(parseInt(volWindow,10)):getWeeklyVolForOffset(offset);
+  updateVolWindowUI();
+  if(isRolling){var _mt=safeDOM('mavBarsTitle');if(_mt)_mt.textContent='Volumen · últimos '+volWindow+' días';var _nt=safeDOM('mavWeekNote');if(_nt)_nt.textContent='objetivos ×'+(parseInt(volWindow,10)/7)+' (ventana de '+volWindow+'d)';}else{updateWeekSelector();}
+  var _bal=null;try{if(!isRolling&&offset===0)_bal=getWeeklyBalance();}catch(e){}
   var _oppMap=_bal?_bal.remainingOpp:{};
-  var _secCtxMav={};try{if(offset===0)_secCtxMav=getSecondaryStimulusContext();}catch(e){}
-  var _contribMav={};try{if(offset===0)_contribMav=getMuscleContributions();}catch(e){}
-  container.innerHTML=Object.entries(S.mavRanges).map(([muscle,{mev,mav:mavBase,mrv}])=>{
+  var _secCtxMav={};try{if(!isRolling&&offset===0)_secCtxMav=getSecondaryStimulusContext();}catch(e){}
+  var _contribMav={};try{if(!isRolling&&offset===0)_contribMav=getMuscleContributions();}catch(e){}
+  container.innerHTML=Object.entries(S.mavRanges).map(([muscle,_r])=>{
+    const _wk=isRolling?(parseInt(volWindow,10)/7):1; // 6.3.5: MEV/MAV/MRV son semanales → escala por nº de semanas de la ventana para comparar honestamente
+    const mev=Math.round(_r.mev*_wk), mavBase=Math.round(_r.mav*_wk), mrv=Math.round(_r.mrv*_wk);
     const current=vol[muscle]||0;
-    const eff=mav?.muscles[muscle];
+    const eff=isRolling?null:(mav?.muscles[muscle]); // techo dinámico de recuperación es concepto "de hoy": no aplica a ventana multi-semana
     const eMRV=eff?eff.effectiveMRV:mrv;
     const isReduced=eff?eff.isReduced:false;
     const maxD=Math.max(mrv,eMRV,current)+3;
@@ -3653,7 +3666,7 @@ function renderMAV(){
       }
     }
     return`<div class="mav-row"><div class="mav-header"><div class="mav-muscle">${muscle}${(function(){var f=plannedFrequency(muscle);return f>0?"<span style=\"font-size:9px;color:"+(f>=2?"var(--g)":"var(--y)")+";margin-left:5px;font-family:monospace;\">F"+f+"</span>":"";}())}</div><div class="mav-nums"><span style="color:${col};font-weight:600;">${current}s</span> · MEV${mev} MAV${mavBase} MRV<span style="color:${isReduced?'var(--y)':'inherit'}">${eMRV}</span></div></div><div class="mav-track"><div class="mav-mev" style="left:${mevPct}%"></div><div class="mav-fill" style="width:${fillPct}%;background:${col};"></div><div class="mav-mrv" style="left:${mrvPct}%"></div></div><div class="mav-zone" style="color:${col};">${zone}</div>${dyn}${(function(){
-      if(offset!==0)return'';
+      if(isRolling||offset!==0)return'';
       var deficit=mavBase-current;var opp=_oppMap[muscle]||0;
       if(deficit<=0)return'<div style="font-size:10px;color:var(--g);margin-top:2px;">Objetivo MAV '+mavBase+' completado ✓</div>';
       var oppTxt=opp===0?'<span style="color:var(--r);">Sin sesiones restantes esta semana</span>':opp===1?'<span style="color:var(--y);">1 sesión restante para sumar</span>':opp+' sesiones restantes';
@@ -4282,6 +4295,47 @@ function getWeeklyVolForOffset(offset){
   return vol;
 }
 function changeWeek(dir){S.weekOffset=(S.weekOffset||0)+dir;if(S.weekOffset>0)S.weekOffset=0;updateWeekSelector();renderMAV();renderWeekZones();}
+// 6.3.5 — series por músculo en ventana móvil (rolling N días). Reagregación pura de los
+// mismos logs: mismo criterio de conteo que el path de calendario (músculos primarios,
+// series efectivas con reps>0). NO infiere nada, no toca MAV/MRV/fatiga/correlaciones.
+function getRollingVolForDays(n){
+  const vol={};
+  if(!S.hevy||!S.hevy.workouts)return vol;
+  const now=Date.now();
+  const cutoff=now-(n*86400000);
+  S.hevy.workouts.forEach(function(w){
+    const t=new Date(w.start_time||w.created_at||0).getTime();
+    if(!isFinite(t)||t<cutoff||t>now)return;
+    (w.exercises||[]).forEach(function(ex){
+      const exData=getExDB(ex.title||ex.exercise_template_title||ex.name||'');
+      if(!exData)return;
+      const workingSets=(ex.sets||[]).filter(function(s){return safeInt(s.reps||0)>0;});
+      if(!workingSets.length)return;
+      exData.p.forEach(function(m){vol[m]=(vol[m]||0)+workingSets.length;});
+    });
+  });
+  return vol;
+}
+function setVolWindow(w){
+  S.volWindow=w;
+  if(w!=='cal')S.weekOffset=0; // ventana rolling implica "ahora"
+  save();
+  updateVolWindowUI();
+  renderMAV();
+}
+function updateVolWindowUI(){
+  var w=String(S.volWindow||'7');
+  ['7','14','28','cal'].forEach(function(k){
+    var b=safeDOM('vw-'+k); if(!b)return;
+    var on=(w===k);
+    b.style.background=on?'var(--c)':'var(--bg3)';
+    b.style.color=on?'#000':'var(--fg3)';
+    b.style.borderColor=on?'var(--c)':'var(--line)';
+    b.style.fontWeight=on?'600':'400';
+  });
+  var sel=document.querySelector('.week-sel');
+  if(sel)sel.style.display=(w==='cal')?'':'none'; // las flechas prev/next solo aplican a calendario
+}
 function updateWeekSelector(){const offset=S.weekOffset||0;const {start,end}=getWeekBounds(offset);const fmt=d=>d.toLocaleDateString('es-ES',{day:'numeric',month:'short'});const lEl=safeDOM('weekLabel'),nBtn=safeDOM('weekNextBtn'),nEl=safeDOM('mavWeekNote');if(lEl)lEl.textContent=offset===0?'Esta semana':offset===-1?'Semana pasada':`${fmt(start)} – ${fmt(end)}`;if(nBtn)nBtn.style.opacity=offset>=0?'0.3':'1';if(nEl)nEl.textContent=offset===0?'':`${fmt(start)} – ${fmt(end)}`;const mT=safeDOM('mavBarsTitle');if(mT)mT.textContent=offset===0?'Volumen semana':`Volumen · ${fmt(start)}`;}
 function tw(el,day){el.classList.toggle('done');if(el.classList.contains('done'))S.weekDays.add(day);else S.weekDays.delete(day);const sc=safeDOM('wkScore');if(sc)sc.textContent=S.weekDays.size+'/6';save();}
 function parseDate(str){if(!str)return null;const p=str.split('/');if(p.length===3)return new Date(p[2],p[1]-1,p[0]);return new Date(str)||null;}
@@ -5043,7 +5097,12 @@ function validateNum(v, min, max, def) {
 
 function validateLog(log) {
   if (!log || typeof log !== 'object') return null;
-  return {
+  // 6.3.5 FIX: preservar TODOS los campos del log y validar solo los numéricos/strings core.
+  // Antes validateLog reconstruía el log con 9 campos y DESCARTABA el resto en cada carga.
+  // muscleSets/_exDetail/_hevyId se recuperaban al re-sincronizar (enmascarando el fallo, y
+  // generando los duplicados que el botón "Limpiar" parchea), pero kneeCapture (rodilla 24/48h,
+  // manual, 6.3.4) se PERDÍA en cada recarga. Conservar los campos también reduce duplicados.
+  return Object.assign({}, log, {
     date: typeof log.date === 'string' ? log.date : '',
     sess: typeof log.sess === 'string' ? log.sess : '',
     srpe: validateNum(log.srpe, 0, 10, null),
@@ -5053,7 +5112,7 @@ function validateLog(log) {
     duration: validateNum(log.duration, 0, 600, 0),
     doms: validateNum(log.doms, 0, 10, 0),
     knee: validateNum(log.knee, 0, 10, 0)
-  };
+  });
 }
 
 function validateMetrics(m) {
@@ -5105,6 +5164,7 @@ function validateStorage(raw) {
   if (Array.isArray(p.weekDays)) out.weekDays = p.weekDays;
   if (typeof p.weekStart === 'string') out.weekStart = p.weekStart;
   if (p.weekOffset != null) out.weekOffset = safeInt(p.weekOffset, 0);
+  if (typeof p.volWindow === 'string') out.volWindow = p.volWindow; // 6.3.5
   if (p.logWeekOffset != null) out.logWeekOffset = safeInt(p.logWeekOffset, 0);
   if (p.currentMeso != null) out.currentMeso = validateNum(p.currentMeso, 1, 4, 1);
 
