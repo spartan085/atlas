@@ -699,16 +699,20 @@ const S = {
   hevy:null, logs:[], weekDays:new Set(), weekStart:'',
   weekOffset:0, logWeekOffset:0, weeklyVol:{}, volWindow:'7', // 6.3.5: ventana de visualización de series (7/14/28 días rolling, o 'cal' semana-calendario). Default 7d para Upper/Lower.
   mavRanges:{
-    'Cuádriceps':    {mev:6, mav:10,mrv:16},
+    // 6.3.5 — defaults revisados para Carlos (config, no ciencia: puntos de partida dentro del
+    // rango evidenciado ~10-20 series/sem, ajustados a su historial de rodilla, cardio concurrente
+    // y prioridades). El MAV real se descubrirá con los datos (rodilla 24/48h + e1RM), no aquí.
+    // Cuádriceps: MEV bajo a propósito = válvula de escape para semanas de rodilla regular.
+    'Cuádriceps':    {mev:6, mav:12,mrv:16},
     'Isquiotibiales':{mev:7, mav:12,mrv:18},
-    'Glúteo':        {mev:8, mav:14,mrv:20},
+    'Glúteo':        {mev:8, mav:13,mrv:20},
     'Gemelos/Sóleo': {mev:10,mav:16,mrv:22},
     'Pectoral':      {mev:7, mav:12,mrv:18},
-    'Dorsal':        {mev:7, mav:12,mrv:18},
-    'Deltoides':     {mev:5, mav:8, mrv:14},
-    'Bíceps':        {mev:4, mav:6, mrv:12},
-    'Tríceps':       {mev:4, mav:6, mrv:12},
-    'Core':          {mev:4, mav:6, mrv:14},
+    'Dorsal':        {mev:8, mav:14,mrv:18},
+    'Deltoides':     {mev:6, mav:11,mrv:16},
+    'Bíceps':        {mev:5, mav:9, mrv:14},
+    'Tríceps':       {mev:5, mav:9, mrv:14},
+    'Core':          {mev:4, mav:7, mrv:14},
     'Aductores':     {mev:6, mav:10,mrv:14},
   },
   _hrv:null,_fatigue:null,_mav:null,_interference:null,_recs:null,
@@ -2218,7 +2222,7 @@ function ProgressionEngine(workouts, hevyRecent, muscleFatigue, fatigue, metrics
 
 const RVL_SCHEMA_VERSION = 3; // 6.3.3: +predictionTiming. Lectura retrocompatible (getValidationSnapshots filtra solo por timestamp).
 const VALIDATION_FREEZE_NO_AUTOCAL = true; // 6.3.1: autocalibracion del AdaptationEngine desactivada durante la validacion
-const ENGINE_VERSION = '6.3.5-freeze'; // Frozen: no formula changes. 6.3.5 = SOLO visualización + fix de persistencia: selector de ventana de series por músculo (7/14/28 días rolling — reagregación pura, umbrales semanales escalados ×nº-semanas para comparación honesta — o semana-calendario), y FIX de validateLog que descartaba campos no-core de los logs en cada carga (kneeCapture se perdía). Ninguna fórmula/constante fisiológica modificada → formula-equivalente a 6.3.4/6.3.3/6.3.0.
+const ENGINE_VERSION = '6.3.6-freeze'; // Frozen: no formula changes. 6.3.6 = revisión de defaults de mavRanges (TARGETS MEV/MAV/MRV ajustados al historial de rodilla/cardio de Carlos y al rango evidenciado ~10-20 series/sem). Son config/objetivos declarados, NO derivados por el sistema: no entran en las predicciones validadas (H1-H7 usan fisiología observada; el MAV observado de H4 sale de los datos). 6.3.5 = selector de ventana de series (rolling 7/14/28) + fix validateLog (kneeCapture se perdía al cargar). Ninguna fórmula/constante fisiológica modificada → formula-equivalente a 6.3.4/6.3.3/6.3.0.
 
 /* ═══════════════════════════════════════════════════════════════════════════
    PLAN POST-FREEZE — NO IMPLEMENTAR HASTA 6-8 SEMANAS DE DATOS LIMPIOS
