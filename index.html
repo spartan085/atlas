@@ -203,6 +203,9 @@ textarea.field{resize:vertical;min-height:60px;}
     </div>
   </div>
 
+  <!-- AVISO RODILLA 24/48h — solo visible si hay slot pendiente (captura, no inferencia) -->
+  <div id="kneePrompt" style="display:none;margin:8px 18px 0;"></div>
+
   <!-- QUÉ HACER HOY — síntesis ejecutiva -->
   <div id="todaySummary" style="margin:8px 18px 0;padding:12px 14px;background:var(--bg2);border:1px solid var(--line);border-radius:14px;">
     <div style="font-family:'Geist Mono',monospace;font-size:9px;color:var(--fg3);letter-spacing:2px;margin-bottom:8px;">HOY</div>
@@ -6107,6 +6110,7 @@ function setLogKnee(logKey, phase, value){
   l.knee=Math.max(safeNum(l.knee,0),(l.kneeCapture.intra.v||0),(l.kneeCapture.h24.v||0),(l.kneeCapture.h48.v||0));
   save();
   if(typeof renderKneeTracker==='function')renderKneeTracker();
+  if(typeof renderKneePrompt==='function')renderKneePrompt();
   toast('Rodilla registrada',phase.replace('h','')+(phase==='intra'?'':'h')+' = '+v+'/10','🦵');
 }
 function renderKneeTracker(){
@@ -6148,6 +6152,56 @@ function toggleKneeTracker(){
   var p=safeDOM('kneeTrackerPanel'); if(!p)return;
   if(p.style.display==='none'||!p.style.display){ p.style.display='block'; renderKneeTracker(); }
   else { p.style.display='none'; }
+}
+
+// AVISO RODILLA en HOY — reutiliza la MISMA detección que renderKneeTracker (misma ventana de
+// sesiones, mismos umbrales show24/show48, mismo setLogKnee). NO es inferencia nueva: solo saca
+// a la superficie un slot de captura ya pendiente, donde Carlos empieza el día. Invisible si no
+// hay nada pendiente. Freeze-legal: mejora de vía de captura.
+function renderKneePrompt(){
+  var box=safeDOM('kneePrompt'); if(!box) return;
+  var now=Date.now();
+  // mismas sesiones candidatas que el tracker
+  var logs=safeArr(S.logs).filter(function(l){
+    if(!(l._hevyId||l._intId))return false;
+    var d=parseDate(l.date); if(!d)return false;
+    var ageH=(now-d.getTime())/3600000;
+    var isRun=l._cardio && /run|trail|carrera|caminar|walk|correr/i.test((l.sess||'')+' '+(l.actType||''));
+    var isStrength=!l._cardio;
+    return ageH>=-2 && ageH<=120 && (isStrength||isRun);
+  }).sort(function(a,b){var da=parseDate(a.date),db=parseDate(b.date);return (db?db.getTime():0)-(da?da.getTime():0);});
+  // construir lista de slots PENDIENTES (disponibles por tiempo pero sin registrar)
+  var pend=[];
+  logs.forEach(function(l){
+    var kc=l.kneeCapture||{}; var d=parseDate(l.date); var ageH=d?(now-d.getTime())/3600000:0;
+    var lk=l._hevyId||l._intId;
+    // intra solo se reclama si la sesión es de hoy/ayer y no se registró
+    if(ageH<=30 && !(kc.intra&&kc.intra.logged)) pend.push({lk:lk,phase:'intra',label:'intra-sesión',sess:l.sess||'Sesión',cardio:l._cardio});
+    if(ageH>=18 && !(kc.h24&&kc.h24.logged)) pend.push({lk:lk,phase:'h24',label:'24h',sess:l.sess||'Sesión',cardio:l._cardio});
+    if(ageH>=42 && !(kc.h48&&kc.h48.logged)) pend.push({lk:lk,phase:'h48',label:'48h',sess:l.sess||'Sesión',cardio:l._cardio});
+  });
+  if(!pend.length){ box.style.display='none'; box.innerHTML=''; return; }
+  // botones 0-8 inline (idéntico patrón al tracker)
+  var scale=function(lk,phase){
+    var b='';
+    for(var n=0;n<=8;n++){
+      var bg=(n>=3?'var(--r)':n>=1?'var(--y)':'var(--g)');
+      b+='<button onclick="setLogKnee(\''+lk+'\',\''+phase+'\','+n+')" style="min-width:24px;flex:1;padding:6px 0;border-radius:6px;font-size:11px;border:1px solid var(--line);background:var(--bg3);color:'+bg+';font-weight:600;cursor:pointer;">'+n+'</button>';
+    }
+    return '<div style="display:flex;gap:3px;flex-wrap:wrap;margin-top:5px;">'+b+'</div>';
+  };
+  // mostrar solo el slot más urgente (el primero de la lista ordenada): evita saturar HOY
+  var p=pend[0];
+  box.style.display='block';
+  box.innerHTML='<div style="padding:12px 14px;background:var(--bg2);border:1px solid var(--c);border-radius:14px;">'
+    +'<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px;">'
+      +'<div style="font-size:13px;color:var(--fg);font-weight:600;">🦵 Rodilla · '+p.label+' pendiente</div>'
+      +(pend.length>1?'<div style="font-size:9px;color:var(--fg3);">+'+(pend.length-1)+' más</div>':'')
+    +'</div>'
+    +'<div style="font-size:11px;color:var(--fg3);margin-bottom:2px;">'+(p.cardio?'🏃 ':'🏋️ ')+p.sess+' · 0 = sin dolor</div>'
+    +scale(p.lk,p.phase)
+    +'<div style="font-size:9px;color:var(--fg4);margin-top:6px;">El resto en Datos → Seguimiento de rodilla</div>'
+  +'</div>';
 }
 
 function removeSessionFromDay(targetDay){
@@ -6413,7 +6467,7 @@ function showS(id){
   var btn=safeDOM(map[id]);if(btn)btn.classList.add('active');
   window.scrollTo(0,0);try{document.querySelector(".main").scrollTop=0;document.documentElement.scrollTop=0;document.body.scrollTop=0;}catch(e){}
   if(id==='s-mav'){safe(renderWeekZones,'rz');safe(renderMAV,'rm');safe(renderProgressionPanel,'rp');safe(renderE1RMPanel,'re');safe(renderEffectiveSets,'ref');safe(renderMovementPatterns,'rmp');}
-  if(id==='s-hoy'){safe(loadEstado,'le');safe(wireEstadoAutosave,'we');safe(checkBackupReminder,'cbr');safe(renderWeekSummary,'rws');}
+  if(id==='s-hoy'){safe(loadEstado,'le');safe(wireEstadoAutosave,'we');safe(checkBackupReminder,'cbr');safe(renderWeekSummary,'rws');safe(renderKneePrompt,'rkp');}
   if(id==='s-log'){safe(renderLog,'rl');safe(populateLogSessions,'pls');}
   if(id==='s-fatiga'){safe(renderFatigueSignals,'rs');safe(renderMuscleFatigue,'rmf');safe(renderInterferencePanel,'ri');safe(renderDensityPanel,'rd');safe(renderConfidencePanel,'rc');safe(renderValidationPanel,'rv');}
   if(id==='s-datos'){safe(renderValidationDashboard,'rvd');}if(id==='s-plan'){safe(function(){selectMeso(S.currentMeso||1);},'meso');}
@@ -6434,7 +6488,7 @@ function init(){
   S.weekDays.forEach(day=>{document.querySelectorAll('.wd').forEach(el=>{if(el.querySelector('.wd-n')?.textContent===day)el.classList.add('done');});});
   const sc=safeDOM('wkScore');if(sc)sc.textContent=S.weekDays.size+'/6';
   if(S.metrics.hrv7?.length){S._wellnessHistory=S.metrics.hrv7.map(d=>({id:d.date,hrv:d.v,restingHR:d.rhr,sleepSecs:d.sleep?safeNum(d.sleep)*3600:null}));}
-  runEngines();updateMetrics();renderHRV();renderMAV();renderLog();renderActivities();renderWeekZones();safe(buildWeeklyAdaptationSnapshot,'wsnap');
+  runEngines();updateMetrics();renderHRV();renderMAV();renderLog();renderActivities();renderWeekZones();safe(buildWeeklyAdaptationSnapshot,'wsnap');safe(renderKneePrompt,'rkp');
   // Auto-sync if keys saved — restore session without re-entering keys
   if(S.int.aid&&S.int.key){setTimeout(()=>fetchIntervals(),800);}
   if(S.hevy?.key){setTimeout(()=>fetchHevy(),1200);}
