@@ -2841,14 +2841,10 @@ function renderReadinessGrid(){
   setCard('rsys-upper', f.upperScore, ['upperSess','domsUpper','hrv','sleep'],(confE.strength+confE.hrv)/2||0.5);
   setCard('rsys-lower', f.lowerScore, ['lowerSess','domsLower','knee','srpe72'],(confE.strength+confE.hrv)/2||0.5);
 
-  // Confidence badge on cardio card (HRV-driven)
-  const cardioCard=safeDOM('rsys-cardio');
-  if(cardioCard){
-    let badge=cardioCard.querySelector('.conf-badge');
-    if(!badge){badge=document.createElement('div');badge.className='conf-badge';cardioCard.appendChild(badge);}
-    badge.innerHTML=`<span style="font-family:'Geist Mono',monospace;font-size:8px;color:${confColor};letter-spacing:1px;">CONF ${overallConfLabel.toUpperCase()} · ${Math.round(dataWeeks)}sem datos</span>`;
-    badge.style.cssText='position:absolute;bottom:8px;right:10px;';
-  }
+  // 6.3.x FIX: la badge larga "CONF X · Nsem datos" se posicionaba en absoluto sobre la última
+  // señal (TSB) de la tarjeta cardio y se superponían. Se elimina: la tarjeta usa la badge corta
+  // estándar de setCard (● MOD), consistente con las otras 3. Las semanas de datos viven en el
+  // Panel de Validación (Datos → Estado de evidencia).
 }
 
 function renderFatigueHero(){
