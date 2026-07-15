@@ -1353,8 +1353,9 @@ function MuscleFatigueEngine(logs, hevyRecent){
     rawFatigue[muscle].exHL.push(hl);
   }
 
-  // From manual logs
-  logs.slice(0, 10).forEach(l => {
+  // From manual logs (excluye logs _auto: esas sesiones ya se procesan abajo con datos
+  // reales de Hevy vía hevyRecent; incluirlas aquí también las contaba dos veces)
+  logs.filter(l => !l._auto).slice(0, 10).forEach(l => {
     const d = parseDate(l.date); if(!d) return;
     const ageMs = now - d; if(ageMs > 120*3600000) return;
     const rpe = safeNum(l.rpe) || 6;
