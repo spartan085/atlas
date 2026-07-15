@@ -3848,9 +3848,10 @@ function renderStrengthLoad(elId,labelId,acts,offset){
     });
     const hevyRPEStr=hevySess?.hevyRPE?`RPE ${hevySess.hevyRPE} (Hevy)`:'';
     const mismatch=hevySess?.mismatchNote?`<div style="font-size:9px;color:var(--y);margin-top:1px;">${hevySess.mismatchNote}</div>`:'';
+    const actDate=a.start_date_local?new Date(a.start_date_local).toLocaleDateString('es-ES',{day:'numeric',month:'short'}):'';
     return`<div style="padding:7px 0;border-bottom:1px solid var(--line);font-size:11px;">
       <div style="display:flex;justify-content:space-between;align-items:flex-start;">
-        <div><div style="font-weight:500;">${a.name||a.type}</div><div style="color:var(--fg3);font-size:10px;">${date} · ${dur?dur+'min':''}</div></div>
+        <div><div style="font-weight:500;">${a.name||a.type}</div><div style="color:var(--fg3);font-size:10px;">${actDate} · ${dur?dur+'min':''}</div></div>
         <div style="text-align:right;">
           <div style="font-family:'Geist Mono',monospace;color:${rpeCol};">${garminRPEStr}</div>
           ${hevyRPEStr?`<div style="font-family:'Geist Mono',monospace;font-size:10px;color:var(--p);">${hevyRPEStr}</div>`:''}
