@@ -741,22 +741,68 @@ const S = {
   // hipótesis H1-H7 del pre-registro como verdad; son un parámetro tuneable declarado (ver protocolo v2 §0.0).
   residualHL:{strength:60, cardio:36},
   mavRanges:{
-    // 6.3.5 — defaults revisados para Carlos (config, no ciencia: puntos de partida dentro del
-    // rango evidenciado ~10-20 series/sem, ajustados a su historial de rodilla, cardio concurrente
-    // y prioridades). El MAV real se descubrirá con los datos (rodilla 24/48h + e1RM), no aquí.
-    // Cuádriceps: MEV bajo a propósito = válvula de escape para semanas de rodilla regular.
+    // 6.4.1 — REVISADO 2026-07-15 (v4). Prior = síntesis de literatura volumen-hipertrofia
+    // (RP + revisiones Schoenfeld/Grgic/Baz-Valle). Hipótesis de partida, no valores medidos.
+    //
+    // IMPORTANTE (corrección de diseño v4): estos números son PURAMENTE fisiológicos/literatura.
+    // Que un músculo esté declarado "rezagado" NO cambia su mav aquí — un músculo puede crecer
+    // peor por técnica, ROM, frecuencia, proximidad al fallo o adherencia, no solo por volumen
+    // insuficiente. La prioridad de programación para músculos rezagados vive en
+    // `programmingOverrides`, abajo, separada a propósito de la fisiología.
+    //
+    // No hay patología de hombro (retractado) → deltoides/tríceps sin restricción.
+    // Cuádriceps: techo bajado por condromalacia femoropatelar bilateral, confirmado. VMO se
+    // gestiona por selección de ejercicio, no por volumen (no es una entidad separada en Atlas).
     'Cuádriceps':    {mev:6, mav:12,mrv:16},
-    'Isquiotibiales':{mev:7, mav:12,mrv:18},
-    'Glúteo':        {mev:8, mav:13,mrv:20},
-    'Gemelos/Sóleo': {mev:10,mav:16,mrv:22},
-    'Pectoral':      {mev:7, mav:12,mrv:18},
-    'Dorsal':        {mev:8, mav:14,mrv:18},
-    'Deltoides':     {mev:6, mav:11,mrv:16},
-    'Bíceps':        {mev:5, mav:9, mrv:14},
-    'Tríceps':       {mev:5, mav:9, mrv:14},
-    'Core':          {mev:4, mav:7, mrv:14},
-    'Aductores':     {mev:6, mav:10,mrv:14},
+    'Isquiotibiales':{mev:6, mav:12,mrv:18},
+    // Glúteo: rango estándar. Nota aparte (no de volumen): falta trabajo de abducción/glúteo
+    // medio específico en el split — pendiente de confirmar con Carlos, no resuelto aquí.
+    'Glúteo':        {mev:6, mav:12,mrv:16},
+    // Gemelos/Sóleo: rango alto porque la literatura lo respalda para este grupo (recuperación
+    // rápida, alta tolerancia), NO porque esté declarado rezagado — esa es una razón física
+    // independiente de la hipótesis de Carlos.
+    'Gemelos/Sóleo': {mev:8, mav:16,mrv:22},
+    'Pectoral':      {mev:6, mav:12,mrv:18},
+    'Dorsal':        {mev:6, mav:14,mrv:20},
+    'Deltoides':     {mev:6, mav:14,mrv:20},
+    'Bíceps':        {mev:5, mav:10,mrv:16},
+    'Tríceps':       {mev:5, mav:10,mrv:16},
+    'Core':          {mev:2, mav:8, mrv:14},
+    'Aductores':     {mev:4, mav:8, mrv:12},
   },
+
+  // Nivel 2 — HIPÓTESIS: percepción de Carlos de que un músculo responde peor. Ciclo de vida
+  // explícito (no lista estática). status puede ser:
+  //   'hypothesis' → en evaluación activa
+  //   'supported'  → H4 confirmó respuesta diferencial
+  //   'rejected'   → H4 no encontró diferencia, prioridad retirada
+  //   'inactive'   → no evaluable ahora mismo (cambio de rutina, datos insuficientes, pausa) —
+  //                  no es ni soporte ni rechazo, solo "en espera", se retoma más adelante
+  // 'evidence' se va rellenando con snapshots/hallazgos concretos, nunca se infiere.
+  laggingMuscleHypotheses:{
+    'Gemelos/Sóleo':{status:'hypothesis', reason:'Percepción de Carlos: responde peor que el resto', confidence:'low', created:'2026-07-15', reviewAfterWeeks:8, evidence:[]},
+    'Pectoral':     {status:'hypothesis', reason:'Percepción de Carlos: crecimiento lento observado', confidence:'low', created:'2026-07-15', reviewAfterWeeks:8, evidence:[]},
+    'Aductores':    {status:'hypothesis', reason:'Percepción de Carlos: cara interna del muslo poco desarrollada', confidence:'low', created:'2026-07-15', reviewAfterWeeks:8, evidence:[]},
+    // VMO no puede tener entrada aquí como músculo — vive dentro de Cuádriceps. Su hipótesis de
+    // rezago se atiende en selección de ejercicio (ver nota en mavRanges.Cuádriceps), no aquí.
+  },
+
+  // Nivel 3 — PROGRAMACIÓN: capa preparada pero DESACTIVADA a propósito mientras dure la
+  // validación de H1-H6. Conectarla ahora sería introducir una variable nueva (priorización
+  // automática) en medio de un protocolo que todavía no ha cerrado su fase actual — cambiaría el
+  // objetivo operativo (mav+delta) sin que esa priorización esté validada. Se activa manualmente
+  // (enabled:true) solo cuando termine la fase de validación en curso; hasta entonces
+  // getWeeklyBalance()/planDayDetail siguen leyendo mavRanges puro, sin sumar deltaSeries.
+  programmingOverrides:{
+    'Pectoral':      {enabled:false, deltaSeries:1, reason:'Lagging hypothesis', linkedHypothesis:'Pectoral', expiresAfter:'8 weeks', appliedSince:null},
+    'Gemelos/Sóleo': {enabled:false, deltaSeries:2, reason:'Lagging hypothesis', linkedHypothesis:'Gemelos/Sóleo', expiresAfter:'8 weeks', appliedSince:null},
+    'Aductores':     {enabled:false, deltaSeries:1, reason:'Lagging hypothesis', linkedHypothesis:'Aductores', expiresAfter:'8 weeks', appliedSince:null},
+  },
+
+  // Nivel 4 (futuro, NO implementado todavía) — validatedAdaptations: lo que H4 demuestre de
+  // verdad sobre Carlos (requiredDelta, confidence, sampleSize), a diferencia de lo que él decidió
+  // probar (programmingOverrides). No lo creo ahora vacío para no fijar una forma sin datos reales
+  // que la respalden — se diseña cuando H4 tenga su primer resultado, no antes.
   _hrv:null,_fatigue:null,_mav:null,_interference:null,_recs:null,
   _hevyRecent:[], _activitiesByDate:{}, _rawWellness:null, _wellnessHistory:[]
 };
