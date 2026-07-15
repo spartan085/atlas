@@ -398,6 +398,27 @@ textarea.field{resize:vertical;min-height:60px;}
       <div class="card-hdr"><span class="t-md">Validación · Predicción vs Resultado</span><span class="mono" style="font-size:10px;color:var(--fg3);" id="rvlConf">—</span></div>
       <div class="card-body" id="rvlPanel"><div style="font-size:12px;color:var(--fg3);">Registra sesiones para validar predicciones</div></div>
     </div>
+    <div class="card" style="margin-bottom:12px;border-color:var(--y);">
+      <div class="card-hdr"><span class="t-md">Parámetros del modelo</span><span class="mono" style="font-size:10px;color:var(--y);">HIPÓTESIS · v6.4.1</span></div>
+      <div class="card-body">
+        <div style="font-size:11px;color:var(--fg3);line-height:1.5;margin-bottom:8px;">Vidas media de la <b style="color:var(--fg2);">carga residual</b> (horas). <b style="color:var(--y);">Son una hipótesis inicial, no una verdad fisiológica.</b> Punto de partida a validar con tus datos durante semanas; recalíbralas si tu recuperación real no cuadra.</div>
+        <div style="display:flex;gap:10px;margin-bottom:8px;">
+          <div style="flex:1;">
+            <label style="font-size:10px;color:var(--fg3);text-transform:uppercase;letter-spacing:0.5px;">Fuerza (neuromuscular)</label>
+            <div style="display:flex;align-items:center;gap:4px;margin-top:2px;"><input id="hlStrength" type="number" min="12" max="240" step="1" style="width:100%;padding:6px 8px;background:var(--bg3);border:1px solid var(--line);border-radius:6px;color:var(--fg);font-family:'Geist Mono',monospace;font-size:13px;"><span style="font-size:11px;color:var(--fg3);">h</span></div>
+          </div>
+          <div style="flex:1;">
+            <label style="font-size:10px;color:var(--fg3);text-transform:uppercase;letter-spacing:0.5px;">Cardio (cardiovascular)</label>
+            <div style="display:flex;align-items:center;gap:4px;margin-top:2px;"><input id="hlCardio" type="number" min="6" max="168" step="1" style="width:100%;padding:6px 8px;background:var(--bg3);border:1px solid var(--line);border-radius:6px;color:var(--fg);font-family:'Geist Mono',monospace;font-size:13px;"><span style="font-size:11px;color:var(--fg3);">h</span></div>
+          </div>
+        </div>
+        <div id="hlPreview" style="font-size:10px;color:var(--fg4);margin-bottom:8px;font-family:'Geist Mono',monospace;"></div>
+        <div style="display:flex;gap:8px;">
+          <button class="btn btn-sm" style="flex:1;border-color:var(--c);color:var(--c);" onclick="saveResidualHL()">Guardar y recalcular</button>
+          <button class="btn btn-sm" style="flex:0 0 auto;border-color:var(--line);color:var(--fg3);" onclick="resetResidualHL()">Reset (60/36)</button>
+        </div>
+      </div>
+    </div>
     <button class="btn btn-g btn-full" onclick="analyzeFatigue()">Analizar fatiga con IA</button>
   </div>
   <div class="ai-panel" id="aiFatP" style="display:none;margin-top:0;">
@@ -405,6 +426,16 @@ textarea.field{resize:vertical;min-height:60px;}
     <div class="ai-body"><div class="ai-text" id="aiFatTxt"></div></div>
   </div>
 </div>
+
+<!-- CARDIO / ENDURANCE — DIFERIDA (6.4.1). renderEndurance() sigue en el JS, listo. Reactivar descomentando.
+<div class="screen" id="s-cardio">
+  <div class="pad">
+    <div style="margin-bottom:12px;"><div style="font-size:15px;font-weight:600;color:var(--fg);">🫀 Endurance</div><div style="font-size:11px;color:var(--fg3);margin-top:2px;">¿Estoy mejorando como corredor? Adaptación, no carga.</div></div>
+    <div id="enduranceBody"><div style="font-size:12px;color:var(--fg3);">Cargando…</div></div>
+    <button class="btn btn-g btn-full" style="margin-top:8px;" onclick="renderEndurance()">Actualizar</button>
+  </div>
+</div>
+-->
 
 <!-- MEV/MAV -->
 <div class="screen" id="s-mav">
@@ -657,6 +688,10 @@ textarea.field{resize:vertical;min-height:60px;}
 <nav class="nav">
   <button class="ni active" id="ni-hoy" onclick="showS('s-hoy')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></svg><span class="nl">HOY</span></button>
   <button class="ni" id="ni-fatiga" onclick="showS('s-fatiga')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg><span class="nl">FATIGA</span></button>
+  <!-- 6.4.1: pestaña CARDIO/Endurance DIFERIDA por decisión de Carlos (esperar 8-10 carreras + streams FC).
+       Para reactivar: descomentar este botón, el screen id="s-cardio", su entrada en el map de showS y el trigger.
+  <button class="ni" id="ni-cardio" onclick="showS('s-cardio')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/></svg><span class="nl">CARDIO</span></button>
+  -->
   <button class="ni" id="ni-mav" onclick="showS('s-mav')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg><span class="nl">MEV/MAV</span></button>
   <button class="ni" id="ni-log" onclick="showS('s-log')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M12 20h9M16.5 3.5a2.121 2.121 0 013 3L7 19l-4 1 1-4L16.5 3.5z"/></svg><span class="nl">LOG</span></button>
   <button class="ni" id="ni-datos" onclick="showS('s-datos')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><ellipse cx="12" cy="5" rx="9" ry="3"/><path d="M21 12c0 1.66-4 3-9 3s-9-1.34-9-3"/><path d="M3 5v14c0 1.66 4 3 9 3s9-1.34 9-3V5"/></svg><span class="nl">DATOS</span></button>
@@ -698,7 +733,13 @@ const S = {
     fatPct:null,musclePct:null,waterPct:null,kcal:null,protein:null,carbs:null,fat:null,
     ctl:null,atl:null,tsb:null,hrv7:[],_nutDate:null,activities:[],weightHistory:[]},
   hevy:null, logs:[], weekDays:new Set(), weekStart:'',
-  weekOffset:0, logWeekOffset:0, weeklyVol:{}, volWindow:'7', // 6.3.5: ventana de visualización de series (7/14/28 días rolling, o 'cal' semana-calendario). Default 7d para Upper/Lower.
+  weekOffset:0, logWeekOffset:0, weeklyVol:{}, volWindow:'cal', // 6.4.0: default = semana natural (Carlos lo eligió). 'cal'=lunes-domingo · '7'/'14'/'28'=rolling. Ojo: un lunes por la mañana el volumen sale casi a cero (esperado: la fatiga ya es rolling vía carga residual; esto es solo el display de series).
+  // 6.4.1 — VIDAS MEDIA de la carga residual (horas). HIPÓTESIS INICIAL, NO verdad fisiológica.
+  // Punto de partida razonable (fuerza neuromuscular ~lento, cardio ~rápido) A VALIDAR con los datos
+  // de Carlos durante semanas. Editables desde la pestaña FATIGA → "Parámetros del modelo". Si el
+  // rendimiento/recuperación observados no cuadran con estas curvas, se recalibran. NO entran en las
+  // hipótesis H1-H7 del pre-registro como verdad; son un parámetro tuneable declarado (ver protocolo v2 §0.0).
+  residualHL:{strength:60, cardio:36},
   mavRanges:{
     // 6.3.5 — defaults revisados para Carlos (config, no ciencia: puntos de partida dentro del
     // rango evidenciado ~10-20 series/sem, ajustados a su historial de rodilla, cardio concurrente
@@ -765,6 +806,7 @@ function save(){
     weekStart:S.weekStart,
     weekOffset:S.weekOffset,
     volWindow:S.volWindow,
+    residualHL:S.residualHL, // 6.4.1: vidas media configurables (hipótesis)
     logWeekOffset:S.logWeekOffset,
     hevy:S.hevy?{key:S.hevy.key,totalWorkouts:S.hevy.totalWorkouts,workouts:S.hevy.workouts}:null,
     currentMeso:S.currentMeso||1,
@@ -802,6 +844,11 @@ function loadPersisted(){
       if(p.weekStart)S.weekStart=p.weekStart;
       if(p.weekOffset!=null)S.weekOffset=p.weekOffset;
       if(p.volWindow)S.volWindow=p.volWindow; // 6.3.5
+      if(p.residualHL&&typeof p.residualHL==='object'){ // 6.4.1: restaurar vidas media si el usuario las recalibró
+        var _hs=safeNum(p.residualHL.strength,0), _hc=safeNum(p.residualHL.cardio,0);
+        if(_hs>=12&&_hs<=240)S.residualHL.strength=_hs; // límites de cordura (0.5-10 días)
+        if(_hc>=6&&_hc<=168)S.residualHL.cardio=_hc;
+      }
       if(p.logWeekOffset!=null)S.logWeekOffset=p.logWeekOffset;
       if(p.hevy)S.hevy=p.hevy;
       if(p.currentMeso)S.currentMeso=p.currentMeso;
@@ -1050,17 +1097,48 @@ function FatigueEngine(metrics,logs,hevyRecent,domsUpper,domsLower,knee){
   if(metrics.tsb!=null){const tf=metrics.tsb>5?0:metrics.tsb>-5?10:metrics.tsb>-15?25:40;autonomic+=tf;if(metrics.tsb<-15)drivers.push('negative_tsb');signals.tsb={label:`TSB ${metrics.tsb>0?'+':''}${metrics.tsb}`,ok:metrics.tsb>-5&&metrics.tsb<25,warn:metrics.tsb<-15};}
   autonomic=Math.min(100,Math.max(0,Math.round(autonomic)));
 
-  // ── MECHANICAL (sRPE-based) ──
+  // ── MECHANICAL — CARGA RESIDUAL CONTINUA (6.4.0, freeze roto → pre-registro v2) ──
+  // Cambio de MODELO: se elimina el corte duro 48/72h. La pregunta ya no es "¿cuánto sRPE
+  // cae dentro de la ventana?" (47h59→760, 48h00→0) sino "¿cuánta carga residual queda HOY?".
+  // Cada sesión aporta carga·e^(-ln2·edad/HL). FUERZA y CARDIO se calculan por SEPARADO y
+  // NUNCA se suman (escalas fisiológicas distintas); se interpretan en trainingState (abajo).
   let mechanical=0;
+  function resDecay(ageMs, hlH){return Math.exp(-0.6931*ageMs/(hlH*3600000));}
+  const HL_STRENGTH=safeNum(S.residualHL&&S.residualHL.strength,60), HL_CARDIO=safeNum(S.residualHL&&S.residualHL.cardio,36); // 6.4.1: vida media (h) CONFIGURABLE — hipótesis inicial a validar, no verdad fisiológica (editable en FATIGA → Parámetros del modelo)
+  const RES_WINDOW=168*3600000;       // 7d: más allá el residuo es despreciable (<15% a HL60)
+  // CARGA RESIDUAL DE FUERZA — logs manuales (fecha) + sesiones Hevy (timestamp exacto). Excluye cardio.
+  let strengthResidual=0;
+  logs.filter(l=>!l._auto&&!l._cardio).forEach(l=>{
+    const d=parseDate(l.date); if(!d) return; const age=now-d; if(age<0||age>RES_WINDOW) return;
+    strengthResidual += (safeNum(l.srpe)||0)*resDecay(age,HL_STRENGTH);
+  });
+  hevyRecent.forEach(s=>{ if(s.sRPE==null) return; if(s.age>RES_WINDOW) return;
+    strengthResidual += s.sRPE*resDecay(s.age,HL_STRENGTH);
+  });
+  strengthResidual=Math.round(strengthResidual);
+  // CARGA RESIDUAL DE CARDIO — Garmin/Intervals training load (TRIMP-like) con su propio decaimiento.
+  let cardioResidual=0;
+  const RUNC=['Run','VirtualRun','TrailRun','Ride','VirtualRide','Walk','Hike','Swim'];
+  safeArr(metrics.activities).forEach(a=>{
+    if(RUNC.indexOf(a.type||a.sport_type)<0) return; // solo cardio; la fuerza va por sRPE
+    const load=safeNum(a.icu_training_load,0); if(load<=0) return;
+    const t=new Date(a.start_date_local||a.start_date||0).getTime(); if(!isFinite(t)) return;
+    const age=now-t; if(age<0||age>RES_WINDOW) return;
+    cardioResidual += load*resDecay(age,HL_CARDIO);
+  });
+  cardioResidual=Math.round(cardioResidual);
+  // Métricas de VENTANA (solo reporting/continuidad de snapshots RVL) — YA NO dirigen la fatiga.
   const r48=logs.filter(l=>{const d=parseDate(l.date);return d&&(now-d)<48*3600000&&!l._auto;});
   const r72=logs.filter(l=>{const d=parseDate(l.date);return d&&(now-d)<72*3600000&&!l._auto;});
   let srpe48=r48.reduce((s,l)=>s+(safeNum(l.srpe)||0),0);
   let srpe72=r72.reduce((s,l)=>s+(safeNum(l.srpe)||0),0);
   hevyRecent.forEach(s=>{if(s.sRPE==null)return;if(s.age<48*3600000)srpe48+=s.sRPE;if(s.age<72*3600000)srpe72+=s.sRPE;});
   const hevyNoRPE=hevyRecent.filter(s=>s.age<48*3600000&&s.noRPE);
-  signals.srpe48={label:`sRPE 48h: ${srpe48}${hevyNoRPE.length?' (⚠'+hevyNoRPE.length+' sin RPE)':''}`,ok:srpe48<400,warn:srpe48>700};
-  signals.srpe72={label:`sRPE 72h: ${srpe72}`,ok:srpe72<600,warn:srpe72>900};
-  if(srpe48>700)drivers.push('high_srpe_48h');
+  signals.strengthLoad={label:`Carga fuerza residual: ${strengthResidual} UA`,ok:strengthResidual<350,warn:strengthResidual>650};
+  signals.cardioLoad={label:`Carga cardio residual: ${cardioResidual} UA`,ok:cardioResidual<60,warn:cardioResidual>110};
+  signals.srpe48={label:`sRPE 48h (ventana): ${srpe48}${hevyNoRPE.length?' (⚠'+hevyNoRPE.length+' sin RPE)':''}`,ok:srpe48<400,warn:srpe48>700};
+  signals.srpe72={label:`sRPE 72h (ventana): ${srpe72}`,ok:srpe72<600,warn:srpe72>900};
+  if(strengthResidual>650){drivers.push('high_strength_residual');drivers.push('high_srpe_48h');/* alias legacy: reglas antiguas siguen disparando */}
   if(domsUpper>0){signals.domsUpper={label:`DOMS sup ${domsUpper}/10`,ok:domsUpper<=3,warn:domsUpper>6};if(domsUpper>6)drivers.push('high_doms_upper');}
   if(domsLower>0){signals.domsLower={label:`DOMS inf ${domsLower}/10`,ok:domsLower<=3,warn:domsLower>6};if(domsLower>6)drivers.push('high_doms_lower');}
   if(knee>3){signals.knee={label:`Rodilla ${knee}/10`,ok:false,warn:true};drivers.push('knee_pain');}
@@ -1131,9 +1209,9 @@ function FatigueEngine(metrics,logs,hevyRecent,domsUpper,domsLower,knee){
   signals.lowerSess={label:`Tren inf 72h: ${lowerSess72} ses · fatiga ${avgLowerFat}% (${confLbl(avgLowerConf)})`,ok:lowerSess72<2&&avgLowerFat<40,warn:lowerSess72>=2||avgLowerFat>60};
   if(lowerSess72>=2||avgLowerFat>60) drivers.push('frequent_leg_sessions');
 
-  // mechanical fatigue (0-100, higher=more fatigued)
+  // mechanical fatigue (0-100, higher=more fatigued) — AHORA basada en carga residual continua
   mechanical=Math.min(100,Math.round(
-    (srpe48/800)*50 +        // sRPE48: primary driver (Banister 1991)
+    (strengthResidual/1000)*50 + // carga residual de fuerza: driver primario (Banister 1991, decaimiento continuo)
     (domsUpper||0)*3 +       // DOMS upper: secondary
     (domsLower||0)*3 +       // DOMS lower: secondary
     (knee>3?20:knee>1?8:0)   // knee: binary modifier
@@ -1147,8 +1225,8 @@ function FatigueEngine(metrics,logs,hevyRecent,domsUpper,domsLower,knee){
   // cardioScore: HRV+sleep+TSB+BB only
   const cardioScore=Math.max(0,Math.min(100,100-autonomic));
 
-  // neuroScore: sRPE + DOMS (neural recovery from mechanical+systemic load)
-  const neuroFatigue=Math.min(100,Math.round((srpe48/800)*50+(srpe72/1000)*20+(domsUpper||0)*2+(domsLower||0)*2));
+  // neuroScore: carga residual de fuerza + DOMS (recuperación neural del estrés mecánico/sistémico)
+  const neuroFatigue=Math.min(100,Math.round((strengthResidual/1000)*55+(domsUpper||0)*2+(domsLower||0)*2));
   const neuroScore=Math.max(0,100-neuroFatigue);
 
   // upperScore: local muscle fatigue + DOMS + autonomic (20% weight only)
@@ -1182,10 +1260,27 @@ function FatigueEngine(metrics,logs,hevyRecent,domsUpper,domsLower,knee){
     ?Math.min(100,Math.max(0,Math.round(50+hrv.zScore*25)))
     :Math.max(0,100-autonomic);
 
+  // ── ESTADO GLOBAL INTERPRETADO (6.4.0) — lee fuerza y cardio POR SEPARADO, NO las suma ──
+  // Filosofía: dos cargas en escalas distintas no se promedian en un solo número de "fatiga 735".
+  // Se clasifican por su cuenta y un motor de decisión las interpreta para dar el consejo.
+  function _lvl(v, lo, hi){return v>=hi?'alta':v>=lo?'moderada':'baja';}
+  const strengthLevel=_lvl(strengthResidual,300,600);
+  const cardioLevel=_lvl(cardioResidual,50,100);
+  const _rank={baja:1,moderada:2,alta:3};
+  const globalLevel=Object.keys(_rank).find(k=>_rank[k]===Math.max(_rank[strengthLevel],_rank[cardioLevel]));
+  let _stateRec;
+  if(strengthLevel==='alta'&&cardioLevel!=='alta') _stateRec='Fuerza cargada; evita piernas/empujes pesados. Z2 permitido.';
+  else if(cardioLevel==='alta'&&strengthLevel!=='alta') _stateRec='Cardio acumulado; fuerza técnica OK, evita intervalos/tirada larga.';
+  else if(strengthLevel==='alta'&&cardioLevel==='alta') _stateRec='Doble carga alta — sesión ligera o descanso.';
+  else if(globalLevel==='moderada') _stateRec='Carga moderada; sigue el plan y ajusta si aparece dolor.';
+  else _stateRec='Recuperado; ventana para estímulo de calidad.';
+  const trainingState={strengthResidual,cardioResidual,strengthLevel,cardioLevel,globalLevel,recommendation:_stateRec};
+
   return{
     autonomic,mechanical,systemic:systemicFatigue,neuralReadiness,
     cardioScore,neuroScore,upperScore,lowerScore,
     avgUpperFat,avgLowerFat,srpe48,srpe72,
+    strengthResidual,cardioResidual,trainingState,
     signals,drivers,
     confidence:hrv?.confidence||0.5,
     hevyNoRPE:hevyNoRPE.length,
@@ -1624,10 +1719,14 @@ function ConfidenceEngine(wellnessHistory, logs, hevyRecent, metrics){
     ? Math.max(0,(now - new Date(lastSleepDay.id||0))/864e5)
     : 30;
 
-  // Strength: last Hevy session
-  const lastHevy = hevyRecent.length
-    ? Math.min(...hevyRecent.map(s=>s.age)) / 864e5
-    : (logs.length ? Math.max(0,(now - (parseDate(logs[0]?.date)||now))/864e5) : 30);
+  // Strength: sesión de FUERZA más reciente (Hevy + logs persistidos, excluyendo cardio).
+  // FIX 6.4.0: antes el fallback usaba logs[0], que puede ser una sesión de CARDIO (o 30 por
+  // defecto si aún no había sincronizado) → flag falso "Sin fuerza 30d" con entrenamientos de hace 2-3 días.
+  const _strLogAges = logs.filter(l=>!l._cardio).map(l=>parseDate(l.date)).filter(Boolean)
+    .map(d=>(now-d.getTime())/864e5);
+  const _hevyAges = hevyRecent.map(s=>s.age/864e5);
+  const _allStrAges = _strLogAges.concat(_hevyAges).filter(v=>isFinite(v)&&v>=0);
+  const lastHevy = _allStrAges.length ? Math.min(..._allStrAges) : 30;
   const daysSinceStrength = Math.max(0, lastHevy);
 
   // Interference: last running activity
@@ -2223,7 +2322,8 @@ function ProgressionEngine(workouts, hevyRecent, muscleFatigue, fatigue, metrics
 
 const RVL_SCHEMA_VERSION = 3; // 6.3.3: +predictionTiming. Lectura retrocompatible (getValidationSnapshots filtra solo por timestamp).
 const VALIDATION_FREEZE_NO_AUTOCAL = true; // 6.3.1: autocalibracion del AdaptationEngine desactivada durante la validacion
-const ENGINE_VERSION = '6.3.6-freeze'; // Frozen: no formula changes. 6.3.6 = revisión de defaults de mavRanges (TARGETS MEV/MAV/MRV ajustados al historial de rodilla/cardio de Carlos y al rango evidenciado ~10-20 series/sem). Son config/objetivos declarados, NO derivados por el sistema: no entran en las predicciones validadas (H1-H7 usan fisiología observada; el MAV observado de H4 sale de los datos). 6.3.5 = selector de ventana de series (rolling 7/14/28) + fix validateLog (kneeCapture se perdía al cargar). Ninguna fórmula/constante fisiológica modificada → formula-equivalente a 6.3.4/6.3.3/6.3.0.
+const ENGINE_VERSION = '6.4.1-alpha'; // 6.4.1 = vidas media de la carga residual CONFIGURABLES y etiquetadas como HIPÓTESIS (no verdad fisiológica): editables en FATIGA→Parámetros, persistidas, a validar/recalibrar con datos de Carlos. Pestaña Endurance DIFERIDA (esperar 8-10 carreras + streams FC). SECUENCIA acordada: (1) validar este motor unas semanas → (2) revisar modelo de series MEV/MAV/MRV → (3) desarrollar Endurance. // 6.4.0 = modelo de CARGA RESIDUAL continua: elimina corte 48/72h; fuerza (HL config) y cardio (HL config) separadas (Strength/Cardio Load), nunca sumadas; trainingState interpreta ambas. VALIDACIÓN: H1/H2/H6 reinician reloj (snapshots <6.4.0 = histórico); H3/H4 (Nivel A) no afectadas. Ver PROTOCOLO v2.
+// -- Histórico congelado 6.3.x: 6.3.6 defaults mavRanges · 6.3.5 ventana series rolling + fix validateLog · 6.3.3 _exDetail crudo · 6.3.1 autocal off --
 
 /* ═══════════════════════════════════════════════════════════════════════════
    PLAN POST-FREEZE — NO IMPLEMENTAR HASTA 6-8 SEMANAS DE DATOS LIMPIOS
@@ -3701,8 +3801,7 @@ function renderActivities(){
     const icon=isRun?'🏃':isStr?'🏋️':'🚴';
     const rpe=a.icu_rpe?`RPE ${a.icu_rpe}`:'';
     const srpe=(a.icu_rpe&&a.moving_time)?`sRPE ${Math.round(a.icu_rpe*a.moving_time/60)}`:'';
-    const load=a.icu_training_load?`Load ${Math.round(a.icu_training_load)}`:'';
-    return`<div style="display:flex;justify-content:space-between;align-items:center;padding:7px 0;border-bottom:1px solid var(--line);font-size:11px;"><div><div style="display:flex;align-items:center;gap:5px;"><span>${icon}</span><span style="font-weight:500;">${a.name||a.type}</span></div><div style="color:var(--fg3);margin-top:1px;">${d} · ${dur}</div></div><div style="text-align:right;flex-shrink:0;">${rpe?`<div style="font-family:'Geist Mono',monospace;font-size:10px;color:var(--y);">${rpe}</div>`:''}${srpe?`<div style="font-family:'Geist Mono',monospace;font-size:10px;color:var(--c);">${srpe}</div>`:''}${load?`<div style="color:var(--fg3);">${load}</div>`:''}</div></div>`;
+    const load=a.icu_training_load?`${isRun?'Cardio Load':isStr?'Strength Load':'Cardio Load'} ${Math.round(a.icu_training_load)}`:'';
   }).join('');
 }
 
@@ -3740,8 +3839,7 @@ function renderStrengthLoad(elId,labelId,acts,offset){
     const garminRPEStr=a.icu_rpe?`RPE ${a.icu_rpe} (Garmin)`:'Sin RPE Garmin';
     const dur=a.moving_time?Math.round(a.moving_time/60):null;
     const srpe=(a.icu_rpe&&dur)?`sRPE ${Math.round(a.icu_rpe*dur)}`:'';
-    const load=a.icu_training_load?`Load ${Math.round(a.icu_training_load)}`:'';
-    const date=(a.start_date_local||'').split('T')[0].slice(5);
+    const load=a.icu_training_load?`Strength Load ${Math.round(a.icu_training_load)}`:'';
     const rpeCol=a.icu_rpe?(a.icu_rpe>=8?'var(--r)':a.icu_rpe>=6?'var(--y)':'var(--g)'):'var(--fg4)';
     // Find matching Hevy session for this activity
     const hevySess=safeArr(S._hevyRecent).find(s=>{
@@ -3763,6 +3861,137 @@ function renderStrengthLoad(elId,labelId,acts,offset){
       ${mismatch}
     </div>`;
   }).join('');
+}
+
+// ══ ENDURANCE / CARDIO — adaptación aeróbica (6.4.0) ══
+// Enfoque: NO carga, sino "¿estoy mejorando como corredor?". Métrica reina: eficiencia (ritmo/FC).
+// HONESTIDAD DE DATOS: EF y tendencias Z2 se calculan de datos de resumen (pace + FC media, presentes
+// en el export). El desacople (1ª vs 2ª mitad) y el VO2max NO están en el export actual → se marcan
+// como PENDIENTES, nunca se inventan (filosofía anti-falsa-precisión de ATLAS).
+function fmtPace(ms){ // velocidad m/s -> "m:ss/km"
+  if(!ms||ms<=0)return '—';
+  var secPerKm=1000/ms; var m=Math.floor(secPerKm/60); var s=Math.round(secPerKm%60);
+  if(s===60){m++;s=0;} return m+':'+String(s).padStart(2,'0');
+}
+function renderEndurance(){
+  var el=safeDOM('enduranceBody'); if(!el)return;
+  var acts=safeArr(S.metrics.activities);
+  var RUN=['Run','VirtualRun','TrailRun'];
+  var runs=acts.filter(function(a){return RUN.indexOf(a.type||a.sport_type)>=0;})
+    .map(function(a){
+      var t=new Date(a.start_date_local||a.start_date||0).getTime();
+      var paceMs=safeNum(a.pace,0);
+      if(!paceMs && a.distance && a.moving_time) paceMs=a.distance/a.moving_time; // m/s
+      var hr=safeNum(a.average_heartrate,0);
+      var ef=(paceMs>0&&hr>0)?(paceMs*60/hr):null; // m/min por ppm; ↑ = más eficiente
+      var zt=a.icu_hr_zone_times||a.icu_zone_times||[];
+      var ztot=Array.isArray(zt)?zt.reduce(function(s,v){return s+(v||0);},0):0;
+      var z12pct=(ztot>0)?(((zt[0]||0)+(zt[1]||0))/ztot):0;
+      return {t:t,date:a.start_date_local||'',paceMs:paceMs,hr:hr,ef:ef,
+        distKm:a.distance?Math.round(a.distance/100)/10:null,
+        dur:a.moving_time?Math.round(a.moving_time/60):null,
+        load:safeNum(a.icu_training_load,0),z12pct:z12pct,
+        isZ2:z12pct>=0.6, name:a.name||a.type};
+    })
+    .filter(function(r){return isFinite(r.t);})
+    .sort(function(a,b){return a.t-b.t;}); // cronológico ascendente
+
+  var nRuns=runs.length;
+  var vo2=S.metrics.vo2max, ctl=S.metrics.ctl, atl=S.metrics.atl, tsb=S.metrics.tsb;
+  var html='';
+
+  // ── A. ESTADO ACTUAL ──
+  html+='<div class="card" style="margin-bottom:12px;"><div class="card-hdr"><span class="t-md">Estado actual</span><span class="mono" style="font-size:10px;color:var(--fg3);">'+nRuns+' carreras</span></div><div class="card-body">';
+  function stRow(label,val,sub){return '<div style="display:flex;justify-content:space-between;padding:4px 0;border-bottom:1px solid var(--line);"><span style="color:var(--fg2);font-size:12px;">'+label+'</span><span class="mono" style="font-size:12px;color:'+(val==='—'?'var(--fg4)':'var(--fg)')+';">'+val+(sub?' <span style="color:var(--fg3);font-size:10px;">'+sub+'</span>':'')+'</span></div>';}
+  html+=stRow('VO₂max', vo2?vo2+' ml/kg/min':'—', vo2?'':'sin dato Garmin');
+  html+=stRow('CTL (fitness)', ctl!=null?String(ctl):'—','carga crónica');
+  html+=stRow('ATL (fatiga)', atl!=null?String(atl):'—','carga aguda');
+  html+=stRow('TSB (forma)', tsb!=null?(tsb>0?'+':'')+tsb:'—', tsb!=null?(tsb<-15?'fatiga alta':tsb>5?'fresco':'neutro'):'');
+  if(nRuns>0){var last=runs[nRuns-1];
+    html+=stRow('Última · ritmo', fmtPace(last.paceMs)+'/km','');
+    html+=stRow('Última · FC media', last.hr?last.hr+' ppm':'—','');
+    html+=stRow('Última · eficiencia', last.ef?last.ef.toFixed(2):'—','ritmo/FC');
+  }
+  html+='</div></div>';
+
+  // ── B. EFICIENCIA (ritmo/FC) — PRIORIDAD #1 de Carlos ──
+  html+='<div class="card" style="margin-bottom:12px;"><div class="card-hdr"><span class="t-md">Eficiencia · ritmo/FC</span><span class="mono" style="font-size:10px;color:var(--c);">Efficiency Factor</span></div><div class="card-body">';
+  if(nRuns===0){
+    html+='<div style="font-size:12px;color:var(--fg3);">Sin carreras registradas. Conecta Intervals.icu y corre para empezar a medir tu eficiencia.</div>';
+  } else {
+    html+='<div style="font-size:11px;color:var(--fg3);margin-bottom:6px;">EF = velocidad ÷ FC. <b style="color:var(--g);">Subir</b> = corres más rápido con el mismo pulso (mejor base aeróbica).</div>';
+    var show=runs.slice(-10);
+    html+='<div style="font-size:11px;">';
+    html+='<div style="display:flex;color:var(--fg3);font-size:10px;text-transform:uppercase;letter-spacing:0.5px;padding:3px 0;border-bottom:1px solid var(--line);"><span style="flex:1.4;">Fecha</span><span style="flex:1;text-align:right;">Ritmo</span><span style="flex:1;text-align:right;">FC</span><span style="flex:1;text-align:right;">EF</span></div>';
+    show.forEach(function(r){
+      var ds=(r.date||'').split('T')[0].slice(5);
+      html+='<div style="display:flex;padding:4px 0;border-bottom:1px solid var(--line);"><span style="flex:1.4;color:var(--fg2);">'+ds+(r.isZ2?' <span style="color:var(--c);font-size:9px;">Z2</span>':'')+'</span><span class="mono" style="flex:1;text-align:right;color:var(--fg);">'+fmtPace(r.paceMs)+'</span><span class="mono" style="flex:1;text-align:right;color:var(--fg2);">'+(r.hr||'—')+'</span><span class="mono" style="flex:1;text-align:right;color:var(--c);">'+(r.ef?r.ef.toFixed(2):'—')+'</span></div>';
+    });
+    html+='</div>';
+    var efs=runs.filter(function(r){return r.ef;});
+    if(efs.length>=2){
+      var first=efs[0].ef, lastef=efs[efs.length-1].ef;
+      var pct=Math.round((lastef-first)/first*1000)/10;
+      var arrow=pct>1?'↗':pct<-1?'↘':'→';
+      var col=pct>1?'var(--g)':pct<-1?'var(--r)':'var(--fg3)';
+      html+='<div style="margin-top:8px;padding:6px 8px;background:var(--bg4);border-radius:6px;font-size:11px;">EF primera → última: '+first.toFixed(2)+' '+arrow+' '+lastef.toFixed(2)+' <span style="color:'+col+';font-weight:600;">('+(pct>0?'+':'')+pct+'%)</span></div>';
+    }
+    if(efs.length<6){
+      html+='<div style="margin-top:6px;font-size:10px;color:var(--y);">⚠ Tendencia orientativa: con '+efs.length+' carrera'+(efs.length===1?'':'s')+' aún no es fiable. A partir de ~6-8 será sólida.</div>';
+    }
+  }
+  html+='</div></div>';
+
+  // ── C. TENDENCIA Z2 (ritmo y FC) ──
+  var z2runs=runs.filter(function(r){return r.isZ2;});
+  html+='<div class="card" style="margin-bottom:12px;"><div class="card-hdr"><span class="t-md">Tendencia Z2</span><span class="mono" style="font-size:10px;color:var(--fg3);">'+z2runs.length+' rodajes Z2</span></div><div class="card-body">';
+  if(z2runs.length===0){
+    html+='<div style="font-size:12px;color:var(--fg3);">Sin rodajes Z2 detectados (Z1+Z2 ≥ 60% del tiempo). Corre en zona aeróbica para poblar esta tendencia.</div>';
+  } else {
+    var zp=z2runs.map(function(r){return fmtPace(r.paceMs);}).join(' · ');
+    var zh=z2runs.map(function(r){return r.hr;}).join(' · ');
+    html+='<div style="font-size:11px;color:var(--fg3);">Ritmo Z2 (cronológico):</div><div class="mono" style="font-size:12px;color:var(--fg);margin-bottom:6px;">'+zp+'/km</div>';
+    html+='<div style="font-size:11px;color:var(--fg3);">FC media Z2:</div><div class="mono" style="font-size:12px;color:var(--fg);">'+zh+' ppm</div>';
+  }
+  html+='</div></div>';
+
+  // ── D. PENDIENTE (honesto, NO inventado) ──
+  html+='<div class="card" style="margin-bottom:12px;"><div class="card-hdr"><span class="t-md">Pendiente de datos</span></div><div class="card-body" style="font-size:11px;color:var(--fg3);line-height:1.6;">';
+  html+='<div style="padding:4px 0;">🔥 <b style="color:var(--fg2);">Desacople cardíaco (1ª vs 2ª mitad)</b> — requiere streams de FC por tramo. El export actual solo trae FC media, no la serie temporal. Se activará al ampliar el pull de Intervals.icu (streams).</div>';
+  html+='<div style="padding:4px 0;">📈 <b style="color:var(--fg2);">VO₂max</b> — '+(vo2?'disponible arriba.':'no llega desde Garmin en el export actual. Cuando aparezca, se graficará como apoyo, no como protagonista.')+'</div>';
+  html+='<div style="padding:4px 0;">🏃 <b style="color:var(--fg2);">Progreso real (resumen automático)</b> — necesita ~6-8 carreras para comparar ventanas (economía, FC Z2, ritmo Z2). Ahora: '+nRuns+'/8. '+(nRuns>=6?'Casi listo.':'Sigue corriendo y se activa solo.')+'</div>';
+  html+='</div></div>';
+
+  el.innerHTML=html;
+}
+
+// ══ PARÁMETROS DEL MODELO — vidas media configurables (6.4.1, hipótesis) ══
+function _hlDecayPreview(){
+  var hs=safeNum(safeDOM('hlStrength')&&safeDOM('hlStrength').value, S.residualHL.strength);
+  var hc=safeNum(safeDOM('hlCardio')&&safeDOM('hlCardio').value, S.residualHL.cardio);
+  function pc(h,t){return h>0?Math.round(Math.exp(-0.6931*t/h)*100):0;}
+  var el=safeDOM('hlPreview');
+  if(el)el.textContent='Fuerza → 24h '+pc(hs,24)+'% · 48h '+pc(hs,48)+'% · 72h '+pc(hs,72)+'% · 96h '+pc(hs,96)+'%  ||  Cardio → 24h '+pc(hc,24)+'% · 48h '+pc(hc,48)+'% · 72h '+pc(hc,72)+'%';
+}
+function populateResidualHL(){
+  var s=safeDOM('hlStrength'), c=safeDOM('hlCardio');
+  if(s){s.value=S.residualHL.strength;s.oninput=_hlDecayPreview;}
+  if(c){c.value=S.residualHL.cardio;c.oninput=_hlDecayPreview;}
+  _hlDecayPreview();
+}
+function saveResidualHL(){
+  var hs=safeNum(safeDOM('hlStrength')&&safeDOM('hlStrength').value,0);
+  var hc=safeNum(safeDOM('hlCardio')&&safeDOM('hlCardio').value,0);
+  if(hs<12||hs>240){toast('Fuera de rango','Fuerza: 12-240 h','⚠️');return;}
+  if(hc<6||hc>168){toast('Fuera de rango','Cardio: 6-168 h','⚠️');return;}
+  S.residualHL={strength:Math.round(hs),cardio:Math.round(hc)};
+  save();runEngines();safe(renderFatigueSignals,'rs');safe(renderMuscleFatigue,'rmf');_hlDecayPreview();
+  toast('Parámetros guardados','HL fuerza '+Math.round(hs)+'h · cardio '+Math.round(hc)+'h · fatiga recalculada','✅',4500);
+}
+function resetResidualHL(){
+  S.residualHL={strength:60,cardio:36};
+  save();populateResidualHL();runEngines();safe(renderFatigueSignals,'rs');safe(renderMuscleFatigue,'rmf');
+  toast('Reset','Vidas media → 60/36 h (hipótesis inicial)','↩️');
 }
 
 // ══ LOG ══
@@ -3793,7 +4022,7 @@ function saveLog(){
     readiness:S._readiness?S._readiness.overall:null,fatigue:S._fatigue?Math.round(S._fatigue.systemic):null,
     muscleFatigue:Object.keys(sessMF).length?sessMF:null,
     recFollow:_recFollow||null,atlasRec:S._decision?S._decision.recommendation:null});
-  const sm={'D1':{'Pectoral':8,'Dorsal':4,'Deltoides':4,'Bíceps':3,'Tríceps':3,'Gemelos/Sóleo':4},'D2':{'Cuádriceps':7,'Isquiotibiales':4,'Glúteo':6,'Gemelos/Sóleo':4,'Aductores':5,'Core':3},'D4':{'Dorsal':7,'Pectoral':4,'Deltoides':5,'Bíceps':3,'Tríceps':3,'Gemelos/Sóleo':4},'D5':{'Isquiotibiales':8,'Cuádriceps':3,'Glúteo':7,'Gemelos/Sóleo':4,'Aductores':3,'Core':3}};
+  const sm={'D1':{'Pectoral':7,'Dorsal':4,'Deltoides':4,'Bíceps':4,'Tríceps':4},'D2':{'Cuádriceps':8,'Isquiotibiales':3,'Glúteo':3,'Gemelos/Sóleo':8,'Aductores':4,'Core':6},'D4':{'Dorsal':8,'Pectoral':4,'Deltoides':7,'Bíceps':4,'Tríceps':4},'D5':{'Isquiotibiales':8,'Cuádriceps':4,'Glúteo':7,'Gemelos/Sóleo':8,'Aductores':4,'Core':7}}; // 6.4.0: series DIRECTAS reales de Carlos (D1/D4 sin gemelos). Solo fallback de log manual; Hevy auto-log calcula de los ejercicios reales.
   const k=['D1','D2','D4','D5'].find(k=>sess.includes(k));
   if(k)Object.entries(sm[k]).forEach(([m,s])=>{S.weeklyVol[m]=(S.weeklyVol[m]||0)+s;});
   S.weekDays.add(sess.split('—')[0].trim());
@@ -4892,7 +5121,10 @@ HRV: estado=${h?.state||'—'} z=${h?.zScore||'—'} vs-base=${h?.pctVsBase||0}%
 
 FATIGA: auto=${f?.autonomic||0}% mecánica=${f?.mechanical||0}% sistémica=${f?.systemic||0}%
   Cardio=${f?.cardioScore||'—'}% Upper=${f?.upperScore||'—'}% Lower=${f?.lowerScore||'—'}%
-  sRPE48=${f?.srpe48||0} sRPE72=${f?.srpe72||0}
+  CARGA RESIDUAL (modelo 6.4.0, decaimiento continuo — NO sumar fuerza y cardio):
+    Strength Load residual=${f?.strengthResidual||0} UA (${f?.trainingState?.strengthLevel||'—'}) · Cardio Load residual=${f?.cardioResidual||0} UA (${f?.trainingState?.cardioLevel||'—'})
+    Estado global (interpretado, no sumado)=${f?.trainingState?.globalLevel||'—'} → ${f?.trainingState?.recommendation||'—'}
+  sRPE48=${f?.srpe48||0} sRPE72=${f?.srpe72||0} (solo ventana/reporting; la fatiga la dirige la carga residual)
   Drivers: ${f?.drivers?.join(', ')||'ninguno'}
 
 FATIGA MUSCULAR (residual, con confianza):
@@ -4985,10 +5217,10 @@ var MESO_INFO={1:'M1 Readaptacion Sem 1-4 Volumen base tecnica VMO',2:'M2 Acumul
 
 // ══ PLAN DAY DETAIL (reference view: muscles, exercises, planned volume, status) ══
 var PLAN_DAY_EXERCISES={
-  'upper a':['Press banca mancuernas — 5×6-10 RIR 2-3','Remo mancuerna — 4×8-12 RIR 2','Press inclinado 30° — 3×8-12 RIR 2','Elevaciones laterales — 3×12-20 RIR 1-2','Curl inclinado — 3×8-12 RIR 1-2','Extensión francesa — 3×10-15 RIR 1-2','Gemelos de pie — 4×10-15 RIR 1-2','Aducción — 2×12-20 RIR 2'],
-  'upper b':['Remo pecho apoyado — 4×6-10 RIR 2','Press banca mancuernas — 4×8-12 RIR 2','Pullover — 3×10-15 RIR 2','Press hombro mancuernas — 3×8-12 RIR 2','Elevaciones laterales — 2×15-20 RIR 1','Curl martillo — 3×8-12 RIR 1-2','JM Press — 3×8-12 RIR 1-2','Gemelos sentado — 4×12-20 RIR 1-2','Aducción — 2×12-20 RIR 2'],
-  'lower a':['ACTIVACIÓN: VMO + glúteo banda — 2×15 (no al fallo)','Sentadilla frontal — 4×6-10 RIR 2-3','Bulgarian split squat — 3×8-12 RIR 2','Curl femoral — 4×10-15 RIR 1-2','Hip thrust — 3×8-12 RIR 2','Patada glúteo banda — 3×12-20 RIR 1','Aducción — 3×12-20 RIR 2','Gemelos de pie — 4×10-15 RIR 1-2','Crunch lastrado — 3×12-20 RIR 1-2'],
-  'lower b':['ACTIVACIÓN: VMO + glúteo banda — 2×15 (no al fallo)','Peso muerto rumano — 4×6-10 RIR 2-3','Curl femoral — 4×10-15 RIR 1-2','Sentadilla frontal ligera — 3×10-15 RIR 2','Hip thrust pesado — 4×6-10 RIR 2','Patada glúteo banda — 3×12-20 RIR 1','Aducción — 3×12-20 RIR 2','Gemelos sentado — 4×12-20 RIR 1-2','Pallof — 3×12-15 RIR 1-2'],
+  'upper a':['Press banca mancuernas — 4×8-12 RIR 2→1','Remo pecho apoyado — 4×6-10 RIR 2→1','Press inclinado mancuernas — 3×8-12 RIR 2→1','Elevaciones laterales — 4×12-20 RIR 1-2','Curl inclinado — 4×8-12 RIR 1-2','Press francés — 4×10-15 RIR 1-2'],
+  'upper b':['Remo pecho apoyado — 4×6-10 RIR 2→1','Press banca mancuernas — 4×8-12 RIR 2→1','Pullover — 4×10-15 RIR 1-2','Press hombro mancuernas — 3×8-12 RIR 2→1','Elevaciones laterales — 4×12-20 RIR 1-2','Curl martillo — 4×8-12 RIR 1-2','JM Press — 4×8-12 RIR 1-2'],
+  'lower a':['Sentadilla frontal — 4×6-10 RIR 2→1','Hip Thrust — 3×6-10 RIR 2→1','Curl femoral — 3×10-15 RIR 1-2','Extensión — 4×12-20 RIR 1-2','Gemelo de pie — 4×10-15 RIR 1-2','Gemelo sentado — 4×12-20 RIR 1-2','Aducción — 4×12-20 RIR 1-2','CORE: Rueda abdominal — 3×8-15','CORE: Pallof Press — 3×10-15/lado'],
+  'lower b':['Peso muerto rumano — 4×6-10 RIR 2→1','Extensión — 4×12-20 RIR 1-2','Curl femoral — 4×10-15 RIR 1-2','Hip Thrust — 3×6-10 RIR 2→1','Gemelo de pie — 4×10-15 RIR 1-2','Gemelo sentado — 4×12-20 RIR 1-2','Aducción — 4×12-20 RIR 1-2','CORE: Dead Bug — 3×8-12/lado','CORE: Plancha frontal — 2×30-60s','CORE: Plancha lateral — 2×30-60s/lado'],
   'cardio':['Z2 zona 115-135 ppm · 45-60 min'],
   'movilidad':['Movilidad cadera/tobillo + Z2 suave 30+20 min']
 };
@@ -6463,14 +6695,15 @@ function showS(id){
   document.querySelectorAll('.screen').forEach(function(s){s.classList.remove('active');});
   var t=safeDOM(id);if(t)t.classList.add('active');
   document.querySelectorAll('.ni').forEach(function(n){n.classList.remove('active');});
-  var map={'s-hoy':'ni-hoy','s-fatiga':'ni-fatiga','s-mav':'ni-mav','s-log':'ni-log','s-datos':'ni-datos','s-plan':'ni-plan'};
+  var map={'s-hoy':'ni-hoy','s-fatiga':'ni-fatiga','s-mav':'ni-mav','s-log':'ni-log','s-datos':'ni-datos','s-plan':'ni-plan'}; // 6.4.1: 's-cardio' diferido
   var btn=safeDOM(map[id]);if(btn)btn.classList.add('active');
   window.scrollTo(0,0);try{document.querySelector(".main").scrollTop=0;document.documentElement.scrollTop=0;document.body.scrollTop=0;}catch(e){}
   if(id==='s-mav'){safe(renderWeekZones,'rz');safe(renderMAV,'rm');safe(renderProgressionPanel,'rp');safe(renderE1RMPanel,'re');safe(renderEffectiveSets,'ref');safe(renderMovementPatterns,'rmp');}
   if(id==='s-hoy'){safe(loadEstado,'le');safe(wireEstadoAutosave,'we');safe(checkBackupReminder,'cbr');safe(renderWeekSummary,'rws');safe(renderKneePrompt,'rkp');}
   if(id==='s-log'){safe(renderLog,'rl');safe(populateLogSessions,'pls');}
-  if(id==='s-fatiga'){safe(renderFatigueSignals,'rs');safe(renderMuscleFatigue,'rmf');safe(renderInterferencePanel,'ri');safe(renderDensityPanel,'rd');safe(renderConfidencePanel,'rc');safe(renderValidationPanel,'rv');}
+  if(id==='s-fatiga'){safe(renderFatigueSignals,'rs');safe(renderMuscleFatigue,'rmf');safe(renderInterferencePanel,'ri');safe(renderDensityPanel,'rd');safe(renderConfidencePanel,'rc');safe(renderValidationPanel,'rv');safe(populateResidualHL,'phl');}
   if(id==='s-datos'){safe(renderValidationDashboard,'rvd');}if(id==='s-plan'){safe(function(){selectMeso(S.currentMeso||1);},'meso');}
+  // 6.4.1: trigger de s-cardio (renderEndurance) diferido junto con la pestaña
 }
 async function syncAll(){if(S.int.aid&&S.int.key)await fetchIntervals();if(S.hevy?.key)await fetchHevy();}
 function toast(title,msg,icon,ms=3500){const el=document.createElement('div');el.className='toast';el.innerHTML=`<div class="toast-t">${icon||'ℹ️'} ${title}</div>${msg?`<div class="toast-m">${msg}</div>`:''}`;document.body.appendChild(el);setTimeout(()=>el.remove(),ms);}
