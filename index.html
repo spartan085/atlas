@@ -741,33 +741,33 @@ const S = {
   // hipótesis H1-H7 del pre-registro como verdad; son un parámetro tuneable declarado (ver protocolo v2 §0.0).
   residualHL:{strength:60, cardio:36},
   mavRanges:{
-    // 6.4.1 — REVISADO 2026-07-15 (v4). Prior = síntesis de literatura volumen-hipertrofia
-    // (RP + revisiones Schoenfeld/Grgic/Baz-Valle). Hipótesis de partida, no valores medidos.
-    //
-    // IMPORTANTE (corrección de diseño v4): estos números son PURAMENTE fisiológicos/literatura.
-    // Que un músculo esté declarado "rezagado" NO cambia su mav aquí — un músculo puede crecer
-    // peor por técnica, ROM, frecuencia, proximidad al fallo o adherencia, no solo por volumen
-    // insuficiente. La prioridad de programación para músculos rezagados vive en
-    // `programmingOverrides`, abajo, separada a propósito de la fisiología.
+    // 6.4.1 — REVISADO 2026-07-15 (v5, decisión explícita de Carlos). mev y mrv: literatura
+    // (RP + Schoenfeld/Grgic/Baz-Valle) — límites de seguridad, sin tocar por conveniencia.
+    // mav: NO es la hipótesis fisiológica genérica — es el volumen semanal REAL que su rutina
+    // D1/D2/D4/D5 programa, verificado a mano contando solo series directas (2026-07-15). Es
+    // decir, el objetivo que ve en HOY es "¿cumplo mi propia rutina esta semana?", no "¿alcanzo
+    // el óptimo teórico de literatura?". Motivo para el cambio de criterio: decisión explícita
+    // del usuario, no inferencia de Claude.
     //
     // No hay patología de hombro (retractado) → deltoides/tríceps sin restricción.
-    // Cuádriceps: techo bajado por condromalacia femoropatelar bilateral, confirmado. VMO se
-    // gestiona por selección de ejercicio, no por volumen (no es una entidad separada en Atlas).
+    // Cuádriceps: mrv bajado por condromalacia femoropatelar bilateral, confirmado. VMO se
+    // gestiona por selección de ejercicio, no por volumen (no es entidad separada en Atlas).
     'Cuádriceps':    {mev:6, mav:12,mrv:16},
-    'Isquiotibiales':{mev:6, mav:12,mrv:18},
-    // Glúteo: rango estándar. Nota aparte (no de volumen): falta trabajo de abducción/glúteo
+    'Isquiotibiales':{mev:6, mav:11,mrv:18},
+    // Glúteo: mav=10 (rutina). Nota aparte (no de volumen): falta trabajo de abducción/glúteo
     // medio específico en el split — pendiente de confirmar con Carlos, no resuelto aquí.
-    'Glúteo':        {mev:6, mav:12,mrv:16},
-    // Gemelos/Sóleo: rango alto porque la literatura lo respalda para este grupo (recuperación
-    // rápida, alta tolerancia), NO porque esté declarado rezagado — esa es una razón física
-    // independiente de la hipótesis de Carlos.
+    'Glúteo':        {mev:6, mav:10,mrv:16},
     'Gemelos/Sóleo': {mev:8, mav:16,mrv:22},
-    'Pectoral':      {mev:6, mav:12,mrv:18},
-    'Dorsal':        {mev:6, mav:14,mrv:20},
-    'Deltoides':     {mev:6, mav:14,mrv:20},
-    'Bíceps':        {mev:5, mav:10,mrv:16},
-    'Tríceps':       {mev:5, mav:10,mrv:16},
-    'Core':          {mev:2, mav:8, mrv:14},
+    'Pectoral':      {mev:6, mav:11,mrv:18},
+    'Dorsal':        {mev:6, mav:12,mrv:20},
+    'Deltoides':     {mev:6, mav:11,mrv:20},
+    'Bíceps':        {mev:5, mav:8, mrv:16},
+    'Tríceps':       {mev:5, mav:8, mrv:16},
+    // Core: mav=13 (rutina) queda a solo 1 serie del mrv=14 de literatura — casi sin margen entre
+    // "objetivo" y "techo recuperable". No lo bajé por mi cuenta: es la consecuencia directa de
+    // pedir mav=rutina, pero vale la pena vigilar fatiga/DOMS de core en las próximas semanas,
+    // porque el margen de seguridad que normalmente da el hueco mav→mrv aquí casi no existe.
+    'Core':          {mev:2, mav:13,mrv:14},
     'Aductores':     {mev:4, mav:8, mrv:12},
   },
 
@@ -5082,11 +5082,24 @@ function buildMicrocycleCtx(){
     var nm=(l.sess||'').toLowerCase();
     if(l._cardio||/z2|z1|cardio|run|correr|caminata|movilidad/i.test(nm)){doneCardio.push(l.sess||'cardio');return;}
     // strength: try to map to a Dn label
+    // FIX 2026-07-16: antes, un match débil por primera palabra de la etiqueta (p.ej. "upper")
+    // podía sobreescribir un match exacto por código de día ya encontrado (p.ej. "d1"), porque
+    // D1 "Upper A..." y D4 "Upper B..." comparten primera palabra. Bug real: causaba que sesiones
+    // de D1 se clasificaran como D4 y viceversa (mismo problema con "Lower A"/"Lower B"). Ahora el
+    // código exacto de día tiene prioridad absoluta y, una vez encontrado, ningún match más débil
+    // puede sobreescribirlo.
     var matched=null;
     plan.forEach(function(d){
-      var label=d[2].toLowerCase();
-      if(nm.indexOf(d[0].toLowerCase())>=0||(label.split(' ')[0]&&nm.indexOf(label.split(' ')[0])>=0))matched=d[0];
+      if(matched)return; // ya hay un match fiable — no lo pisamos con uno más débil
+      if(nm.indexOf(d[0].toLowerCase())>=0)matched=d[0];
     });
+    if(!matched){
+      plan.forEach(function(d){
+        if(matched)return;
+        var label=d[2].toLowerCase();
+        if(label.split(' ')[0]&&nm.indexOf(label.split(' ')[0])>=0)matched=d[0];
+      });
+    }
     doneStrength.push(matched||l.sess||'fuerza');
   });
   // Strength sessions in the plan (exclude cardio/rest days)
