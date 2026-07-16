@@ -2837,17 +2837,17 @@ const SIGNAL_HIERARCHY = {
 
 // ══ RECOMMENDATION ENGINE ══
 const RULES=[
-  {id:'knee_pain_high',priority:10,cond:(f,i)=>f.signals.knee?.warn,action:'🦵 Protocolo rodilla activo. Pre-activación obligatoria. Para cualquier ejercicio >3/10.',conf:1.0},
-  {id:'severe_fatigue',priority:9,cond:(f,i)=>f.systemic>70,action:'🔴 Fatiga sistémica alta. Descanso activo o Z1 máx 30min.',conf:0.9},
-  {id:'high_interference',priority:8,cond:(f,i)=>i.blockLower,action:'⚠ Alta interferencia running→pierna. Evita fuerza inferior hoy.',conf:0.85},
-  {id:'hrv_suppressed',priority:7,cond:(f,i)=>S._hrv?.state==='suppressed'&&S._hrvStab?.confirmed,action:'📉 HRV suprimida. Reduce volumen 10-20% (confirmada 2+ senales). Evita axiales pesados.',conf:0.85},
-  {id:'hrv_rhr_coupling',priority:7,cond:(f,i)=>S._hrv?.coupling==='suppressed_strong',action:'⚠ HRV↓+FCr↑ simultáneos. Señal doble supresión autonómica.',conf:0.9},
-  {id:'high_doms_lower',priority:6,cond:(f,i)=>f.drivers.includes('high_doms_lower'),action:'🦵 DOMS inferior alto. Reduce pierna 20-25%. Evita fallo en quad.',conf:0.8},
-  {id:'low_sleep',priority:6,cond:(f,i)=>f.drivers.includes('low_sleep'),action:'😴 Sueño insuficiente. MAV reducido. Evita fallo muscular.',conf:0.85},
-  {id:'neg_tsb',priority:5,cond:(f,i)=>f.drivers.includes('negative_tsb'),action:'📊 TSB negativo. Acumulación cardiovascular. Considera deload cardio.',conf:0.75},
-  {id:'high_srpe',priority:5,cond:(f,i)=>f.drivers.includes('high_srpe_48h'),action:'💪 sRPE 48h elevado. Evita segunda sesión de la misma zona.',conf:0.8},
-  {id:'hrv_rebound',priority:3,cond:(f,i)=>S._hrv?.state==='rebound'&&f.systemic<30,action:'✅ HRV en rebote y fatiga baja. Buen momento para progresar.',conf:0.75},
-  {id:'all_green',priority:1,cond:(f,i)=>f.systemic<30&&!f.drivers.includes('knee_pain')&&!i.blockLower,action:'✅ Estado óptimo. Plan completo. Evalúa progresión de carga.',conf:0.8},
+  {id:'knee_pain_high',priority:10,domain:'fuerza',cond:(f,i)=>f.signals.knee?.warn,action:'🦵 Protocolo rodilla activo. Pre-activación obligatoria antes de cualquier ejercicio de pierna. Para cualquier serie con dolor >3/10.',conf:1.0},
+  {id:'severe_fatigue',priority:9,domain:'general',cond:(f,i)=>f.systemic>70,action:'🔴 Fatiga sistémica alta. Hoy: descanso, o si tocaba cardio, Z1 máx 30min y nada de fuerza.',conf:0.9},
+  {id:'high_interference',priority:8,domain:'cardio',cond:(f,i)=>i.blockLower,action:'⚠ Alta interferencia running→pierna. Si hoy tocaba fuerza de pierna, pásala a mañana; el cardio de hoy no se toca.',conf:0.85},
+  {id:'hrv_suppressed',priority:7,domain:'general',cond:(f,i)=>S._hrv?.state==='suppressed'&&S._hrvStab?.confirmed,action:'📉 HRV suprimida (confirmada 2+ señales). En fuerza: quita 1-2 series de los ejercicios accesorios, mantén los principales. En cardio: baja de zona objetivo, no de minutos.',conf:0.85},
+  {id:'hrv_rhr_coupling',priority:7,domain:'general',cond:(f,i)=>S._hrv?.coupling==='suppressed_strong',action:'⚠ HRV↓+FCr↑ simultáneos — señal doble de supresión autonómica. Trata la sesión de hoy (fuerza o cardio) como si HRV estuviera suprimida.',conf:0.9},
+  {id:'high_doms_lower',priority:6,domain:'fuerza',cond:(f,i)=>f.drivers.includes('high_doms_lower'),action:'🦵 DOMS de pierna alto. Si hoy toca fuerza inferior: quita la última serie de cada ejercicio (~20-25% menos volumen) y no llegues al fallo en cuádriceps.',conf:0.8},
+  {id:'low_sleep',priority:6,domain:'general',cond:(f,i)=>f.drivers.includes('low_sleep'),action:'😴 Sueño insuficiente. En fuerza: para 1-2 RIR más lejos del fallo de lo planeado. En cardio: mantén los minutos, no subas de zona.',conf:0.85},
+  {id:'neg_tsb',priority:5,domain:'cardio',cond:(f,i)=>f.drivers.includes('negative_tsb'),action:'📊 TSB negativo — acumulación de carga cardio. Si tienes Z2 pendiente hoy, hazlo pero no añadas minutos extra; considera un día de Z1 corto en vez de Z2 largo esta semana.',conf:0.75},
+  {id:'high_srpe',priority:5,domain:'fuerza',cond:(f,i)=>f.drivers.includes('high_srpe_48h'),action:'💪 sRPE 48h elevado por la sesión de fuerza reciente. Evita otra sesión de la misma zona hoy; si toca, pásala a mañana.',conf:0.8},
+  {id:'hrv_rebound',priority:3,domain:'general',cond:(f,i)=>S._hrv?.state==='rebound'&&f.systemic<30,action:'✅ HRV en rebote y fatiga baja — margen real para progresar hoy. En fuerza: prueba +1 serie o RIR objetivo un punto más cerca del fallo en el ejercicio principal. En cardio: puedes añadir 5-10min a la sesión planeada.',conf:0.75},
+  {id:'all_green',priority:1,domain:'general',cond:(f,i)=>f.systemic<30&&!f.drivers.includes('knee_pain')&&!i.blockLower,action:'✅ Sin señales de alarma en ningún sistema. Ejecuta la sesión planeada tal cual — no hay motivo para reducir ni razón concreta para forzar progresión hoy.',conf:0.8},
 ];
 function RecommendationEngine(fatigue,interference){
   const hasTier1=RULES.filter(r=>SIGNAL_HIERARCHY.tier1_safety.includes(r.id)&&r.cond(fatigue,interference)).length>0;
@@ -3585,14 +3585,21 @@ function renderRecommendations(){
         chain.push({text:d.note,level:'mid'});
       });
     }
-    if(ruleId==='hrv_rebound'||ruleId==='all_green'){
+    if(ruleId==='hrv_rebound'){
       if(hrv.pctVsBase>5) chain.push({text:`HRV ${hrv.pctVsBase>0?'+':''}${hrv.pctVsBase}% sobre baseline`,level:'ok'});
       if(hrv.trendSlope>2) chain.push({text:`Tendencia positiva 3d: +${Math.round(hrv.trendSlope)}ms`,level:'ok'});
       if(fat.systemic<25) chain.push({text:`Fatiga sistémica baja: ${fat.systemic}%`,level:'ok'});
     }
-    // Density context for all rules
+    // all_green NO comparte el chain de hrv_rebound a propósito (antes eran idénticos y parecía
+    // que dos recomendaciones distintas decían literalmente lo mismo). all_green solo dice "sin
+    // alarmas" — si no hay una razón positiva específica que mostrar, cae al fallback de confianza.
+    if(ruleId==='all_green'&&fat.systemic<15){
+      chain.push({text:`Fatiga sistémica muy baja: ${fat.systemic}%`,level:'ok'});
+    }
+    // Density context for all rules — high_srpe ya añade sus propias notas de densidad arriba,
+    // incluirlo aquí también las duplicaba literalmente (mismo texto dos veces en la misma tarjeta).
     const highDensity=(S._density||[]).filter(d=>d.age<48*3600000&&d.densityLevel==='alta');
-    if(highDensity.length&&!['all_green','hrv_rebound'].includes(ruleId)){
+    if(highDensity.length&&!['all_green','hrv_rebound','high_srpe'].includes(ruleId)){
       highDensity.forEach(d=>chain.push({text:d.note,level:'mid'}));
     }
     return chain;
@@ -3612,9 +3619,14 @@ function renderRecommendations(){
       </div>`:
       `<div style="font-size:9px;color:var(--fg4);margin-top:2px;font-style:italic;">Confianza ${Math.round(a.conf*100)}%</div>`;
 
+    const domainLabel={fuerza:'FUERZA',cardio:'CARDIO',general:'GENERAL'}[a.domain]||'GENERAL';
+    const domainCol={fuerza:'var(--c)',cardio:'var(--y)',general:'var(--fg3)'}[a.domain]||'var(--fg3)';
     return`<li class="rec-item" style="flex-direction:column;align-items:flex-start;gap:2px;padding:10px 0;">
       <div style="display:flex;align-items:flex-start;justify-content:space-between;width:100%;gap:8px;">
-        <div class="rec-text" style="flex:1;">${a.action}</div>
+        <div style="flex:1;">
+          <span style="font-family:'Geist Mono',monospace;font-size:8px;color:${domainCol};border:1px solid ${domainCol};border-radius:4px;padding:1px 5px;letter-spacing:0.5px;margin-right:6px;">${domainLabel}</span>
+          <div class="rec-text" style="display:inline;">${a.action}</div>
+        </div>
         <span style="font-family:'Geist Mono',monospace;font-size:9px;color:${priorityCol};flex-shrink:0;margin-top:2px;">P${a.priority}</span>
       </div>
       ${chainHTML}
