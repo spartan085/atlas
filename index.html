@@ -2865,7 +2865,14 @@ function RecommendationEngine(fatigue,interference){
 
 // ══ AUTOSAVE ESTADO HOY (persist daily-state inputs across app close) ══
 var ESTADO_FIELDS=['bbToday','energyToday','domsUpper','domsLower','lumbarToday','achillesToday','kneeToday','painToday','notesToday'];
-function estadoKey(){return 'atlas_estado_'+new Date().toISOString().split('T')[0];}
+function estadoKey(){
+  // FIX 2026-07-16: antes usaba toISOString().split('T')[0], que da la fecha en UTC, no en hora
+  // local. Para alguien en España (UTC+1/+2) esto puede desplazar la clave del día cerca de
+  // medianoche, haciendo que el check-in de hoy "desaparezca" al recargar la app horas después.
+  var d=new Date();
+  var y=d.getFullYear(),m=('0'+(d.getMonth()+1)).slice(-2),day=('0'+d.getDate()).slice(-2);
+  return 'atlas_estado_'+y+'-'+m+'-'+day;
+}
 function saveEstado(){
   var data={};
   ESTADO_FIELDS.forEach(function(id){var el=safeDOM(id);if(el&&el.value!=='')data[id]=el.value;});
@@ -4619,7 +4626,7 @@ function tw(el,day){el.classList.toggle('done');if(el.classList.contains('done')
 function parseDate(str){if(!str)return null;const p=str.split('/');if(p.length===3)return new Date(p[2],p[1]-1,p[0]);return new Date(str)||null;}
 
 // ══ AI ══
-const SYS=`Eres ATLAS v6 — coach fisiológico de Carlos. Español. Directo, basado en evidencia. Máx 380 palabras. Los motores fisiológicos ya procesaron datos determinísticamente. Tu rol: EXPLICAR en lenguaje humano claro. NO decides — interpretas. Carlos: 78.2kg, 15.6% grasa, objetivo ~10%+hipertrofia+running. Ex maratonista. Rodilla: condromalacia/ITB sin dolor. VMO descompensado, piernas en varo. Gemelos: 2x/semana mínimo. Mesociclo 1, semanas 1-4. D1 Empuje · D2 Pierna A (pre-act) · D3 Z2 · D4 Tirón · D5 Pierna B (pre-act) · D6 Z2+Mov · D7 Descanso. IMPORTANTE: respeta el bloque CALENDARIO Y MICROCICLO — analiza la sesión que TOCA según lo ya hecho esta semana, nunca asumas D1/D2 por defecto. Cada día es UNA sesión de fuerza; cardio puede sumarse el mismo día pero dos sesiones de fuerza van en días distintos. Rodilla >3/10 = parar ejercicio. Sistémica <30%=completo · 30-60%=-35% · >60%=descanso. CAPA DE DECISIÓN (obligatoria): toda recomendación que reduzca o elimine entrenamiento debe mostrar su COSTE SEMANAL, no solo el beneficio fisiológico. Clasifica cada acción como COSTE BAJO / MEDIO / ALTO. Ejemplos: reducir volumen hoy -20% = BAJO; saltar sesión de pierna = ALTO; quitar 6 series de cuádriceps = ALTO. Para acciones de coste medio/alto, muestra el trade-off explícito usando el BALANCE DE VOLUMEN: cuánto volumen se pierde esta semana, qué músculos quedan afectados, y probabilidad de no llegar al MAV. Ej: "Quitar 4 series de cuádriceps hoy lo dejaría en 8/14 y, sin más sesiones de pierna esta semana, por debajo del objetivo." Evalúa SIEMPRE las dos caras: 1) beneficio fisiológico (recuperación), 2) coste de entrenamiento semanal (volumen/MAV perdido). Nunca recomiendes una acción de coste alto sin enseñar el trade-off. Si fatiga y objetivo semanal chocan, dilo y deja que Carlos decida con el coste delante.`;
+const SYS=`Eres ATLAS v6 — coach fisiológico de Carlos. Español. Directo, basado en evidencia. Máx 380 palabras. Los motores fisiológicos ya procesaron datos determinísticamente. Tu rol: EXPLICAR en lenguaje humano claro. NO decides — interpretas. Carlos: 78.2kg, 15.6% grasa, objetivo ~10%+hipertrofia+running. Ex maratonista. Rodilla: condromalacia/ITB sin dolor. VMO descompensado, piernas en varo. Gemelos: 2x/semana mínimo. Mesociclo 1, semanas 1-4. D1 Empuje · D2 Pierna A (pre-act) · D3 Z2 · D4 Tirón · D5 Pierna B (pre-act) · D6 Z2+Mov · D7 Descanso. IMPORTANTE: respeta el bloque CALENDARIO Y MICROCICLO — analiza la sesión que TOCA según lo ya hecho esta semana, nunca asumas D1/D2 por defecto. FIDELIDAD DE EJERCICIOS (obligatorio): solo existen los ejercicios listados explícitamente en el bloque EJERCICIOS REALES del contexto — NUNCA nombres, sugieras quitar/añadir series de, ni des cues técnicos sobre un ejercicio que no esté en esa lista, aunque sea una alternativa típica y razonable en otros programas. Si quieres sugerir un cambio de ejercicio, dilo en términos de patrón de movimiento o pídele a Carlos que lo confirme — no inventes el nombre. Cada día es UNA sesión de fuerza; cardio puede sumarse el mismo día pero dos sesiones de fuerza van en días distintos. Rodilla >3/10 = parar ejercicio. Sistémica <30%=completo · 30-60%=-35% · >60%=descanso. CAPA DE DECISIÓN (obligatoria): toda recomendación que reduzca o elimine entrenamiento debe mostrar su COSTE SEMANAL, no solo el beneficio fisiológico. Clasifica cada acción como COSTE BAJO / MEDIO / ALTO. Ejemplos: reducir volumen hoy -20% = BAJO; saltar sesión de pierna = ALTO; quitar 6 series de cuádriceps = ALTO. Para acciones de coste medio/alto, muestra el trade-off explícito usando el BALANCE DE VOLUMEN: cuánto volumen se pierde esta semana, qué músculos quedan afectados, y probabilidad de no llegar al MAV. Ej: "Quitar 4 series de cuádriceps hoy lo dejaría en 8/14 y, sin más sesiones de pierna esta semana, por debajo del objetivo." Evalúa SIEMPRE las dos caras: 1) beneficio fisiológico (recuperación), 2) coste de entrenamiento semanal (volumen/MAV perdido). Nunca recomiendes una acción de coste alto sin enseñar el trade-off. Si fatiga y objetivo semanal chocan, dilo y deja que Carlos decida con el coste delante.`;
 
 // ══ MICROCYCLE / CALENDAR CONTEXT — tells AI what day it is, which Dn sessions are done this week, and what's next ══
 
@@ -5112,6 +5119,12 @@ function buildMicrocycleCtx(){
   var nextStrength=null;
   for(var i=0;i<strengthDays.length;i++){if(!doneSet[strengthDays[i][0]]){nextStrength=strengthDays[i];break;}}
   var nextTxt=nextStrength?(nextStrength[0]+' — '+nextStrength[2]):'Semana de fuerza completa (solo queda cardio/descanso)';
+  // FIX 2026-07-16: sin esto la IA no sabía qué ejercicios EXACTOS componen la sesión, así que
+  // cuando daba "ajustes concretos" se inventaba ejercicios plausibles de un split genérico de
+  // pierna (p.ej. "sentadilla búlgara", que no está en ningún día del plan de Carlos). Ahora se le
+  // manda la lista real y se le prohíbe explícitamente nombrar cualquier otro ejercicio.
+  var nextExercises=nextStrength?planDayExercises(nextStrength[2]):null;
+  var nextExTxt=nextExercises?('\nEJERCICIOS REALES de '+nextStrength[0]+' (los ÚNICOS que existen en el plan de Carlos — NUNCA sugieras ni nombres un ejercicio que no esté en esta lista, ni siquiera como alternativa):\n'+nextExercises.map(function(e){return '  · '+e;}).join('\n')+'\n'):'';
   // WEEKLY VOLUME BALANCE: series done vs MAV target per muscle
   var vol=S.weeklyVol||{};var ranges=S.mavRanges||{};
   var volLines=[];
@@ -5134,6 +5147,7 @@ function buildMicrocycleCtx(){
     '- Sesiones de FUERZA ya hechas esta semana: '+(doneStrength.length?doneStrength.join(', '):'ninguna')+'\n'+
     '- Sesiones de CARDIO ya hechas esta semana: '+(doneCardio.length?doneCardio.join(', '):'ninguna')+'\n'+
     '- Fuerza pendiente esta semana: '+(remainingSessions.length?remainingSessions.map(function(d){return d[0]+' '+d[2].split('+')[0].trim();}).join(' · '):'completa')+'\n'+
+    nextExTxt+
     '- Cardio pendiente esta semana: '+(typeof pendingCardio!=='undefined'&&pendingCardio.length?pendingCardio.map(function(d){return d[0];}).join(' · '):'(ver Garmin)')+'\n'+
     '- REGLA: cada día es UNA sesión de fuerza. Se puede añadir cardio (correr/Z2) el mismo día, pero NUNCA dos sesiones de fuerza el mismo día — la siguiente de fuerza es otro día.\n'+
     '- Analiza la sesión que TOCA según lo ya hecho, no asumas D1/D2 por defecto.\n\n'+
@@ -6397,14 +6411,17 @@ function setLogKnee(logKey, phase, value){
   if(!l)return;
   if(['intra','h24','h48'].indexOf(phase)<0)return;
   if(!l.kneeCapture)l.kneeCapture={intra:{v:null,logged:false},h24:{v:null,logged:false},h48:{v:null,logged:false}};
-  var v=Math.max(0,Math.min(10,safeNum(value,0)));
+  // FIX 2026-07-16: 'Omitir' manda value=null a propósito — antes safeNum(null,0) lo convertía en
+  // 0 ("sin dolor"), perdiendo la distinción que el propio comentario de arriba pide mantener
+  // (null = no medido, 0 = medido y sin dolor). Ahora null se respeta como null.
+  var v=(value===null)?null:Math.max(0,Math.min(10,safeNum(value,0)));
   l.kneeCapture[phase]={v:v,logged:true};
   // peak legacy (campo 'knee') para no romper lecturas antiguas; no se usa para inferir nada
   l.knee=Math.max(safeNum(l.knee,0),(l.kneeCapture.intra.v||0),(l.kneeCapture.h24.v||0),(l.kneeCapture.h48.v||0));
   save();
   if(typeof renderKneeTracker==='function')renderKneeTracker();
   if(typeof renderKneePrompt==='function')renderKneePrompt();
-  toast('Rodilla registrada',phase.replace('h','')+(phase==='intra'?'':'h')+' = '+v+'/10','🦵');
+  toast(v===null?'Rodilla omitida':'Rodilla registrada',v===null?(phase.replace('h','')+(phase==='intra'?'':'h')+' sin medir'):(phase.replace('h','')+(phase==='intra'?'':'h')+' = '+v+'/10'),'🦵');
 }
 function renderKneeTracker(){
   var el=safeDOM('kneeTrackerPanel'); if(!el) return;
@@ -6489,11 +6506,18 @@ function renderKneePrompt(){
   box.innerHTML='<div style="padding:12px 14px;background:var(--bg2);border:1px solid var(--c);border-radius:14px;">'
     +'<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px;">'
       +'<div style="font-size:13px;color:var(--fg);font-weight:600;">🦵 Rodilla · '+p.label+' pendiente</div>'
-      +(pend.length>1?'<div style="font-size:9px;color:var(--fg3);">+'+(pend.length-1)+' más</div>':'')
+      +(pend.length>1?'<div style="font-size:9px;color:var(--fg3);">+'+(pend.length-1)+' más en cola</div>':'')
     +'</div>'
-    +'<div style="font-size:11px;color:var(--fg3);margin-bottom:2px;">'+(p.cardio?'🏃 ':'🏋️ ')+p.sess+' · 0 = sin dolor</div>'
+    +'<div style="font-size:11px;color:var(--fg3);margin-bottom:2px;">'+(p.cardio?'🏃 ':'🏋️ ')+p.sess+' · '+p.label+' · 0 = sin dolor</div>'
     +scale(p.lk,p.phase)
-    +'<div style="font-size:9px;color:var(--fg4);margin-top:6px;">El resto en Datos → Seguimiento de rodilla</div>'
+    // FIX 2026-07-16: sin esto, un checkpoint que Carlos no quiere/puede contestar se queda
+    // pendiente para siempre y sigue apareciendo cada vez que abre HOY, dando la sensación de que
+    // "no guarda los datos" cuando en realidad es que nunca desaparece de la cola. 'Omitir' registra
+    // logged:true con v:null (explícitamente "no medido", distinto de 0="sin dolor") y libera el slot.
+    +'<div style="display:flex;justify-content:space-between;align-items:center;margin-top:6px;">'
+      +'<div style="font-size:9px;color:var(--fg4);">El resto en Datos → Seguimiento de rodilla</div>'
+      +'<button onclick="setLogKnee(\''+p.lk+'\',\''+p.phase+'\',null)" style="font-size:10px;color:var(--fg3);background:none;border:1px solid var(--line);border-radius:6px;padding:3px 8px;cursor:pointer;">Omitir</button>'
+    +'</div>'
   +'</div>';
 }
 
