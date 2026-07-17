@@ -738,6 +738,12 @@ const S = {
   // rendimiento/recuperación observados no cuadran con estas curvas, se recalibran. NO entran en las
   // hipótesis H1-H7 del pre-registro como verdad; son un parámetro tuneable declarado (ver protocolo v2 §0.0).
   residualHL:{strength:60, cardio:36},
+  // 2026-07-16 — caché PERMANENTE de streams de Intervals.icu por actividad. Arquitectura pedida
+  // por Carlos: la sync normal NUNCA descarga streams (son pesados); solo se piden bajo demanda
+  // (al pulsar "Analizar" sobre una carrera concreta) y, una vez descargados, se quedan aquí para
+  // no volver a pedirlos salvo que la actividad cambie (se compara icu_last_modified/moving_time
+  // como huella — si difieren, se refetch; si no, caché sirve para siempre).
+  streamsCache:{},
   mavRanges:{
     // 6.4.1 — REVISADO 2026-07-15 (v5, decisión explícita de Carlos). mev y mrv: literatura
     // (RP + Schoenfeld/Grgic/Baz-Valle) — límites de seguridad, sin tocar por conveniencia.
@@ -841,6 +847,17 @@ function save(){
     }
   }catch(e){}
 
+  // Prune streamsCache: cachear streams es "permanente" en espíritu, pero localStorage tiene
+  // límite real. Nos quedamos con las 40 actividades analizadas más recientes (por fetchedAt);
+  // si Carlos necesita reanalizar una que se purgó, el refetch es barato (una sola actividad).
+  var streamsEntries=Object.entries(S.streamsCache||{});
+  var prunedStreamsCache=S.streamsCache;
+  if(streamsEntries.length>40){
+    streamsEntries.sort(function(a,b){return (b[1].fetchedAt||'').localeCompare(a[1].fetchedAt||'');});
+    prunedStreamsCache={};
+    streamsEntries.slice(0,40).forEach(function(e){prunedStreamsCache[e[0]]=e[1];});
+  }
+
   var data={
     int:S.int,claude:S.claude,
     metrics:S.metrics,
@@ -851,6 +868,7 @@ function save(){
     weekOffset:S.weekOffset,
     volWindow:S.volWindow,
     residualHL:S.residualHL, // 6.4.1: vidas media configurables (hipótesis)
+    streamsCache:prunedStreamsCache, // 2026-07-16: caché permanente de streams bajo demanda
     logWeekOffset:S.logWeekOffset,
     hevy:S.hevy?{key:S.hevy.key,totalWorkouts:S.hevy.totalWorkouts,workouts:S.hevy.workouts}:null,
     currentMeso:S.currentMeso||1,
@@ -893,6 +911,7 @@ function loadPersisted(){
         if(_hs>=12&&_hs<=240)S.residualHL.strength=_hs; // límites de cordura (0.5-10 días)
         if(_hc>=6&&_hc<=168)S.residualHL.cardio=_hc;
       }
+      if(p.streamsCache&&typeof p.streamsCache==='object')S.streamsCache=p.streamsCache; // 2026-07-16
       if(p.logWeekOffset!=null)S.logWeekOffset=p.logWeekOffset;
       if(p.hevy)S.hevy=p.hevy;
       if(p.currentMeso)S.currentMeso=p.currentMeso;
@@ -3938,11 +3957,35 @@ function renderStrengthLoad(elId,labelId,acts,offset){
   }).join('');
 }
 
-// ══ ENDURANCE / CARDIO — adaptación aeróbica (6.4.0) ══
+function miniBars(vals,opts){
+  opts=opts||{};
+  var valid=vals.map(function(v){return v==null?null:v;});
+  var nums=valid.filter(function(v){return v!=null;});
+  if(!nums.length)return '<div style="font-size:10px;color:var(--fg4);">Sin datos para graficar.</div>';
+  var mn=Math.min.apply(null,nums), mx=Math.max.apply(null,nums);
+  var range=(mx-mn)||1;
+  var col=opts.color||'var(--c)';
+  return '<div style="display:flex;align-items:flex-end;gap:2px;height:36px;margin:6px 0;">'+valid.map(function(v){
+    var h=v==null?4:Math.max(4,Math.round(((v-mn)/range)*32)+4);
+    return '<div style="flex:1;height:'+h+'px;background:'+(v==null?'var(--line)':col)+';border-radius:2px 2px 0 0;opacity:'+(v==null?0.3:0.85)+';"></div>';
+  }).join('')+'</div>';
+}
+
+async function analyzeRunStreams(activityId,btnEl){
+  var act=safeArr(S.metrics.activities).find(function(a){return String(a.id)===String(activityId);});
+  if(!act)return;
+  if(btnEl){btnEl.textContent='...';btnEl.disabled=true;}
+  var res=await fetchActivityStreams(activityId,act);
+  if(res.error){toast('No se pudo analizar',res.error,'⚠️');if(btnEl){btnEl.textContent='Analizar';btnEl.disabled=false;}return;}
+  toast(res.fromCache?'Ya estaba analizada':'Analizada','Desacople y mitades calculados','✅');
+  renderEndurance();
+}
+
+// ══ ENDURANCE / CARDIO — adaptación aeróbica (6.4.0, ampliada 2026-07-16) ══
 // Enfoque: NO carga, sino "¿estoy mejorando como corredor?". Métrica reina: eficiencia (ritmo/FC).
 // HONESTIDAD DE DATOS: EF y tendencias Z2 se calculan de datos de resumen (pace + FC media, presentes
-// en el export). El desacople (1ª vs 2ª mitad) y el VO2max NO están en el export actual → se marcan
-// como PENDIENTES, nunca se inventan (filosofía anti-falsa-precisión de ATLAS).
+// en el export) salvo que una carrera tenga streams analizados (botón "Analizar"), en cuyo caso se usa
+// el cálculo preciso local. El desacople/mitades/variabilidad de ritmo solo aparecen tras analizar.
 function fmtPace(ms){ // velocidad m/s -> "m:ss/km"
   if(!ms||ms<=0)return '—';
   var secPerKm=1000/ms; var m=Math.floor(secPerKm/60); var s=Math.round(secPerKm%60);
@@ -3962,128 +4005,205 @@ function renderEndurance(){
       var zt=a.icu_hr_zone_times||a.icu_zone_times||[];
       var ztot=Array.isArray(zt)?zt.reduce(function(s,v){return s+(v||0);},0):0;
       var z12pct=(ztot>0)?(((zt[0]||0)+(zt[1]||0))/ztot):0;
-      return {t:t,date:a.start_date_local||'',paceMs:paceMs,hr:hr,ef:ef,
+      var sc=S.streamsCache[a.id];
+      var streamOk=sc&&sc.fingerprint===_activityFingerprint(a)?sc.metrics:null;
+      return {id:a.id,t:t,date:a.start_date_local||'',paceMs:paceMs,hr:hr,ef:(streamOk&&streamOk.ef)||ef,
         distKm:a.distance?Math.round(a.distance/100)/10:null,
         dur:a.moving_time?Math.round(a.moving_time/60):null,
         load:safeNum(a.icu_training_load,0),z12pct:z12pct,
-        isZ2:z12pct>=0.6, name:a.name||a.type};
+        isZ2:z12pct>=0.6, name:a.name||a.type, stream:streamOk};
     })
     .filter(function(r){return isFinite(r.t);})
     .sort(function(a,b){return a.t-b.t;}); // cronológico ascendente
 
   var nRuns=runs.length;
   var vo2=S.metrics.vo2max, ctl=S.metrics.ctl, atl=S.metrics.atl, tsb=S.metrics.tsb;
+  var fCard=S._fatigue;
+  var hlCardioNow=safeNum(S.residualHL&&S.residualHL.cardio,36);
+  var efs=runs.filter(function(r){return r.ef;});
+  var z2runs=runs.filter(function(r){return r.isZ2;});
   var html='';
-
-  // ── A. ESTADO ACTUAL ──
-  html+='<div class="card" style="margin-bottom:12px;"><div class="card-hdr"><span class="t-md">Estado actual</span><span class="mono" style="font-size:10px;color:var(--fg3);">'+nRuns+' carreras</span></div><div class="card-body">';
   function stRow(label,val,sub){return '<div style="display:flex;justify-content:space-between;padding:4px 0;border-bottom:1px solid var(--line);"><span style="color:var(--fg2);font-size:12px;">'+label+'</span><span class="mono" style="font-size:12px;color:'+(val==='—'?'var(--fg4)':'var(--fg)')+';">'+val+(sub?' <span style="color:var(--fg3);font-size:10px;">'+sub+'</span>':'')+'</span></div>';}
-  html+=stRow('VO₂max', vo2?vo2+' ml/kg/min':'—', vo2?'':'sin dato Garmin');
-  html+=stRow('CTL (fitness)', ctl!=null?String(ctl):'—','carga crónica');
-  html+=stRow('ATL (fatiga)', atl!=null?String(atl):'—','carga aguda');
-  html+=stRow('TSB (forma)', tsb!=null?(tsb>0?'+':'')+tsb:'—', tsb!=null?(tsb<-15?'fatiga alta':tsb>5?'fresco':'neutro'):'');
-  if(nRuns>0){var last=runs[nRuns-1];
-    html+=stRow('Última · ritmo', fmtPace(last.paceMs)+'/km','');
-    html+=stRow('Última · FC media', last.hr?last.hr+' ppm':'—','');
-    html+=stRow('Última · eficiencia', last.ef?last.ef.toFixed(2):'—','ritmo/FC');
+
+  // ── 0. INSIGHTS — síntesis automática, 3-5 observaciones, nunca más de lo que el dato soporta ──
+  var insights=[];
+  if(efs.length>=6){
+    var lastN=efs.slice(-5),prevN=efs.slice(-10,-5);
+    if(prevN.length){
+      var avgLast=lastN.reduce(function(a,r){return a+r.ef;},0)/lastN.length;
+      var avgPrev=prevN.reduce(function(a,r){return a+r.ef;},0)/prevN.length;
+      var pctEf=Math.round((avgLast-avgPrev)/avgPrev*1000)/10;
+      if(Math.abs(pctEf)>=1)insights.push({icon:pctEf>0?'📈':'📉',text:'Tu Efficiency Factor ha '+(pctEf>0?'mejorado':'empeorado')+' un '+Math.abs(pctEf)+'% (últimas 5 vs 5 anteriores).'});
+    }
+  } else if(efs.length>0){
+    insights.push({icon:'⚠️',text:'Evidencia todavía limitada ('+efs.length+' carrera'+(efs.length===1?'':'s')+' con EF calculable) — hacen falta ~6 para hablar de tendencia real.'});
   }
+  if(fCard&&fCard.cardioResidual!=null){
+    var cLvl0=fCard.trainingState?fCard.trainingState.cardioLevel:null;
+    if(cLvl0==='bajo'||cLvl0==='medio')insights.push({icon:'🟢',text:'Carga cardiovascular '+cLvl0+' — compatible con otro rodaje Z2 si toca.'});
+    else if(cLvl0==='alto')insights.push({icon:'🟠',text:'Carga cardiovascular alta ('+fCard.cardioResidual+' UA) — mejor rodaje suave que intervalos hoy.'});
+  }
+  if(ctl!=null&&ctl<20)insights.push({icon:'📊',text:'Tu CTL sigue siendo bajo ('+ctl+'). El objetivo ahora es acumular consistencia (más semanas corriendo), no intensidad.'});
+  if(nRuns<8)insights.push({icon:'🔬',text:'Aún no hay carreras suficientes ('+nRuns+'/8) para evaluar tu adaptación aeróbica con confianza — cualquier lectura de arriba es orientativa.'});
+  if(!insights.length)insights.push({icon:'ℹ️',text:'Sin observaciones automáticas todavía — corre unas cuantas veces más para que Atlas tenga algo real que decir.'});
+  html+='<div class="card" style="margin-bottom:12px;border:1px solid var(--c);"><div class="card-hdr"><span class="t-md">💡 Insights</span></div><div class="card-body" style="font-size:12px;color:var(--fg2);line-height:1.6;">';
+  insights.slice(0,5).forEach(function(i){html+='<div style="padding:3px 0;">'+i.icon+' '+i.text+'</div>';});
   html+='</div></div>';
 
-  // ── B. EFICIENCIA (ritmo/FC) — PRIORIDAD #1 de Carlos ──
+  // ── 1. ESTADO ENDURANCE — equivalente al Readiness de Strength, categórico no numérico ──
+  var edState='estable',edCol='var(--fg3)',edReason='Sin datos suficientes para clasificar.';
+  if(fCard&&fCard.cardioResidual!=null&&tsb!=null){
+    var cLvl=fCard.trainingState?fCard.trainingState.cardioLevel:'bajo';
+    if(cLvl==='alto'||tsb<-20){edState='Recuperando';edCol='var(--r)';edReason='Carga cardio '+cLvl+', TSB '+tsb+'. Prioriza Z1/descanso.';}
+    else if(cLvl==='medio'||(tsb<-5&&tsb>=-20)){edState='Acumulando';edCol='var(--y)';edReason='Carga cardio '+cLvl+', TSB '+tsb+'. Sostenible, sin margen para forzar todavía.';}
+    else {edState='Adaptando';edCol='var(--g)';edReason='Carga cardio '+cLvl+', TSB '+tsb+'. Margen real para progresar.';}
+  }
+  html+='<div class="card" style="margin-bottom:12px;"><div class="card-hdr"><span class="t-md">Estado Endurance</span></div><div class="card-body">';
+  html+='<div style="display:flex;align-items:center;gap:8px;"><span style="width:10px;height:10px;border-radius:50%;background:'+edCol+';display:inline-block;"></span><span style="font-size:15px;font-weight:700;color:'+edCol+';">'+edState+'</span></div>';
+  html+='<div style="font-size:11px;color:var(--fg3);margin-top:4px;">'+edReason+'</div>';
+  html+='</div></div>';
+
+  // ── 2. EFICIENCIA (ritmo/FC) + gráfica + streams bajo demanda ──
   html+='<div class="card" style="margin-bottom:12px;"><div class="card-hdr"><span class="t-md">Eficiencia · ritmo/FC</span><span class="mono" style="font-size:10px;color:var(--c);">Efficiency Factor</span></div><div class="card-body">';
   if(nRuns===0){
     html+='<div style="font-size:12px;color:var(--fg3);">Sin carreras registradas. Conecta Intervals.icu y corre para empezar a medir tu eficiencia.</div>';
   } else {
-    html+='<div style="font-size:11px;color:var(--fg3);margin-bottom:6px;">EF = velocidad ÷ FC. <b style="color:var(--g);">Subir</b> = corres más rápido con el mismo pulso (mejor base aeróbica).</div>';
+    html+='<div style="font-size:11px;color:var(--fg3);margin-bottom:2px;">EF = velocidad ÷ FC. <b style="color:var(--g);">Subir</b> = corres más rápido con el mismo pulso.</div>';
+    html+=miniBars(runs.map(function(r){return r.ef;}),{color:'var(--c)'});
     var show=runs.slice(-10);
     html+='<div style="font-size:11px;">';
-    html+='<div style="display:flex;color:var(--fg3);font-size:10px;text-transform:uppercase;letter-spacing:0.5px;padding:3px 0;border-bottom:1px solid var(--line);"><span style="flex:1.4;">Fecha</span><span style="flex:1;text-align:right;">Ritmo</span><span style="flex:1;text-align:right;">FC</span><span style="flex:1;text-align:right;">EF</span></div>';
+    html+='<div style="display:flex;color:var(--fg3);font-size:10px;text-transform:uppercase;letter-spacing:0.5px;padding:3px 0;border-bottom:1px solid var(--line);"><span style="flex:1.3;">Fecha</span><span style="flex:0.9;text-align:right;">Ritmo</span><span style="flex:0.7;text-align:right;">FC</span><span style="flex:0.8;text-align:right;">EF</span><span style="flex:0.9;text-align:right;"></span></div>';
     show.forEach(function(r){
       var ds=(r.date||'').split('T')[0].slice(5);
-      html+='<div style="display:flex;padding:4px 0;border-bottom:1px solid var(--line);"><span style="flex:1.4;color:var(--fg2);">'+ds+(r.isZ2?' <span style="color:var(--c);font-size:9px;">Z2</span>':'')+'</span><span class="mono" style="flex:1;text-align:right;color:var(--fg);">'+fmtPace(r.paceMs)+'</span><span class="mono" style="flex:1;text-align:right;color:var(--fg2);">'+(r.hr||'—')+'</span><span class="mono" style="flex:1;text-align:right;color:var(--c);">'+(r.ef?r.ef.toFixed(2):'—')+'</span></div>';
+      var streamBtn=r.stream
+        ?'<span class="mono" style="font-size:9px;color:var(--c);" title="Desacople '+(r.stream.drift!=null?r.stream.drift+'%':'n/d')+'">✓ analizada</span>'
+        :'<button onclick="analyzeRunStreams(\''+r.id+'\',this)" style="font-size:9px;color:var(--fg3);background:none;border:1px solid var(--line);border-radius:5px;padding:1px 5px;cursor:pointer;">Analizar</button>';
+      html+='<div style="display:flex;align-items:center;padding:4px 0;border-bottom:1px solid var(--line);"><span style="flex:1.3;color:var(--fg2);">'+ds+(r.isZ2?' <span style="color:var(--c);font-size:9px;">Z2</span>':'')+'</span><span class="mono" style="flex:0.9;text-align:right;color:var(--fg);">'+fmtPace(r.paceMs)+'</span><span class="mono" style="flex:0.7;text-align:right;color:var(--fg2);">'+(r.hr||'—')+'</span><span class="mono" style="flex:0.8;text-align:right;color:var(--c);">'+(r.ef?r.ef.toFixed(2):'—')+'</span><span style="flex:0.9;text-align:right;">'+streamBtn+'</span></div>';
+      if(r.stream&&(r.stream.drift!=null||r.stream.paceVariability!=null)){
+        html+='<div style="font-size:10px;color:var(--fg3);padding:2px 0 4px;">';
+        if(r.stream.drift!=null)html+='Desacople: <span class="mono" style="color:'+(r.stream.drift>5?'var(--y)':'var(--fg2)')+';">'+(r.stream.drift>0?'+':'')+r.stream.drift+'%</span> · ';
+        if(r.stream.hrFirstHalf!=null)html+='FC 1ª/2ª mitad: '+r.stream.hrFirstHalf+'→'+r.stream.hrSecondHalf+' ppm · ';
+        if(r.stream.paceVariability!=null)html+='Variabilidad ritmo: '+r.stream.paceVariability+'%';
+        html+='</div>';
+      }
     });
     html+='</div>';
-    var efs=runs.filter(function(r){return r.ef;});
-    if(efs.length>=2){
+    if(efs.length>=6){
+      var lastN2=efs.slice(-5),prevN2=efs.slice(-10,-5);
+      if(prevN2.length){
+        var aL=lastN2.reduce(function(a,r){return a+r.ef;},0)/lastN2.length;
+        var aP=prevN2.reduce(function(a,r){return a+r.ef;},0)/prevN2.length;
+        var pct2=Math.round((aL-aP)/aP*1000)/10;
+        var arrow2=pct2>1?'↗':pct2<-1?'↘':'→';
+        var col2=pct2>1?'var(--g)':pct2<-1?'var(--r)':'var(--fg3)';
+        html+='<div style="margin-top:8px;padding:6px 8px;background:var(--bg4);border-radius:6px;font-size:11px;">EF últimas 5 vs 5 anteriores: '+aP.toFixed(2)+' '+arrow2+' '+aL.toFixed(2)+' <span style="color:'+col2+';font-weight:600;">('+(pct2>0?'+':'')+pct2+'%)</span></div>';
+      }
+    } else if(efs.length>=2){
       var first=efs[0].ef, lastef=efs[efs.length-1].ef;
       var pct=Math.round((lastef-first)/first*1000)/10;
-      var arrow=pct>1?'↗':pct<-1?'↘':'→';
-      var col=pct>1?'var(--g)':pct<-1?'var(--r)':'var(--fg3)';
-      html+='<div style="margin-top:8px;padding:6px 8px;background:var(--bg4);border-radius:6px;font-size:11px;">EF primera → última: '+first.toFixed(2)+' '+arrow+' '+lastef.toFixed(2)+' <span style="color:'+col+';font-weight:600;">('+(pct>0?'+':'')+pct+'%)</span></div>';
+      html+='<div style="margin-top:8px;padding:6px 8px;background:var(--bg4);border-radius:6px;font-size:11px;">EF primera → última: '+first.toFixed(2)+' → '+lastef.toFixed(2)+' ('+(pct>0?'+':'')+pct+'%) <span style="color:var(--y);">— con '+efs.length+' aún es solo primera-vs-última, no una tendencia de 5v5.</span></div>';
     }
     if(efs.length<6){
-      html+='<div style="margin-top:6px;font-size:10px;color:var(--y);">⚠ Tendencia orientativa: con '+efs.length+' carrera'+(efs.length===1?'':'s')+' aún no es fiable. A partir de ~6-8 será sólida.</div>';
+      html+='<div style="margin-top:6px;font-size:10px;color:var(--y);">⚠ Con '+efs.length+' carrera'+(efs.length===1?'':'s')+' aún no es fiable. A partir de ~6-8 se compara últimas 5 vs 5 anteriores.</div>';
     }
   }
   html+='</div></div>';
 
-  // ── C. TENDENCIA Z2 (ritmo y FC) ──
-  var z2runs=runs.filter(function(r){return r.isZ2;});
+  // ── 3. TENDENCIA Z2 — fraseada como cambio relativo, no solo tablas ──
   html+='<div class="card" style="margin-bottom:12px;"><div class="card-hdr"><span class="t-md">Tendencia Z2</span><span class="mono" style="font-size:10px;color:var(--fg3);">'+z2runs.length+' rodajes Z2</span></div><div class="card-body">';
   if(z2runs.length===0){
     html+='<div style="font-size:12px;color:var(--fg3);">Sin rodajes Z2 detectados (Z1+Z2 ≥ 60% del tiempo). Corre en zona aeróbica para poblar esta tendencia.</div>';
   } else {
+    html+=miniBars(z2runs.map(function(r){return r.hr?(1000/(r.paceMs*60))/r.hr:null;}),{color:'var(--c)'});
     var zp=z2runs.map(function(r){return fmtPace(r.paceMs);}).join(' · ');
     var zh=z2runs.map(function(r){return r.hr;}).join(' · ');
     html+='<div style="font-size:11px;color:var(--fg3);">Ritmo Z2 (cronológico):</div><div class="mono" style="font-size:12px;color:var(--fg);margin-bottom:6px;">'+zp+'/km</div>';
     html+='<div style="font-size:11px;color:var(--fg3);">FC media Z2:</div><div class="mono" style="font-size:12px;color:var(--fg);">'+zh+' ppm</div>';
+    if(z2runs.length>=2){
+      var zFirst=z2runs[0],zLast=z2runs[z2runs.length-1];
+      if(zFirst.hr&&zLast.hr&&zFirst.paceMs&&zLast.paceMs){
+        var refHR=Math.min(zFirst.hr,zLast.hr); // comparar a igual pulso: normalizamos a la FC más baja de las dos
+        var speedAtFirst=zFirst.paceMs*(refHR/zFirst.hr), speedAtLast=zLast.paceMs*(refHR/zLast.hr);
+        var pctSpeed=Math.round((speedAtLast-speedAtFirst)/speedAtFirst*1000)/10;
+        if(z2runs.length<6){
+          html+='<div style="margin-top:6px;font-size:10px;color:var(--y);">⚠ Solo '+z2runs.length+' rodajes Z2 — la frase de abajo es orientativa, no una tendencia validada.</div>';
+        }
+        html+='<div style="margin-top:8px;padding:6px 8px;background:var(--bg4);border-radius:6px;font-size:12px;color:var(--fg2);">Con el mismo pulso (~'+refHR+' ppm), corres <span style="color:'+(pctSpeed>0?'var(--g)':'var(--r)')+';font-weight:600;">'+(pctSpeed>0?Math.abs(pctSpeed)+'% más rápido':Math.abs(pctSpeed)+'% más lento')+'</span> que en tu primer Z2 registrado.</div>';
+      }
+    }
   }
   html+='</div></div>';
 
-  // ── C.5 CARGA CARDIO RESIDUAL (ya existía en FatigueEngine como f.cardioResidual — solo
-  // faltaba mostrarla aquí. Mismo modelo de decaimiento exponencial que usa Strength, vida
-  // media configurable en FATIGA → Parámetros del modelo) ──
-  var fCard=S._fatigue;
-  var hlCardioNow=safeNum(S.residualHL&&S.residualHL.cardio,36);
+  // ── 4. CARGA CARDIO RESIDUAL — bandas categóricas + texto clínico, conectado con Strength ──
   html+='<div class="card" style="margin-bottom:12px;"><div class="card-hdr"><span class="t-md">Carga cardio residual</span><span class="mono" style="font-size:10px;color:var(--fg3);">decaimiento exponencial</span></div><div class="card-body">';
   if(fCard&&fCard.cardioResidual!=null){
     var cLvl=fCard.trainingState?fCard.trainingState.cardioLevel:'—';
     var cCol=cLvl==='alto'?'var(--r)':cLvl==='medio'?'var(--y)':'var(--g)';
+    var cText={
+      'bajo':'Carga cardiovascular baja. Compatible con otro rodaje Z2 o incluso una sesión de intervalos si el resto de sistemas (ver HOY → Fuerza) también están bajos.',
+      'medio':'Carga cardiovascular moderada. Compatible con otro rodaje Z2. Intervalos solo si la carga de fuerza también es baja — revisa HOY antes de decidir.',
+      'alto':'Carga cardiovascular alta. Mejor rodaje suave (Z1) o descanso que otra sesión exigente hoy.'
+    }[cLvl]||'Nivel no clasificado todavía.';
     html+='<div style="display:flex;align-items:baseline;gap:8px;"><span class="mono" style="font-size:22px;color:'+cCol+';font-weight:700;">'+fCard.cardioResidual+'</span><span style="font-size:11px;color:var(--fg3);">UA · nivel '+cLvl+'</span></div>';
-    html+='<div style="font-size:11px;color:var(--fg3);margin-top:4px;">Suma de la carga (Training Load) de tus últimas sesiones cardio, desvanecida con vida media de '+hlCardioNow+'h (configurable en FATIGA → Parámetros del modelo). NO se mezcla con la carga residual de fuerza — son dos acumuladores independientes a propósito.</div>';
+    html+='<div style="font-size:12px;color:var(--fg2);margin-top:6px;padding:6px 8px;background:var(--bg4);border-radius:6px;">'+cText+'</div>';
+    html+='<div style="font-size:10px;color:var(--fg4);margin-top:4px;">Vida media '+hlCardioNow+'h (configurable en FATIGA → Parámetros del modelo). NO se mezcla con la carga residual de fuerza — son dos acumuladores independientes a propósito.</div>';
   } else {
     html+='<div style="font-size:12px;color:var(--fg3);">Aún no calculado esta sesión. Abre HOY primero para que el motor de fatiga corra, luego vuelve aquí.</div>';
   }
   html+='</div></div>';
 
-  // ── E. TENDENCIAS (mejores marcas recientes, honesto: solo lo que hay datos para calcular) ──
+  // ── 5. TENDENCIAS (récords) ──
   html+='<div class="card" style="margin-bottom:12px;"><div class="card-hdr"><span class="t-md">Tendencias</span></div><div class="card-body">';
   if(nRuns===0){
     html+='<div style="font-size:12px;color:var(--fg3);">Sin carreras suficientes.</div>';
   } else {
     var last30=runs.filter(function(r){return (Date.now()-r.t)<=30*86400000;});
-    var bestZ2=last30.filter(function(r){return r.isZ2&&r.paceMs>0;}).sort(function(a,b){return b.paceMs-a.paceMs;})[0]; // paceMs = velocidad, mayor=mejor
+    var bestZ2=last30.filter(function(r){return r.isZ2&&r.paceMs>0;}).sort(function(a,b){return b.paceMs-a.paceMs;})[0];
     var bestEf=runs.filter(function(r){return r.ef;}).sort(function(a,b){return b.ef-a.ef;})[0];
     var maxDist=runs.reduce(function(m,r){return (r.distKm&&r.distKm>(m?m.distKm:0))?r:m;},null);
     var maxDur=runs.reduce(function(m,r){return (r.dur&&r.dur>(m?m.dur:0))?r:m;},null);
+    // Mayor carga semanal: suma icu_training_load por semana ISO
+    var loadByWeek={};
+    runs.forEach(function(r){if(!r.t)return;var d=new Date(r.t);var onejan=new Date(d.getFullYear(),0,1);var wk=Math.ceil((((d-onejan)/86400000)+onejan.getDay()+1)/7);var key=d.getFullYear()+'-W'+wk;loadByWeek[key]=(loadByWeek[key]||0)+(r.load||0);});
+    var weekEntries=Object.entries(loadByWeek).sort(function(a,b){return b[1]-a[1];});
+    var maxWeek=weekEntries[0];
     html+=stRow('Mejor ritmo Z2 (30d)', bestZ2?fmtPace(bestZ2.paceMs)+'/km':'—', bestZ2?bestZ2.date.split('T')[0].slice(5):'sin rodajes Z2 en 30d');
     html+=stRow('Mejor EF (histórico)', bestEf?bestEf.ef.toFixed(2):'—', bestEf?bestEf.date.split('T')[0].slice(5):'');
     html+=stRow('Mayor distancia', maxDist?maxDist.distKm+' km':'—', maxDist?maxDist.date.split('T')[0].slice(5):'');
     html+=stRow('Mayor duración', maxDur?maxDur.dur+' min':'—', maxDur?maxDur.date.split('T')[0].slice(5):'');
+    html+=stRow('Mayor carga semanal', maxWeek?maxWeek[1]+' UA':'—', maxWeek?maxWeek[0]:'');
+    html+=stRow('CTL máximo (histórico)', ctl!=null?String(ctl):'—','solo tenemos el CTL actual, no histórico completo');
     html+='<div style="font-size:10px;color:var(--fg4);margin-top:4px;">Desnivel: no disponible — el campo no llega en la sincronización actual de Intervals.</div>';
   }
   html+='</div></div>';
 
-  // ── F. PROGRESIÓN — las 4 preguntas del spec, respondidas desde lo ya calculado arriba,
-  // nunca con un número nuevo inventado para la ocasión. ──
+  // ── 6. PROGRESIÓN — las 4 preguntas del spec ──
   html+='<div class="card" style="margin-bottom:12px;"><div class="card-hdr"><span class="t-md">Progresión</span></div><div class="card-body" style="font-size:12px;color:var(--fg2);line-height:1.7;">';
-  var efsCount=runs.filter(function(r){return r.ef;}).length;
+  var efsCount=efs.length;
   html+='<div><b style="color:var(--fg);">¿Mejora tu capacidad aeróbica?</b> '+(efsCount>0?'Ver EF arriba — con '+efsCount+' carrera'+(efsCount===1?'':'s')+' con EF calculable, '+(nRuns<6?'aún no hay base suficiente para afirmarlo.':'la tendencia de arriba responde esto directamente.'):'sin suficientes carreras con FC+ritmo para calcular EF todavía.')+'</div>';
   html+='<div style="margin-top:6px;"><b style="color:var(--fg);">¿Acumulas demasiada fatiga?</b> '+(fCard&&fCard.cardioResidual!=null?'Carga cardio residual = '+fCard.cardioResidual+' UA ('+((fCard.trainingState&&fCard.trainingState.cardioLevel)||'—')+'). '+(fCard.trainingState&&fCard.trainingState.cardioLevel==='alto'?'Sí, por encima de lo habitual.':'No, dentro de rango.'):'Sin calcular todavía.')+'</div>';
-  html+='<div style="margin-top:6px;"><b style="color:var(--fg);">¿Cuándo hacer una sesión intensa?</b> Cuando carga cardio residual esté en nivel bajo/medio Y TSB no sea muy negativo (ver HOY → Cardio·Autonómico).</div>';
+  html+='<div style="margin-top:6px;"><b style="color:var(--fg);">¿Cuándo hacer una sesión intensa?</b> Cuando carga cardio residual esté en nivel bajo/medio Y TSB no sea muy negativo (ver Estado Endurance arriba).</div>';
   html+='<div style="margin-top:6px;"><b style="color:var(--fg);">¿Te adaptas correctamente?</b> Necesita la ventana de 6-8 carreras para responder con confianza (ahora: '+nRuns+'). Antes de eso, cualquier respuesta sería sobre-interpretar 1-2 puntos de dato.</div>';
   html+='</div></div>';
 
-  // ── D. PENDIENTE (honesto, NO inventado) ──
+  // ── 7. ESTADO ACTUAL — demovido: VO2max/CTL/ATL/TSB son contexto, no protagonistas ──
+  html+='<div class="card" style="margin-bottom:12px;opacity:0.9;"><div class="card-hdr"><span class="t-md" style="font-size:12px;">Contexto (CTL/ATL/TSB/VO₂max)</span><span class="mono" style="font-size:10px;color:var(--fg3);">'+nRuns+' carreras</span></div><div class="card-body">';
+  html+=stRow('CTL (fitness)', ctl!=null?String(ctl):'—','carga crónica');
+  html+=stRow('ATL (fatiga)', atl!=null?String(atl):'—','carga aguda');
+  html+=stRow('TSB (forma)', tsb!=null?(tsb>0?'+':'')+tsb:'—', tsb!=null?(tsb<-15?'fatiga alta':tsb>5?'fresco':'neutro'):'');
+  html+=stRow('VO₂max', vo2?vo2+' ml/kg/min':'—', vo2?'':'sin dato Garmin — poco útil para seguimiento diario aunque aparezca');
+  html+='</div></div>';
+
+  // ── 8. PENDIENTE (honesto, NO inventado) ──
   html+='<div class="card" style="margin-bottom:12px;"><div class="card-hdr"><span class="t-md">Pendiente de datos</span></div><div class="card-body" style="font-size:11px;color:var(--fg3);line-height:1.6;">';
-  html+='<div style="padding:4px 0;">🔥 <b style="color:var(--fg2);">Desacople cardíaco (1ª vs 2ª mitad)</b> — requiere streams de FC por tramo. El export actual solo trae FC media, no la serie temporal. Se activará al ampliar el pull de Intervals.icu (streams).</div>';
-  html+='<div style="padding:4px 0;">👣 <b style="color:var(--fg2);">Cadencia</b> — el campo no llega en la sincronización actual, aunque Garmin sí la mide. Pendiente de añadir al pull de Intervals.</div>';
+  var analyzed=runs.filter(function(r){return r.stream;}).length;
+  html+='<div style="padding:4px 0;">🔥 <b style="color:var(--fg2);">Desacople/mitades/variabilidad de ritmo</b> — ya disponible bajo demanda: pulsa "Analizar" en cualquier carrera de la tabla de Eficiencia. Analizadas hasta ahora: '+analyzed+'/'+nRuns+'.</div>';
+  html+='<div style="padding:4px 0;">🫀 <b style="color:var(--fg2);">Recuperación de FC post-esfuerzo</b> — no disponible aunque analices streams: el reloj deja de grabar al parar la actividad, así que el stream no cubre el postesfuerzo real.</div>';
+  html+='<div style="padding:4px 0;">👣 <b style="color:var(--fg2);">Cadencia</b> — el campo no llega en la sincronización actual de resumen, aunque Garmin sí la mide. Los streams sí la piden (types incluye cadence); pendiente de mostrarla en el desglose por carrera.</div>';
   html+='<div style="padding:4px 0;">⚡ <b style="color:var(--fg2);">Potencia</b> — no tienes footpod ni potenciómetro de carrera; se mostrará "No disponible" de forma permanente salvo que añadas ese sensor, no por falta de sincronización.</div>';
-  html+='<div style="padding:4px 0;">🗺️ <b style="color:var(--fg2);">Página individual de actividad (mapa + gráficas sincronizadas)</b> — necesita streams GPS y de FC/ritmo por segundo de Intervals, que Atlas no descarga hoy. Es la pieza más grande que falta del spec original; no la construí de mentira.</div>';
-  html+='<div style="padding:4px 0;">🔀 <b style="color:var(--fg2);">Comparador de dos carreras</b> — con los campos actuales (ritmo, FC, EF, carga) sí sería viable; no lo he construido todavía porque con solo '+nRuns+' carreras comparar dos no aporta mucho — mejor esperar a tener más para que valga la pena.</div>';
-  html+='<div style="padding:4px 0;">🧮 <b style="color:var(--fg2);">Índice de Economía de Carrera (compuesto)</b> — deliberadamente NO implementado. Mezclaría EF + drift (que ni siquiera existe todavía) + ritmo Z2 en un único número, con el mismo riesgo que ya vimos en Readiness/Data Quality Score: un compuesto puede subir aunque el componente que de verdad te importa baje. Mejor cuando cada pieza esté validada por separado.</div>';
-  html+='<div style="padding:4px 0;">📈 <b style="color:var(--fg2);">VO₂max</b> — '+(vo2?'disponible arriba.':'no llega desde Garmin en el export actual. Cuando aparezca, se graficará como apoyo, no como protagonista.')+'</div>';
-  html+='<div style="padding:4px 0;">🏃 <b style="color:var(--fg2);">Progreso real (resumen automático)</b> — necesita ~6-8 carreras para comparar ventanas (economía, FC Z2, ritmo Z2). Ahora: '+nRuns+'/8. '+(nRuns>=6?'Casi listo.':'Sigue corriendo y se activa solo.')+'</div>';
+  html+='<div style="padding:4px 0;">🗺️ <b style="color:var(--fg2);">Página individual de actividad (mapa + gráficas sincronizadas)</b> — los streams ya se descargan y cachean, pero falta la vista de mapa/gráficas sincronizadas en sí. Es la pieza más grande que falta del spec original.</div>';
+  html+='<div style="padding:4px 0;">🔀 <b style="color:var(--fg2);">Comparador de dos carreras</b> — viable con los campos actuales; no construido todavía porque con '+nRuns+' carreras comparar dos no aporta mucho — mejor esperar a tener más.</div>';
+  html+='<div style="padding:4px 0;">🧮 <b style="color:var(--fg2);">Índice de Economía de Carrera (compuesto)</b> — deliberadamente NO implementado, tal y como decidiste: primero validar EF/drift/Z2 por separado, componer el índice después si demuestran aportar señal.</div>';
   html+='</div></div>';
 
   el.innerHTML=html;
@@ -4194,6 +4314,101 @@ function renderLog(){
 }
 
 // ══ INTERVALS FETCH ══
+// ── STREAMS bajo demanda (2026-07-16) ────────────────────────────────────────────────────────
+// Arquitectura pedida por Carlos: la sync normal (fetchIntervals) SOLO trae resúmenes (ligero,
+// rápido). Los streams (FC/ritmo/distancia/altitud/cadencia por segundo) solo se piden cuando
+// una actividad concreta necesita análisis avanzado, y se cachean PERMANENTEMENTE en
+// S.streamsCache[activityId] para no volver a pedirlos — salvo que la actividad cambie (se
+// detecta comparando moving_time+average_heartrate como huella barata; si coinciden con lo
+// cacheado, no hay refetch).
+function _activityFingerprint(a){return (a.moving_time||0)+'_'+(a.average_heartrate||0)+'_'+(a.distance||0);}
+
+async function fetchActivityStreams(activityId,activitySummary){
+  const {aid,key}=S.int; if(!aid||!key) return {error:'Sin API Key de Intervals conectada. Ve a Datos → Intervals y guarda tu API Key primero.'};
+  const fp=_activityFingerprint(activitySummary||{});
+  const cached=S.streamsCache[activityId];
+  if(cached&&cached.fingerprint===fp&&cached.metrics){
+    return {fromCache:true,metrics:cached.metrics};
+  }
+  const auth='Basic '+btoa('API_KEY:'+key); const H={'Authorization':auth,'Accept':'application/json'};
+  try{
+    // NOTA: endpoint y nombres de 'types' según la doc pública de Intervals.icu — verificar si
+    // cambia, no tengo forma de probarlo en vivo desde aquí (sin acceso a red en este entorno).
+    const r=await fetch(`https://intervals.icu/api/v1/activity/${activityId}/streams?types=time,heartrate,distance,velocity_smooth,altitude,cadence`,{headers:H,mode:'cors'});
+    if(!r.ok) return {error:'Error '+r.status+' al pedir streams de esta actividad.'};
+    const raw=await r.json();
+    const metrics=computeStreamMetrics(raw);
+    S.streamsCache[activityId]={fingerprint:fp,fetchedAt:new Date().toISOString(),metrics:metrics,rawTrimmed:_trimStreamsForCache(raw)};
+    save();
+    return {fromCache:false,metrics:metrics};
+  }catch(e){ return {error:'Fallo de red pidiendo streams: '+e.message}; }
+}
+
+// Guarda solo una versión reducida (1 muestra cada 10s) para no disparar el tamaño de localStorage
+// con miles de puntos por carrera — los cálculos ya están hechos y cacheados en 'metrics'; el raw
+// trimmed es solo por si en el futuro hace falta recalcular con otra fórmula sin re-pedir a la API.
+function _trimStreamsForCache(raw){
+  try{
+    const out={};
+    (raw||[]).forEach(function(s){
+      if(!s||!s.data)return;
+      out[s.type]=s.data.filter(function(_,i){return i%10===0;});
+    });
+    return out;
+  }catch(e){return null;}
+}
+
+// Cálculo 100% local — Atlas NO depende de que Intervals/Garmin calculen EF o desacople.
+// Si falta la serie necesaria para una métrica concreta, esa métrica se marca 'No disponible'
+// explícitamente en vez de aproximarla o inventarla.
+function computeStreamMetrics(raw){
+  const byType={}; (raw||[]).forEach(function(s){if(s&&s.type)byType[s.type]=s.data||[];});
+  const t=byType.time||[], hr=byType.heartrate||[], dist=byType.distance||[], vel=byType.velocity_smooth||[];
+  const out={ef:null,drift:null,hrFirstHalf:null,hrSecondHalf:null,paceFirstHalf:null,paceSecondHalf:null,paceVariability:null,hrRecovery:null,notes:[]};
+  if(!t.length||!hr.length){out.notes.push('Sin serie de tiempo/FC — no se puede calcular nada de esta actividad.');return out;}
+  const n=Math.min(t.length,hr.length);
+  const half=Math.floor(n/2);
+  const mean=function(arr,a,b){var s=0,c=0;for(var i=a;i<b;i++){if(arr[i]!=null){s+=arr[i];c++;}}return c?s/c:null;};
+  const hr1=mean(hr,0,half), hr2=mean(hr,half,n);
+  out.hrFirstHalf=hr1?Math.round(hr1):null; out.hrSecondHalf=hr2?Math.round(hr2):null;
+  // Ritmo: preferimos velocity_smooth (m/s) → min/km. Si no hay, derivamos de distance/time (más ruidoso).
+  var paceSeries=null;
+  if(vel.length>=n){paceSeries=vel.slice(0,n).map(function(v){return v>0.3?(1000/v)/60:null;});}
+  else if(dist.length>=n){
+    paceSeries=[];
+    for(var i=1;i<n;i++){
+      var dd=(dist[i]-dist[i-1]), dt=(t[i]-t[i-1]);
+      paceSeries.push((dd>0&&dt>0)?((dt/60)/(dd/1000)):null);
+    }
+    paceSeries.unshift(paceSeries[0]||null);
+  }
+  if(paceSeries){
+    const p1=mean(paceSeries,0,half), p2=mean(paceSeries,half,n);
+    out.paceFirstHalf=p1; out.paceSecondHalf=p2;
+    // Desacople clásico (pace:HR decoupling): ratio ritmo/FC en cada mitad, % de cambio.
+    if(p1&&p2&&hr1&&hr2){
+      const r1=p1/hr1, r2=p2/hr2; // min/km por lpm — más alto en 2ª mitad = peor eficiencia (más lento por el mismo pulso)
+      out.drift=Math.round(((r2-r1)/r1)*1000)/10; // %, con signo
+    } else out.notes.push('Desacople no calculable: falta ritmo o FC en alguna mitad.');
+    // Variabilidad de ritmo: coeficiente de variación (desviación típica / media), en %.
+    const valid=paceSeries.filter(function(v){return v!=null&&v>0&&v<15;}); // filtra outliers de paradas/GPS
+    if(valid.length>10){
+      const m=valid.reduce(function(a,b){return a+b;},0)/valid.length;
+      const sd=Math.sqrt(valid.reduce(function(a,b){return a+Math.pow(b-m,2);},0)/valid.length);
+      out.paceVariability=Math.round((sd/m)*1000)/10;
+    }
+    // EF preciso (ritmo/FC medio de toda la sesión, no el resumen) — misma unidad que el EF de resumen.
+    const pAll=mean(paceSeries,0,n), hrAll=mean(hr,0,n);
+    if(pAll&&hrAll)out.ef=Math.round((1000/(pAll*60))/hrAll*10000)/10000;
+  } else out.notes.push('Sin serie de ritmo ni distancia — EF/desacople de ritmo no calculables.');
+  // Recuperación de FC: necesita muestras DESPUÉS de terminar el esfuerzo. La mayoría de relojes
+  // paran de grabar al detener la actividad, así que suele ser 'No disponible' — se deja así en
+  // vez de fingir un cálculo con la cola del streaming de actividad, que mide otra cosa
+  // (desaceleración final, no recuperación post-esfuerzo real).
+  out.hrRecovery=null; out.notes.push('Recuperación de FC: no disponible — el stream termina al parar la grabación, no cubre el postesfuerzo real.');
+  return out;
+}
+
 async function fetchIntervals(){
   const {aid,key}=S.int;if(!aid||!key)return;
   const auth='Basic '+btoa('API_KEY:'+key);const H={'Authorization':auth,'Accept':'application/json'};
