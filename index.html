@@ -427,7 +427,7 @@ textarea.field{resize:vertical;min-height:60px;}
   </div>
 </div>
 
-<!-- CARDIO / ENDURANCE — DIFERIDA (6.4.1). renderEndurance() sigue en el JS, listo. Reactivar descomentando.
+<!-- CARDIO / ENDURANCE — reactivada 2026-07-16 a petición de Carlos, spec ampliada. -->
 <div class="screen" id="s-cardio">
   <div class="pad">
     <div style="margin-bottom:12px;"><div style="font-size:15px;font-weight:600;color:var(--fg);">🫀 Endurance</div><div style="font-size:11px;color:var(--fg3);margin-top:2px;">¿Estoy mejorando como corredor? Adaptación, no carga.</div></div>
@@ -435,8 +435,6 @@ textarea.field{resize:vertical;min-height:60px;}
     <button class="btn btn-g btn-full" style="margin-top:8px;" onclick="renderEndurance()">Actualizar</button>
   </div>
 </div>
--->
-
 <!-- MEV/MAV -->
 <div class="screen" id="s-mav">
   <div class="pad">
@@ -688,11 +686,11 @@ textarea.field{resize:vertical;min-height:60px;}
 <nav class="nav">
   <button class="ni active" id="ni-hoy" onclick="showS('s-hoy')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></svg><span class="nl">HOY</span></button>
   <button class="ni" id="ni-fatiga" onclick="showS('s-fatiga')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg><span class="nl">FATIGA</span></button>
-  <!-- 6.4.1: pestaña CARDIO/Endurance DIFERIDA por decisión de Carlos (esperar 8-10 carreras + streams FC).
-       Para reactivar: descomentar este botón, el screen id="s-cardio", su entrada en el map de showS y el trigger.
-  <button class="ni" id="ni-cardio" onclick="showS('s-cardio')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/></svg><span class="nl">CARDIO</span></button>
-  -->
-  <button class="ni" id="ni-mav" onclick="showS('s-mav')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg><span class="nl">MEV/MAV</span></button>
+  <!-- 6.4.1: pestaña reactivada 2026-07-16 a petición explícita de Carlos, antes de llegar a las
+       8-10 carreras que él mismo se había puesto como umbral. Con n=2 carreras, las tarjetas de
+       EF/Z2 mostrarán su aviso de "tendencia no fiable aún" de forma muy visible — es correcto,
+       no un bug: es la misma honestidad que pedía su spec aplicada a su propia condición de espera. -->
+  <button class="ni" id="ni-cardio" onclick="showS('s-cardio')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/></svg><span class="nl">CARDIO</span></button>  <button class="ni" id="ni-mav" onclick="showS('s-mav')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg><span class="nl">MEV/MAV</span></button>
   <button class="ni" id="ni-log" onclick="showS('s-log')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M12 20h9M16.5 3.5a2.121 2.121 0 013 3L7 19l-4 1 1-4L16.5 3.5z"/></svg><span class="nl">LOG</span></button>
   <button class="ni" id="ni-datos" onclick="showS('s-datos')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><ellipse cx="12" cy="5" rx="9" ry="3"/><path d="M21 12c0 1.66-4 3-9 3s-9-1.34-9-3"/><path d="M3 5v14c0 1.66 4 3 9 3s9-1.34 9-3V5"/></svg><span class="nl">DATOS</span></button>
   <button class="ni" id="ni-plan" onclick="showS('s-plan')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><polyline points="9 11 12 14 22 4"/><path d="M21 12v7a2 2 0 01-2 2H5a2 2 0 01-2-2V5a2 2 0 012-2h11"/></svg><span class="nl">PLAN</span></button>
@@ -2852,12 +2850,22 @@ const RULES=[
 function RecommendationEngine(fatigue,interference){
   const hasTier1=RULES.filter(r=>SIGNAL_HIERARCHY.tier1_safety.includes(r.id)&&r.cond(fatigue,interference)).length>0;
   const hasTier2=RULES.filter(r=>SIGNAL_HIERARCHY.tier2_acute.includes(r.id)&&r.cond(fatigue,interference)).length>0;
+  // FIX 2026-07-16: antes, un empate de prioridad se resolvía por orden de aparición en RULES —
+  // arbitrario, no por relevancia real. Ahora, en empate, gana la regla cuyo dominio (fuerza/cardio)
+  // coincide con el sistema que está PEOR ahora mismo (mecánico vs autonómico). Ej: si mechanical>autonomic
+  // (más fatiga mecánica que cardiovascular), una regla de dominio 'fuerza' gana el empate sobre una
+  // de dominio 'cardio', y viceversa. Generaliza el caso "TSB vs sRPE" a cualquier combinación futura.
+  const worseDomain=(fatigue.mechanical>fatigue.autonomic)?'fuerza':'cardio';
   const active=RULES.filter(r=>{
     if(!r.cond(fatigue,interference))return false;
     if(hasTier1&&SIGNAL_HIERARCHY.tier4_optim.includes(r.id))return false;
     if((hasTier1||hasTier2)&&r.id==='all_green')return false;
     return true;
-  }).sort((a,b)=>b.priority-a.priority).slice(0,5);
+  }).sort((a,b)=>{
+    if(b.priority!==a.priority)return b.priority-a.priority;
+    const aMatch=a.domain===worseDomain?1:0,bMatch=b.domain===worseDomain?1:0;
+    return bMatch-aMatch;
+  }).slice(0,5);
   return{actions:active,count:active.length,activeTier:hasTier1?1:hasTier2?2:3};
 }
 
@@ -4022,9 +4030,58 @@ function renderEndurance(){
   }
   html+='</div></div>';
 
+  // ── C.5 CARGA CARDIO RESIDUAL (ya existía en FatigueEngine como f.cardioResidual — solo
+  // faltaba mostrarla aquí. Mismo modelo de decaimiento exponencial que usa Strength, vida
+  // media configurable en FATIGA → Parámetros del modelo) ──
+  var fCard=S._fatigue;
+  var hlCardioNow=safeNum(S.residualHL&&S.residualHL.cardio,36);
+  html+='<div class="card" style="margin-bottom:12px;"><div class="card-hdr"><span class="t-md">Carga cardio residual</span><span class="mono" style="font-size:10px;color:var(--fg3);">decaimiento exponencial</span></div><div class="card-body">';
+  if(fCard&&fCard.cardioResidual!=null){
+    var cLvl=fCard.trainingState?fCard.trainingState.cardioLevel:'—';
+    var cCol=cLvl==='alto'?'var(--r)':cLvl==='medio'?'var(--y)':'var(--g)';
+    html+='<div style="display:flex;align-items:baseline;gap:8px;"><span class="mono" style="font-size:22px;color:'+cCol+';font-weight:700;">'+fCard.cardioResidual+'</span><span style="font-size:11px;color:var(--fg3);">UA · nivel '+cLvl+'</span></div>';
+    html+='<div style="font-size:11px;color:var(--fg3);margin-top:4px;">Suma de la carga (Training Load) de tus últimas sesiones cardio, desvanecida con vida media de '+hlCardioNow+'h (configurable en FATIGA → Parámetros del modelo). NO se mezcla con la carga residual de fuerza — son dos acumuladores independientes a propósito.</div>';
+  } else {
+    html+='<div style="font-size:12px;color:var(--fg3);">Aún no calculado esta sesión. Abre HOY primero para que el motor de fatiga corra, luego vuelve aquí.</div>';
+  }
+  html+='</div></div>';
+
+  // ── E. TENDENCIAS (mejores marcas recientes, honesto: solo lo que hay datos para calcular) ──
+  html+='<div class="card" style="margin-bottom:12px;"><div class="card-hdr"><span class="t-md">Tendencias</span></div><div class="card-body">';
+  if(nRuns===0){
+    html+='<div style="font-size:12px;color:var(--fg3);">Sin carreras suficientes.</div>';
+  } else {
+    var last30=runs.filter(function(r){return (Date.now()-r.t)<=30*86400000;});
+    var bestZ2=last30.filter(function(r){return r.isZ2&&r.paceMs>0;}).sort(function(a,b){return b.paceMs-a.paceMs;})[0]; // paceMs = velocidad, mayor=mejor
+    var bestEf=runs.filter(function(r){return r.ef;}).sort(function(a,b){return b.ef-a.ef;})[0];
+    var maxDist=runs.reduce(function(m,r){return (r.distKm&&r.distKm>(m?m.distKm:0))?r:m;},null);
+    var maxDur=runs.reduce(function(m,r){return (r.dur&&r.dur>(m?m.dur:0))?r:m;},null);
+    html+=stRow('Mejor ritmo Z2 (30d)', bestZ2?fmtPace(bestZ2.paceMs)+'/km':'—', bestZ2?bestZ2.date.split('T')[0].slice(5):'sin rodajes Z2 en 30d');
+    html+=stRow('Mejor EF (histórico)', bestEf?bestEf.ef.toFixed(2):'—', bestEf?bestEf.date.split('T')[0].slice(5):'');
+    html+=stRow('Mayor distancia', maxDist?maxDist.distKm+' km':'—', maxDist?maxDist.date.split('T')[0].slice(5):'');
+    html+=stRow('Mayor duración', maxDur?maxDur.dur+' min':'—', maxDur?maxDur.date.split('T')[0].slice(5):'');
+    html+='<div style="font-size:10px;color:var(--fg4);margin-top:4px;">Desnivel: no disponible — el campo no llega en la sincronización actual de Intervals.</div>';
+  }
+  html+='</div></div>';
+
+  // ── F. PROGRESIÓN — las 4 preguntas del spec, respondidas desde lo ya calculado arriba,
+  // nunca con un número nuevo inventado para la ocasión. ──
+  html+='<div class="card" style="margin-bottom:12px;"><div class="card-hdr"><span class="t-md">Progresión</span></div><div class="card-body" style="font-size:12px;color:var(--fg2);line-height:1.7;">';
+  var efsCount=runs.filter(function(r){return r.ef;}).length;
+  html+='<div><b style="color:var(--fg);">¿Mejora tu capacidad aeróbica?</b> '+(efsCount>0?'Ver EF arriba — con '+efsCount+' carrera'+(efsCount===1?'':'s')+' con EF calculable, '+(nRuns<6?'aún no hay base suficiente para afirmarlo.':'la tendencia de arriba responde esto directamente.'):'sin suficientes carreras con FC+ritmo para calcular EF todavía.')+'</div>';
+  html+='<div style="margin-top:6px;"><b style="color:var(--fg);">¿Acumulas demasiada fatiga?</b> '+(fCard&&fCard.cardioResidual!=null?'Carga cardio residual = '+fCard.cardioResidual+' UA ('+((fCard.trainingState&&fCard.trainingState.cardioLevel)||'—')+'). '+(fCard.trainingState&&fCard.trainingState.cardioLevel==='alto'?'Sí, por encima de lo habitual.':'No, dentro de rango.'):'Sin calcular todavía.')+'</div>';
+  html+='<div style="margin-top:6px;"><b style="color:var(--fg);">¿Cuándo hacer una sesión intensa?</b> Cuando carga cardio residual esté en nivel bajo/medio Y TSB no sea muy negativo (ver HOY → Cardio·Autonómico).</div>';
+  html+='<div style="margin-top:6px;"><b style="color:var(--fg);">¿Te adaptas correctamente?</b> Necesita la ventana de 6-8 carreras para responder con confianza (ahora: '+nRuns+'). Antes de eso, cualquier respuesta sería sobre-interpretar 1-2 puntos de dato.</div>';
+  html+='</div></div>';
+
   // ── D. PENDIENTE (honesto, NO inventado) ──
   html+='<div class="card" style="margin-bottom:12px;"><div class="card-hdr"><span class="t-md">Pendiente de datos</span></div><div class="card-body" style="font-size:11px;color:var(--fg3);line-height:1.6;">';
   html+='<div style="padding:4px 0;">🔥 <b style="color:var(--fg2);">Desacople cardíaco (1ª vs 2ª mitad)</b> — requiere streams de FC por tramo. El export actual solo trae FC media, no la serie temporal. Se activará al ampliar el pull de Intervals.icu (streams).</div>';
+  html+='<div style="padding:4px 0;">👣 <b style="color:var(--fg2);">Cadencia</b> — el campo no llega en la sincronización actual, aunque Garmin sí la mide. Pendiente de añadir al pull de Intervals.</div>';
+  html+='<div style="padding:4px 0;">⚡ <b style="color:var(--fg2);">Potencia</b> — no tienes footpod ni potenciómetro de carrera; se mostrará "No disponible" de forma permanente salvo que añadas ese sensor, no por falta de sincronización.</div>';
+  html+='<div style="padding:4px 0;">🗺️ <b style="color:var(--fg2);">Página individual de actividad (mapa + gráficas sincronizadas)</b> — necesita streams GPS y de FC/ritmo por segundo de Intervals, que Atlas no descarga hoy. Es la pieza más grande que falta del spec original; no la construí de mentira.</div>';
+  html+='<div style="padding:4px 0;">🔀 <b style="color:var(--fg2);">Comparador de dos carreras</b> — con los campos actuales (ritmo, FC, EF, carga) sí sería viable; no lo he construido todavía porque con solo '+nRuns+' carreras comparar dos no aporta mucho — mejor esperar a tener más para que valga la pena.</div>';
+  html+='<div style="padding:4px 0;">🧮 <b style="color:var(--fg2);">Índice de Economía de Carrera (compuesto)</b> — deliberadamente NO implementado. Mezclaría EF + drift (que ni siquiera existe todavía) + ritmo Z2 en un único número, con el mismo riesgo que ya vimos en Readiness/Data Quality Score: un compuesto puede subir aunque el componente que de verdad te importa baje. Mejor cuando cada pieza esté validada por separado.</div>';
   html+='<div style="padding:4px 0;">📈 <b style="color:var(--fg2);">VO₂max</b> — '+(vo2?'disponible arriba.':'no llega desde Garmin en el export actual. Cuando aparezca, se graficará como apoyo, no como protagonista.')+'</div>';
   html+='<div style="padding:4px 0;">🏃 <b style="color:var(--fg2);">Progreso real (resumen automático)</b> — necesita ~6-8 carreras para comparar ventanas (economía, FC Z2, ritmo Z2). Ahora: '+nRuns+'/8. '+(nRuns>=6?'Casi listo.':'Sigue corriendo y se activa solo.')+'</div>';
   html+='</div></div>';
@@ -6792,7 +6849,7 @@ function showS(id){
   document.querySelectorAll('.screen').forEach(function(s){s.classList.remove('active');});
   var t=safeDOM(id);if(t)t.classList.add('active');
   document.querySelectorAll('.ni').forEach(function(n){n.classList.remove('active');});
-  var map={'s-hoy':'ni-hoy','s-fatiga':'ni-fatiga','s-mav':'ni-mav','s-log':'ni-log','s-datos':'ni-datos','s-plan':'ni-plan'}; // 6.4.1: 's-cardio' diferido
+  var map={'s-hoy':'ni-hoy','s-fatiga':'ni-fatiga','s-cardio':'ni-cardio','s-mav':'ni-mav','s-log':'ni-log','s-datos':'ni-datos','s-plan':'ni-plan'}; // 6.4.1: 's-cardio' reactivada
   var btn=safeDOM(map[id]);if(btn)btn.classList.add('active');
   window.scrollTo(0,0);try{document.querySelector(".main").scrollTop=0;document.documentElement.scrollTop=0;document.body.scrollTop=0;}catch(e){}
   if(id==='s-mav'){safe(renderWeekZones,'rz');safe(renderMAV,'rm');safe(renderProgressionPanel,'rp');safe(renderE1RMPanel,'re');safe(renderEffectiveSets,'ref');safe(renderMovementPatterns,'rmp');}
@@ -6800,7 +6857,7 @@ function showS(id){
   if(id==='s-log'){safe(renderLog,'rl');safe(populateLogSessions,'pls');}
   if(id==='s-fatiga'){safe(renderFatigueSignals,'rs');safe(renderMuscleFatigue,'rmf');safe(renderInterferencePanel,'ri');safe(renderDensityPanel,'rd');safe(renderConfidencePanel,'rc');safe(renderValidationPanel,'rv');safe(populateResidualHL,'phl');}
   if(id==='s-datos'){safe(renderValidationDashboard,'rvd');}if(id==='s-plan'){safe(function(){selectMeso(S.currentMeso||1);},'meso');}
-  // 6.4.1: trigger de s-cardio (renderEndurance) diferido junto con la pestaña
+  if(id==='s-cardio'){safe(renderEndurance,'rend');}
 }
 async function syncAll(){if(S.int.aid&&S.int.key)await fetchIntervals();if(S.hevy?.key)await fetchHevy();}
 function toast(title,msg,icon,ms=3500){const el=document.createElement('div');el.className='toast';el.innerHTML=`<div class="toast-t">${icon||'ℹ️'} ${title}</div>${msg?`<div class="toast-m">${msg}</div>`:''}`;document.body.appendChild(el);setTimeout(()=>el.remove(),ms);}
