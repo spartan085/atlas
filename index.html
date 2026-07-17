@@ -433,6 +433,7 @@ textarea.field{resize:vertical;min-height:60px;}
     <div style="margin-bottom:12px;"><div style="font-size:15px;font-weight:600;color:var(--fg);">🫀 Endurance</div><div style="font-size:11px;color:var(--fg3);margin-top:2px;">¿Estoy mejorando como corredor? Adaptación, no carga.</div></div>
     <div id="enduranceBody"><div style="font-size:12px;color:var(--fg3);">Cargando…</div></div>
     <button class="btn btn-g btn-full" style="margin-top:8px;" onclick="renderEndurance()">Actualizar</button>
+    <button class="btn btn-full" style="margin-top:6px;font-size:11px;color:var(--fg3);background:none;border:1px solid var(--line);" onclick="runFieldDiagnostic()">🔍 Ver todos los campos disponibles (diagnóstico)</button>
   </div>
 </div>
 <!-- MEV/MAV -->
@@ -4479,6 +4480,36 @@ function cardioResidualAtDate(refTime,activities){
   return Math.round(cr);
 }
 function _cardioLevelLabel(v){return v>=100?'alta':v>=50?'moderada':'baja';}
+
+// DIAGNÓSTICO 2026-07-16: pide el resumen de UNA actividad SIN restringir 'fields' — para ver
+// de verdad qué campos manda Intervals, en vez de que Claude siga adivinando. No cachea, no
+// transforma nada: JSON crudo tal cual llega.
+async function debugFullActivityFields(activityId){
+  const {aid,key}=S.int; if(!aid||!key) return {error:'Sin API Key de Intervals conectada.'};
+  const auth='Basic '+btoa('API_KEY:'+key);
+  try{
+    const r=await fetch(`https://intervals.icu/api/v1/activity/${activityId}`,{headers:{'Authorization':auth,'Accept':'application/json'},mode:'cors'});
+    if(!r.ok) return {error:'Error '+r.status};
+    const raw=await r.json();
+    return {ok:true,fieldCount:Object.keys(raw).length,fields:Object.keys(raw).sort(),raw:raw};
+  }catch(e){ return {error:'Fallo de red: '+e.message}; }
+}
+async function runFieldDiagnostic(){
+  var acts=safeArr(S.metrics.activities).filter(function(a){return ['Run','VirtualRun','TrailRun'].indexOf(a.type)>=0;});
+  if(!acts.length){toast('Sin carreras','No hay ninguna actividad de correr para diagnosticar','⚠️');return;}
+  var res=await debugFullActivityFields(acts[acts.length-1].id);
+  if(res.error){toast('Diagnóstico falló',res.error,'⚠️');return;}
+  console.log('CAMPOS DISPONIBLES ('+res.fieldCount+'):',res.fields);
+  console.log('JSON COMPLETO:',res.raw);
+  var el=safeDOM('enduranceBody');
+  if(el){
+    var pre=document.createElement('div');
+    pre.style.cssText='background:var(--bg4);border-radius:8px;padding:10px;margin-bottom:12px;font-family:monospace;font-size:9px;color:var(--fg2);white-space:pre-wrap;word-break:break-all;max-height:300px;overflow:auto;';
+    pre.textContent='CAMPOS ('+res.fieldCount+'): '+res.fields.join(', ')+'\n\n'+JSON.stringify(res.raw,null,2);
+    el.insertBefore(pre,el.firstChild);
+  }
+  toast('Diagnóstico listo',res.fieldCount+' campos — revisa arriba y la consola','✅');
+}
 
 async function fetchIntervals(){
   const {aid,key}=S.int;if(!aid||!key)return;
