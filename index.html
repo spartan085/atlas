@@ -4040,8 +4040,8 @@ function renderEndurance(){
   }
   if(fCard&&fCard.cardioResidual!=null){
     var cLvl0=fCard.trainingState?fCard.trainingState.cardioLevel:null;
-    if(cLvl0==='bajo'||cLvl0==='medio')insights.push({icon:'🟢',text:'Carga cardiovascular '+cLvl0+' — compatible con otro rodaje Z2 si toca.'});
-    else if(cLvl0==='alto')insights.push({icon:'🟠',text:'Carga cardiovascular alta ('+fCard.cardioResidual+' UA) — mejor rodaje suave que intervalos hoy.'});
+    if(cLvl0==='baja'||cLvl0==='moderada')insights.push({icon:'🟢',text:'Carga cardiovascular '+cLvl0+' — compatible con otro rodaje Z2 si toca.'});
+    else if(cLvl0==='alta')insights.push({icon:'🟠',text:'Carga cardiovascular alta ('+fCard.cardioResidual+' UA) — mejor rodaje suave que intervalos hoy.'});
   }
   if(ctl!=null&&ctl<20)insights.push({icon:'📊',text:'Tu CTL sigue siendo bajo ('+ctl+'). El objetivo ahora es acumular consistencia (más semanas corriendo), no intensidad.'});
   if(nRuns<8)insights.push({icon:'🔬',text:'Aún no hay carreras suficientes ('+nRuns+'/8) para evaluar tu adaptación aeróbica con confianza — cualquier lectura de arriba es orientativa.'});
@@ -4054,8 +4054,8 @@ function renderEndurance(){
   var edState='estable',edCol='var(--fg3)',edReason='Sin datos suficientes para clasificar.';
   if(fCard&&fCard.cardioResidual!=null&&tsb!=null){
     var cLvl=fCard.trainingState?fCard.trainingState.cardioLevel:'bajo';
-    if(cLvl==='alto'||tsb<-20){edState='Recuperando';edCol='var(--r)';edReason='Carga cardio '+cLvl+', TSB '+tsb+'. Prioriza Z1/descanso.';}
-    else if(cLvl==='medio'||(tsb<-5&&tsb>=-20)){edState='Acumulando';edCol='var(--y)';edReason='Carga cardio '+cLvl+', TSB '+tsb+'. Sostenible, sin margen para forzar todavía.';}
+    if(cLvl==='alta'||tsb<-20){edState='Recuperando';edCol='var(--r)';edReason='Carga cardio '+cLvl+', TSB '+tsb+'. Prioriza Z1/descanso.';}
+    else if(cLvl==='moderada'||(tsb<-5&&tsb>=-20)){edState='Acumulando';edCol='var(--y)';edReason='Carga cardio '+cLvl+', TSB '+tsb+'. Sostenible, sin margen para forzar todavía.';}
     else {edState='Adaptando';edCol='var(--g)';edReason='Carga cardio '+cLvl+', TSB '+tsb+'. Margen real para progresar.';}
   }
   html+='<div class="card" style="margin-bottom:12px;"><div class="card-hdr"><span class="t-md">Estado Endurance</span></div><div class="card-body">';
@@ -4138,11 +4138,11 @@ function renderEndurance(){
   html+='<div class="card" style="margin-bottom:12px;"><div class="card-hdr"><span class="t-md">Carga cardio residual</span><span class="mono" style="font-size:10px;color:var(--fg3);">decaimiento exponencial</span></div><div class="card-body">';
   if(fCard&&fCard.cardioResidual!=null){
     var cLvl=fCard.trainingState?fCard.trainingState.cardioLevel:'—';
-    var cCol=cLvl==='alto'?'var(--r)':cLvl==='medio'?'var(--y)':'var(--g)';
+    var cCol=cLvl==='alta'?'var(--r)':cLvl==='moderada'?'var(--y)':'var(--g)';
     var cText={
-      'bajo':'Carga cardiovascular baja. Compatible con otro rodaje Z2 o incluso una sesión de intervalos si el resto de sistemas (ver HOY → Fuerza) también están bajos.',
-      'medio':'Carga cardiovascular moderada. Compatible con otro rodaje Z2. Intervalos solo si la carga de fuerza también es baja — revisa HOY antes de decidir.',
-      'alto':'Carga cardiovascular alta. Mejor rodaje suave (Z1) o descanso que otra sesión exigente hoy.'
+      'baja':'Carga cardiovascular baja. Compatible con otro rodaje Z2 o incluso una sesión de intervalos si el resto de sistemas (ver HOY → Fuerza) también están bajos.',
+      'moderada':'Carga cardiovascular moderada. Compatible con otro rodaje Z2. Intervalos solo si la carga de fuerza también es baja — revisa HOY antes de decidir.',
+      'alta':'Carga cardiovascular alta. Mejor rodaje suave (Z1) o descanso que otra sesión exigente hoy.'
     }[cLvl]||'Nivel no clasificado todavía.';
     html+='<div style="display:flex;align-items:baseline;gap:8px;"><span class="mono" style="font-size:22px;color:'+cCol+';font-weight:700;">'+fCard.cardioResidual+'</span><span style="font-size:11px;color:var(--fg3);">UA · nivel '+cLvl+'</span></div>';
     html+='<div style="font-size:12px;color:var(--fg2);margin-top:6px;padding:6px 8px;background:var(--bg4);border-radius:6px;">'+cText+'</div>';
@@ -4181,7 +4181,7 @@ function renderEndurance(){
   html+='<div class="card" style="margin-bottom:12px;"><div class="card-hdr"><span class="t-md">Progresión</span></div><div class="card-body" style="font-size:12px;color:var(--fg2);line-height:1.7;">';
   var efsCount=efs.length;
   html+='<div><b style="color:var(--fg);">¿Mejora tu capacidad aeróbica?</b> '+(efsCount>0?'Ver EF arriba — con '+efsCount+' carrera'+(efsCount===1?'':'s')+' con EF calculable, '+(nRuns<6?'aún no hay base suficiente para afirmarlo.':'la tendencia de arriba responde esto directamente.'):'sin suficientes carreras con FC+ritmo para calcular EF todavía.')+'</div>';
-  html+='<div style="margin-top:6px;"><b style="color:var(--fg);">¿Acumulas demasiada fatiga?</b> '+(fCard&&fCard.cardioResidual!=null?'Carga cardio residual = '+fCard.cardioResidual+' UA ('+((fCard.trainingState&&fCard.trainingState.cardioLevel)||'—')+'). '+(fCard.trainingState&&fCard.trainingState.cardioLevel==='alto'?'Sí, por encima de lo habitual.':'No, dentro de rango.'):'Sin calcular todavía.')+'</div>';
+  html+='<div style="margin-top:6px;"><b style="color:var(--fg);">¿Acumulas demasiada fatiga?</b> '+(fCard&&fCard.cardioResidual!=null?'Carga cardio residual = '+fCard.cardioResidual+' UA ('+((fCard.trainingState&&fCard.trainingState.cardioLevel)||'—')+'). '+(fCard.trainingState&&fCard.trainingState.cardioLevel==='alta'?'Sí, por encima de lo habitual.':'No, dentro de rango.'):'Sin calcular todavía.')+'</div>';
   html+='<div style="margin-top:6px;"><b style="color:var(--fg);">¿Cuándo hacer una sesión intensa?</b> Cuando carga cardio residual esté en nivel bajo/medio Y TSB no sea muy negativo (ver Estado Endurance arriba).</div>';
   html+='<div style="margin-top:6px;"><b style="color:var(--fg);">¿Te adaptas correctamente?</b> Necesita la ventana de 6-8 carreras para responder con confianza (ahora: '+nRuns+'). Antes de eso, cualquier respuesta sería sobre-interpretar 1-2 puntos de dato.</div>';
   html+='</div></div>';
@@ -4192,6 +4192,36 @@ function renderEndurance(){
   html+=stRow('ATL (fatiga)', atl!=null?String(atl):'—','carga aguda');
   html+=stRow('TSB (forma)', tsb!=null?(tsb>0?'+':'')+tsb:'—', tsb!=null?(tsb<-15?'fatiga alta':tsb>5?'fresco':'neutro'):'');
   html+=stRow('VO₂max', vo2?vo2+' ml/kg/min':'—', vo2?'':'sin dato Garmin — poco útil para seguimiento diario aunque aparezca');
+  html+='</div></div>';
+
+  // ── 7.5 TABLA HISTÓRICA — pedida explícitamente. Estado se recalcula retroactivamente con la
+  // MISMA fórmula de decaimiento que usa HOY, evaluada en la fecha de cada carrera — no es una
+  // aproximación nueva. Drift/mitades solo aparecen en las carreras ya "Analizadas" (streams). ──
+  html+='<div class="card" style="margin-bottom:12px;"><div class="card-hdr"><span class="t-md">Histórico</span><span class="mono" style="font-size:10px;color:var(--fg3);">'+nRuns+' carreras</span></div><div class="card-body" style="overflow-x:auto;">';
+  if(nRuns===0){
+    html+='<div style="font-size:12px;color:var(--fg3);">Sin carreras todavía.</div>';
+  } else {
+    html+='<table style="width:100%;border-collapse:collapse;font-size:10px;white-space:nowrap;">';
+    html+='<tr style="color:var(--fg3);text-transform:uppercase;letter-spacing:0.5px;border-bottom:1px solid var(--line);"><td style="padding:4px 6px 4px 0;">Fecha</td><td style="padding:4px;text-align:right;">EF</td><td style="padding:4px;text-align:right;">Drift</td><td style="padding:4px;text-align:right;">FC Z2</td><td style="padding:4px;text-align:right;">Ritmo Z2</td><td style="padding:4px;text-align:right;">Cardio</td><td style="padding:4px 0 4px 4px;text-align:right;">Estado</td></tr>';
+    runs.slice().reverse().forEach(function(r){ // más reciente primero en la tabla
+      var ds=(r.date||'').split('T')[0].slice(5);
+      var crAt=cardioResidualAtDate(r.t,acts);
+      var lvlAt=_cardioLevelLabel(crAt);
+      var stAt=lvlAt==='alta'?'Recuperando':lvlAt==='moderada'?'Acumulando':'Adaptando';
+      var stCol=lvlAt==='alta'?'var(--r)':lvlAt==='moderada'?'var(--y)':'var(--g)';
+      html+='<tr style="border-bottom:1px solid var(--line);">';
+      html+='<td style="padding:4px 6px 4px 0;color:var(--fg2);">'+ds+'</td>';
+      html+='<td class="mono" style="padding:4px;text-align:right;color:var(--fg);">'+(r.ef?r.ef.toFixed(2):'—')+'</td>';
+      html+='<td class="mono" style="padding:4px;text-align:right;color:'+(r.stream&&r.stream.drift!=null?(r.stream.drift>5?'var(--y)':'var(--fg2)'):'var(--fg4)')+';">'+(r.stream&&r.stream.drift!=null?(r.stream.drift>0?'+':'')+r.stream.drift+'%':'—')+'</td>';
+      html+='<td class="mono" style="padding:4px;text-align:right;color:var(--fg2);">'+(r.isZ2&&r.hr?r.hr:'—')+'</td>';
+      html+='<td class="mono" style="padding:4px;text-align:right;color:var(--fg2);">'+(r.isZ2?fmtPace(r.paceMs):'—')+'</td>';
+      html+='<td class="mono" style="padding:4px;text-align:right;color:var(--fg2);">'+crAt+'</td>';
+      html+='<td style="padding:4px 0 4px 4px;text-align:right;color:'+stCol+';font-weight:600;">'+stAt+'</td>';
+      html+='</tr>';
+    });
+    html+='</table>';
+    html+='<div style="font-size:9px;color:var(--fg4);margin-top:6px;">Drift/mitades solo en carreras "Analizadas" (streams). Estado recalculado retroactivamente con la fórmula de decaimiento actual — no es un registro guardado día a día, así que si cambias la vida media en FATIGA → Parámetros, esta columna cambia también hacia atrás (es coherente, no un bug).</div>';
+  }
   html+='</div></div>';
 
   // ── 8. PENDIENTE (honesto, NO inventado) ──
@@ -4332,9 +4362,12 @@ async function fetchActivityStreams(activityId,activitySummary){
   }
   const auth='Basic '+btoa('API_KEY:'+key); const H={'Authorization':auth,'Accept':'application/json'};
   try{
-    // NOTA: endpoint y nombres de 'types' según la doc pública de Intervals.icu — verificar si
-    // cambia, no tengo forma de probarlo en vivo desde aquí (sin acceso a red en este entorno).
-    const r=await fetch(`https://intervals.icu/api/v1/activity/${activityId}/streams?types=time,heartrate,distance,velocity_smooth,altitude,cadence`,{headers:H,mode:'cors'});
+    // ENDPOINT VERIFICADO 2026-07-16 contra documentación pública (no probado en vivo, sigo sin
+    // acceso a red desde aquí — pero confirmado por 3+ fuentes independientes: cookbook oficial
+    // del foro, esquema de un cliente MCP de terceros, y ejemplos curl coincidentes): falta el
+    // sufijo .json que tenía omitido. 'heartrate' (sin guion bajo) es el nombre correcto para
+    // este endpoint según la lista de types soportados — eso sí lo tenía bien.
+    const r=await fetch(`https://intervals.icu/api/v1/activity/${activityId}/streams.json?types=time,heartrate,distance,velocity_smooth,altitude,cadence`,{headers:H,mode:'cors'});
     if(!r.ok) return {error:'Error '+r.status+' al pedir streams de esta actividad.'};
     const raw=await r.json();
     const metrics=computeStreamMetrics(raw);
@@ -4408,6 +4441,44 @@ function computeStreamMetrics(raw){
   out.hrRecovery=null; out.notes.push('Recuperación de FC: no disponible — el stream termina al parar la grabación, no cubre el postesfuerzo real.');
   return out;
 }
+
+// Recalcula métricas desde la caché SIN volver a pedir nada a la API — la separación
+// Streams → Métricas → Caché que pidió Carlos. Si mejoras la fórmula de EF o desacople más
+// adelante, llama a esto en vez de refetchear. LIMITACIÓN HONESTA: el raw guardado está reducido
+// a 1 muestra/10s (ver _trimStreamsForCache) para no disparar el tamaño de localStorage — el
+// primer cálculo (en fetchActivityStreams) usa resolución completa; un recompute posterior usa
+// la versión reducida, así que puede diferir en la 2ª-3ª cifra decimal del EF. Si algún día hace
+// falta fidelidad total, habría que guardar el raw completo (más caro en espacio) o refetchear.
+function recomputeStreamMetrics(activityId){
+  const cached=S.streamsCache[activityId];
+  if(!cached||!cached.rawTrimmed)return {error:'Sin raw en caché para esta actividad — hay que analizarla primero (fetchActivityStreams).'};
+  const rawAsArray=Object.keys(cached.rawTrimmed).map(function(type){return {type:type,data:cached.rawTrimmed[type]};});
+  const metrics=computeStreamMetrics(rawAsArray);
+  cached.metrics=metrics;
+  cached.recomputedAt=new Date().toISOString();
+  save();
+  return {metrics:metrics,fromRawResolution:'1 muestra/10s (reducida, no la original)'};
+}
+
+// Replica EXACTA de la fórmula de cardioResidual de FatigueEngine (línea ~1183), pero evaluada
+// en una fecha de referencia arbitraria en vez de 'ahora' — para poder mostrar el Estado
+// retroactivo de cada carrera en la tabla histórica, no solo el de hoy. Misma matemática, mismo
+// HL_CARDIO configurado, ninguna aproximación nueva.
+function cardioResidualAtDate(refTime,activities){
+  const HL_CARDIO=safeNum(S.residualHL&&S.residualHL.cardio,36);
+  const RES_WINDOW=168*3600000;
+  const RUNC=['Run','VirtualRun','TrailRun','Ride','VirtualRide','Walk','Hike','Swim'];
+  let cr=0;
+  (activities||[]).forEach(function(a){
+    if(RUNC.indexOf(a.type||a.sport_type)<0)return;
+    const load=safeNum(a.icu_training_load,0); if(load<=0)return;
+    const t=new Date(a.start_date_local||a.start_date||0).getTime(); if(!isFinite(t))return;
+    const age=refTime-t; if(age<0||age>RES_WINDOW)return; // solo actividades ANTERIORES a refTime
+    cr+=load*Math.exp(-0.6931*age/(HL_CARDIO*3600000));
+  });
+  return Math.round(cr);
+}
+function _cardioLevelLabel(v){return v>=100?'alta':v>=50?'moderada':'baja';}
 
 async function fetchIntervals(){
   const {aid,key}=S.int;if(!aid||!key)return;
