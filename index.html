@@ -205,6 +205,14 @@ textarea.field{resize:vertical;min-height:60px;}
 
   <!-- AVISO RODILLA 24/48h — solo visible si hay slot pendiente (captura, no inferencia) -->
   <div id="kneePrompt" style="display:none;margin:8px 18px 0;"></div>
+  <!-- 2026-07-19: "Estado combinado" — lógica que YA existía en FatigueEngine (trainingState),
+       usada solo para el prompt de la IA, nunca visible para el usuario. Es exactamente la lectura
+       cruzada fuerza+cardio que Carlos pedía ("no está bien integrado") — no hacía falta construir
+       nada nuevo, solo mostrarla. -->
+  <div id="combinedStateSummary" style="display:none;margin:8px 18px 0;"></div>
+  <!-- 2026-07-19: resumen de cardio oficial (Intervals/Garmin) en HOY — antes solo vivía en
+       Endurance; Carlos señaló que HOY/FATIGA no usaban nada de esto para la decisión del día. -->
+  <div id="cardioTodaySummary" style="display:none;margin:8px 18px 0;"></div>
 
   <!-- QUÉ HACER HOY — síntesis ejecutiva -->
   <div id="todaySummary" style="margin:8px 18px 0;padding:12px 14px;background:var(--bg2);border:1px solid var(--line);border-radius:14px;">
@@ -291,7 +299,7 @@ textarea.field{resize:vertical;min-height:60px;}
       <div id="sec-metrics" style="display:none;margin-top:4px;">
         <div class="sg">
           <div class="st o"><div class="st-src">FC Reposo</div><div class="st-val" id="m-rhr">—</div><div class="st-unit">ppm <span id="m-rhr-d" style="font-size:10px;"></span></div></div>
-          <div class="st o"><div class="st-src">FC Nocturna</div><div class="st-val" id="m-nocturnal-rhr">—</div><div class="st-unit">ppm (media sueño)</div></div>
+          <div class="st o"><div class="st-src">FC Nocturna</div><div class="st-val" id="m-nocturnal-rhr">—</div><div class="st-unit">ppm <span id="m-nocturnal-rhr-d" style="font-size:9px;"></span></div></div>
           <div class="st p"><div class="st-src">Pasos</div><div class="st-val" id="m-steps">—</div><div class="st-unit">pasos</div></div>
           <div class="st b"><div class="st-src">VO2max</div><div class="st-val" id="m-vo2max">—</div><div class="st-unit">ml/kg/min</div></div>
           <div class="st c"><div class="st-src">Proteína</div><div class="st-val sm" id="m-prot-quick">—</div><div class="st-unit">g / 180g</div></div>
@@ -3750,10 +3758,16 @@ function updateMetrics(){
   const sv=(id,v)=>{const e=safeDOM(id);if(e)e.textContent=v!=null?v:'—';};
   sv('m-hrv',m.hrv?m.hrv+'ms':null);sv('m-sleep',m.sleep);sv('m-sleep-score',m.sleepScore?'score '+m.sleepScore:'');
   sv('m-bb',m.bb);sv('m-rhr',m.restingHR?m.restingHR+'ppm':null);
-  // 2026-07-19: avgNocturnalHR ya se sincronizaba (latestBio.avgSleepingHR) pero nunca se mostraba
-  // en ningún sitio — señal real de recuperación (una FC nocturna elevada frente a tu línea base
-  // es de los indicadores más tempranos de sobrecarga o enfermedad incipiente), pedida por Carlos.
-  sv('m-nocturnal-rhr',m.avgNocturnalHR?m.avgNocturnalHR+'ppm':null);
+  // 2026-07-19: ahora con tendencia real (7d/28d + desviación de línea base), no solo el valor
+  // suelto de hoy — pedido explícito de Carlos para poder interpretar recuperación, no solo mostrar.
+  var noct=nocturnalHRTrend();
+  if(noct&&noct.latest!=null){
+    sv('m-nocturnal-rhr',noct.latest+'ppm'+(noct.band?' '+noct.band.emoji:''));
+    var nEl=safeDOM('m-nocturnal-rhr-d');
+    if(nEl)nEl.textContent=noct.baseline28!=null?'base28d '+noct.baseline28+(noct.deviation!=null?' ('+(noct.deviation>0?'+':'')+noct.deviation+')':''):'';
+  } else {
+    sv('m-nocturnal-rhr',m.avgNocturnalHR?m.avgNocturnalHR+'ppm':null);
+  }
   sv('m-steps',m.steps?(m.steps>=1000?(Math.round(m.steps/1000)+'k'):m.steps):null);
   var mProt=safeDOM('m-prot-quick');
   if(mProt)mProt.textContent=m.protein?Math.round(m.protein):'—';
@@ -4133,21 +4147,27 @@ function renderEndurance(){
     html+='<div style="display:flex;color:var(--fg3);font-size:10px;text-transform:uppercase;letter-spacing:0.5px;padding:3px 0;border-bottom:1px solid var(--line);"><span style="flex:1.3;">Fecha</span><span style="flex:0.9;text-align:right;">Ritmo</span><span style="flex:0.7;text-align:right;">FC</span><span style="flex:0.8;text-align:right;">EF</span><span style="flex:0.9;text-align:right;"></span></div>';
     show.forEach(function(r){
       var ds=(r.date||'').split('T')[0].slice(5);
-      var streamBtn;
-      if(r.decouplingSource==='oficial (PaHr)'){
-        streamBtn='<span class="mono" style="font-size:9px;color:var(--g);" title="Aerobic Pace Decoupling oficial de Intervals/Garmin">✓ oficial</span>';
-      } else if(r.stream){
-        streamBtn='<span class="mono" style="font-size:9px;color:var(--c);" title="Desacople '+(r.stream.drift!=null?r.stream.drift+'%':'n/d')+'">✓ analizada</span>';
-      } else {
-        streamBtn='<button onclick="analyzeRunStreams(\''+r.id+'\',this)" style="font-size:9px;color:var(--fg3);background:none;border:1px solid var(--line);border-radius:5px;padding:1px 5px;cursor:pointer;">Analizar</button>';
-      }
-      html+='<div style="display:flex;align-items:center;padding:4px 0;border-bottom:1px solid var(--line);"><span style="flex:1.3;color:var(--fg2);">'+ds+(r.isZ2?' <span style="color:var(--c);font-size:9px;">Z2</span>':'')+(r.isIntervalSession?' <span style="color:var(--fg4);font-size:9px;" title="Tiene interval_summary — no impide calcular desacople, es solo informativo">Interv.</span>':'')+'</span><span class="mono" style="flex:0.9;text-align:right;color:var(--fg);">'+fmtPace(r.paceMs)+'</span><span class="mono" style="flex:0.7;text-align:right;color:var(--fg2);">'+(r.hr||'—')+'</span><span class="mono" style="flex:0.8;text-align:right;color:var(--c);" title="fuente: '+r.efSource+'">'+(r.ef?r.ef.toFixed(2):'—')+'</span><span style="flex:0.9;text-align:right;">'+streamBtn+'</span></div>';
+      var officialBadge=r.decouplingSource==='oficial (PaHr)'?'<span class="mono" style="font-size:9px;color:var(--g);" title="Aerobic Pace Decoupling oficial de Intervals/Garmin">✓ oficial</span>':'';
+      var streamBtn=r.stream
+        ?'<span class="mono" style="font-size:9px;color:var(--c);">✓ Drift Atlas</span>'
+        :'<button onclick="analyzeRunStreams(\''+r.id+'\',this)" style="font-size:9px;color:var(--fg3);background:none;border:1px solid var(--line);border-radius:5px;padding:1px 5px;cursor:pointer;" title="Análisis complementario de Atlas (evolución de la sesión) — no sustituye el dato oficial">'+(officialBadge?'+ Drift Atlas':'Analizar')+'</button>';
+      var badges=(officialBadge?officialBadge+' ':'')+streamBtn;
+      html+='<div style="display:flex;align-items:center;padding:4px 0;border-bottom:1px solid var(--line);"><span style="flex:1.3;color:var(--fg2);">'+ds+(r.isZ2?' <span style="color:var(--c);font-size:9px;">Z2</span>':'')+(r.isIntervalSession?' <span style="color:var(--fg4);font-size:9px;" title="Tiene interval_summary — no impide calcular desacople, es solo informativo">Interv.</span>':'')+'</span><span class="mono" style="flex:0.9;text-align:right;color:var(--fg);">'+fmtPace(r.paceMs)+'</span><span class="mono" style="flex:0.7;text-align:right;color:var(--fg2);">'+(r.hr||'—')+'</span><span class="mono" style="flex:0.8;text-align:right;color:var(--c);" title="fuente: '+r.efSource+'">'+(r.ef?r.ef.toFixed(2):'—')+'</span><span style="flex:1.3;text-align:right;">'+badges+'</span></div>';
       if(r.decoupling!=null||r.decouplingGap!=null){
-        html+='<div style="font-size:10px;color:var(--fg3);padding:2px 0 4px;">';
-        if(r.decoupling!=null)html+='Desacople ('+r.decouplingSource+'): <span class="mono" style="color:'+(Math.abs(r.decoupling)>5?'var(--y)':'var(--fg2)')+';">'+(r.decoupling>0?'+':'')+r.decoupling+'%</span>';
-        if(r.decouplingGap!=null)html+=' · Desacople GAP (corregido por desnivel): <span class="mono" style="color:var(--fg2);">'+r.decouplingGap+'%</span>';
-        if(r.stream&&r.stream.hrFirstHalf!=null)html+=' · FC 1ª/2ª mitad: '+r.stream.hrFirstHalf+'→'+r.stream.hrSecondHalf+' ppm';
-        if(r.stream&&r.stream.paceVariability!=null)html+=' · Variabilidad ritmo: '+r.stream.paceVariability+'%';
+        // Datos OFICIALES (Garmin/Intervals) — Atlas no los calcula, solo los muestra con su fuente.
+        html+='<div style="font-size:10px;color:var(--fg3);padding:2px 0;">📡 Datos oficiales (Garmin/Intervals): ';
+        if(r.decoupling!=null)html+='Aerobic Pace Decoupling <span class="mono" style="color:'+(Math.abs(r.decoupling)>5?'var(--y)':'var(--fg2)')+';">'+(r.decoupling>0?'+':'')+r.decoupling+'%</span>';
+        if(r.decouplingGap!=null)html+=(r.decoupling!=null?' · ':'')+'GAP Decoupling <span class="mono" style="color:var(--fg2);">'+r.decouplingGap+'%</span>'+(r.elevGain>20?' (con '+r.elevGain+'m desnivel, probablemente más representativo)':'');
+        html+='</div>';
+      }
+      if(r.stream&&(r.stream.hrFirstHalf!=null||r.stream.paceVariability!=null)){
+        // Análisis ATLAS — explicativo, complementario a lo oficial, nunca sustituto ni "PaHr Atlas".
+        var dHr=(r.stream.hrFirstHalf&&r.stream.hrSecondHalf)?Math.round((r.stream.hrSecondHalf-r.stream.hrFirstHalf)/r.stream.hrFirstHalf*1000)/10:null;
+        var dPace=(r.stream.paceFirstHalf&&r.stream.paceSecondHalf)?Math.round((r.stream.paceSecondHalf-r.stream.paceFirstHalf)/r.stream.paceFirstHalf*1000)/10:null;
+        html+='<div style="font-size:10px;color:var(--fg3);padding:2px 0 4px;">🔬 Análisis Atlas (evolución de la sesión, no un desacople alternativo): ';
+        html+='FC '+r.stream.hrFirstHalf+'→'+r.stream.hrSecondHalf+'ppm'+(dHr!=null?' ('+(dHr>0?'+':'')+dHr+'%)':'');
+        if(r.stream.paceFirstHalf&&r.stream.paceSecondHalf)html+=' · Ritmo '+fmtPace(1000/(r.stream.paceFirstHalf*60))+'→'+fmtPace(1000/(r.stream.paceSecondHalf*60))+'/km'+(dPace!=null?' ('+(dPace>0?'+':'')+dPace+'%)':'');
+        if(r.stream.paceVariability!=null)html+=' · CV ritmo '+r.stream.paceVariability+'%';
         html+='</div>';
       }
     });
@@ -4245,8 +4265,11 @@ function renderEndurance(){
     html+=stRow('Longitud de zancada', lastRun.strideM?lastRun.strideM.toFixed(2)+' m':'—','');
     html+=stRow('Desnivel +/-', (lastRun.elevGain!=null)?lastRun.elevGain+'m / '+(lastRun.elevLoss||0)+'m':'—','');
     html+=stRow('Calorías', lastRun.calories?String(lastRun.calories):'—','');
-    if(S.metrics.avgNocturnalHR){
-      html+=stRow('FC nocturna (contexto)', S.metrics.avgNocturnalHR+' ppm', 'media de sueño, más sensible que la FC reposo puntual a sobrecarga/enfermedad');
+    var noctE=nocturnalHRTrend();
+    if(noctE&&noctE.latest!=null){
+      html+=stRow('FC nocturna (contexto)', noctE.latest+' ppm'+(noctE.band?' '+noctE.band.emoji:''), noctE.baseline28!=null?'línea base 28d: '+noctE.baseline28+'ppm ('+(noctE.deviation>0?'+':'')+noctE.deviation+') · '+(noctE.band?noctE.band.note:''):'histórico insuficiente para línea base ('+noctE.nDays+' días)');
+    } else if(S.metrics.avgNocturnalHR){
+      html+=stRow('FC nocturna (contexto)', S.metrics.avgNocturnalHR+' ppm', 'sin histórico suficiente todavía para línea base');
     }
     // CONFIRMADO 2026-07-19 con JSON real — antes dije que no había evidencia de estos campos,
     // estaba mal: existen en un namespace PascalCase (passthrough Garmin/Firstbeat), separado
@@ -4690,6 +4713,84 @@ function _showRawJson(id){
   if(show&&window._apiExplorerRaw&&window._apiExplorerRaw[id])box.textContent=JSON.stringify(window._apiExplorerRaw[id],null,2);
 }
 
+// "Estado combinado" — 2026-07-19. NO es un algoritmo nuevo: expone trainingState (ya calculado
+// en FatigueEngine) que YA lee fuerza y cardio por separado y las interpreta juntas sin sumarlas
+// en un número — exactamente lo que Carlos pedía, solo que antes solo lo veía la IA, no él.
+function renderCombinedStateSummary(){
+  var el=safeDOM('combinedStateSummary'); if(!el)return;
+  var f=S._fatigue;
+  if(!f||!f.trainingState){el.style.display='none';return;}
+  var ts=f.trainingState;
+  var col=ts.globalLevel==='alta'?'var(--r)':ts.globalLevel==='moderada'?'var(--y)':'var(--g)';
+  var lvlEmoji={alta:'🔴',moderada:'🟡',baja:'🟢'};
+  var html='<div class="card" style="border:1px solid '+col+';"><div class="card-hdr"><span class="t-md">Estado combinado — fuerza + cardio</span></div><div class="card-body" style="font-size:11px;color:var(--fg2);line-height:1.7;">';
+  html+='<div>'+(lvlEmoji[ts.strengthLevel]||'')+' Fuerza: <b>'+ts.strengthLevel+'</b> (residual '+Math.round(ts.strengthResidual)+' UA)</div>';
+  html+='<div>'+(lvlEmoji[ts.cardioLevel]||'')+' Cardio: <b>'+ts.cardioLevel+'</b> (residual '+ts.cardioResidual+' UA)</div>';
+  html+='<div style="margin-top:8px;padding:8px;background:var(--bg4);border-radius:6px;color:var(--fg);font-weight:600;">'+ts.recommendation+'</div>';
+  html+='<div style="font-size:9px;color:var(--fg4);margin-top:6px;">Cada carga se clasifica por separado (no se suman) — el consejo sale de cruzarlas, no de un promedio.</div>';
+  html+='</div></div>';
+  el.innerHTML=html; el.style.display='block';
+}
+// Resumen de cardio oficial en HOY — 2026-07-19. Combina PaHr/GAP/Training Load (Garmin/Intervals)
+// con carga cardio residual y FC nocturna (Atlas) EN TEXTO, nunca en un número fusionado — mismo
+// criterio ya aplicado a TSB: cada señal se nombra, ninguna sustituye a las demás.
+function renderCardioTodaySummary(){
+  var el=safeDOM('cardioTodaySummary'); if(!el)return;
+  var acts=safeArr(S.metrics.activities);
+  var CARDIO_TYPES=['Run','VirtualRun','TrailRun'];
+  var runs=acts.filter(function(a){return CARDIO_TYPES.indexOf(a.type||a.sport_type)>=0;});
+  if(!runs.length){el.style.display='none';return;}
+  var last=runs.slice().sort(function(a,b){return new Date(b.start_date_local||0)-new Date(a.start_date_local||0);})[0];
+  var fCard=S._fatigue;
+  var noct=nocturnalHRTrend();
+  var paHr=(last.PaHr!=null)?parseFloat(last.PaHr):null;
+  var decGap=(last.DecouplingGAP!=null)?Math.round(last.DecouplingGAP*1000)/10:null;
+  var daysAgo=Math.round((Date.now()-new Date(last.start_date_local||0).getTime())/86400000);
+  var html='<div class="card"><div class="card-hdr"><span class="t-md">🫀 Cardio (Intervals/Garmin)</span><span class="mono" style="font-size:9px;color:var(--fg3);">última carrera: hace '+daysAgo+'d</span></div><div class="card-body" style="font-size:11px;color:var(--fg2);line-height:1.7;">';
+  var bits=[];
+  if(paHr!=null&&!isNaN(paHr))bits.push('Aerobic Pace Decoupling <b>'+paHr+'%</b>');
+  if(decGap!=null)bits.push('GAP Decoupling <b>'+decGap+'%</b>');
+  if(last.icu_training_load!=null)bits.push('Training Load <b>'+last.icu_training_load+'</b>');
+  if(bits.length)html+='<div>📡 '+bits.join(' · ')+'</div>';
+  if(fCard&&fCard.cardioResidual!=null){
+    html+='<div style="margin-top:4px;">🔬 Carga cardio residual (Atlas) <b>'+fCard.cardioResidual+' UA</b> · '+((fCard.trainingState&&fCard.trainingState.cardioLevel)||'—')+'</div>';
+  }
+  if(noct&&noct.latest!=null){
+    html+='<div style="margin-top:4px;">'+(noct.band?noct.band.emoji:'')+' FC nocturna <b>'+noct.latest+'ppm</b>'+(noct.deviation!=null?' ('+(noct.deviation>0?'+':'')+noct.deviation+' vs línea base 28d)':'')+'</div>';
+  }
+  // Interpretación conjunta EN TEXTO — combina señales sin fusionarlas en un número.
+  if(noct&&noct.band&&(noct.band.emoji==='🟡'||noct.band.emoji==='🔴')){
+    var hrvOk=S._hrv&&S._hrv.state!=='suppressed';
+    html+='<div style="margin-top:6px;padding:6px 8px;background:var(--bg4);border-radius:6px;">'+(hrvOk?'FC nocturna elevada pero HRV no suprimida — vigilar, no es concluyente por sí sola.':'FC nocturna elevada Y HRV suprimida — dos señales en la misma dirección, con más peso que cualquiera por separado.')+'</div>';
+  }
+  html+='</div></div>';
+  el.innerHTML=html; el.style.display='block';
+}
+// FC nocturna con tendencia real — pedido por Carlos, 2026-07-19. S._wellnessHistory ya guardaba
+// 180 días de bienestar (incluye avgSleepingHR por día) pero nadie los leía para esto todavía.
+// Devuelve baseline (28d), medias de 7d/28d, y desviación — NUNCA se combina en un número único
+// con HRV/sueño/BB: se muestra junto a esas señales para que el usuario (o una regla) las lea en
+// conjunto, tal como se pidió explícitamente al rechazar el "Readiness cardio" compuesto.
+function nocturnalHRTrend(){
+  var hist=safeArr(S._wellnessHistory).filter(function(w){return w.avgSleepingHR!=null;});
+  if(hist.length<3)return null;
+  var now=Date.now();
+  var withAge=hist.map(function(w){return {v:w.avgSleepingHR,t:new Date(w.id).getTime()};}).filter(function(x){return isFinite(x.t);});
+  var last7=withAge.filter(function(x){return (now-x.t)<=7*86400000;});
+  var last28=withAge.filter(function(x){return (now-x.t)<=28*86400000;});
+  var baseline28=last28.length>=5?(last28.reduce(function(a,x){return a+x.v;},0)/last28.length):null;
+  var avg7=last7.length?(last7.reduce(function(a,x){return a+x.v;},0)/last7.length):null;
+  var latest=withAge.length?withAge[withAge.length-1].v:null;
+  var deviation=(latest!=null&&baseline28!=null)?Math.round((latest-baseline28)*10)/10:null;
+  var band=null;
+  if(deviation!=null){
+    if(deviation<=-2)band={emoji:'🔵',label:'por debajo de tu línea base',note:'favorable si HRV también está bien — revisa HRV antes de asumir que es solo buena recuperación'};
+    else if(Math.abs(deviation)<=2)band={emoji:'🟢',label:'dentro de tu línea base (±2 lpm)',note:'normal'};
+    else if(deviation<=5)band={emoji:'🟡',label:'+'+deviation+' lpm sobre tu línea base',note:'posible fatiga o estrés acumulado — vigilar, no es una alarma por sí sola'};
+    else band={emoji:'🔴',label:'+'+deviation+' lpm sobre tu línea base, sostenido',note:'revisar carga, sueño o posible enfermedad — junto con HRV/sueño, no aislado'};
+  }
+  return {latest:latest,avg7:avg7?Math.round(avg7*10)/10:null,baseline28:baseline28?Math.round(baseline28*10)/10:null,deviation:deviation,band:band,nDays:withAge.length};
+}
 async function fetchIntervals(){
   const {aid,key}=S.int;if(!aid||!key)return;
   const auth='Basic '+btoa('API_KEY:'+key);const H={'Authorization':auth,'Accept':'application/json'};
@@ -7360,7 +7461,7 @@ function showS(id){
   var btn=safeDOM(map[id]);if(btn)btn.classList.add('active');
   window.scrollTo(0,0);try{document.querySelector(".main").scrollTop=0;document.documentElement.scrollTop=0;document.body.scrollTop=0;}catch(e){}
   if(id==='s-mav'){safe(renderWeekZones,'rz');safe(renderMAV,'rm');safe(renderProgressionPanel,'rp');safe(renderE1RMPanel,'re');safe(renderEffectiveSets,'ref');safe(renderMovementPatterns,'rmp');}
-  if(id==='s-hoy'){safe(loadEstado,'le');safe(wireEstadoAutosave,'we');safe(checkBackupReminder,'cbr');safe(renderWeekSummary,'rws');safe(renderKneePrompt,'rkp');}
+  if(id==='s-hoy'){safe(loadEstado,'le');safe(wireEstadoAutosave,'we');safe(checkBackupReminder,'cbr');safe(renderWeekSummary,'rws');safe(renderKneePrompt,'rkp');safe(renderCombinedStateSummary,'rcss');safe(renderCardioTodaySummary,'rcts');}
   if(id==='s-log'){safe(renderLog,'rl');safe(populateLogSessions,'pls');}
   if(id==='s-fatiga'){safe(renderFatigueSignals,'rs');safe(renderMuscleFatigue,'rmf');safe(renderInterferencePanel,'ri');safe(renderDensityPanel,'rd');safe(renderConfidencePanel,'rc');safe(renderValidationPanel,'rv');safe(populateResidualHL,'phl');}
   if(id==='s-datos'){safe(renderValidationDashboard,'rvd');}if(id==='s-plan'){safe(function(){selectMeso(S.currentMeso||1);},'meso');}
