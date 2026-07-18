@@ -3989,10 +3989,6 @@ function miniBars(vals,opts){
 async function analyzeRunStreams(activityId,btnEl){
   var act=safeArr(S.metrics.activities).find(function(a){return String(a.id)===String(activityId);});
   if(!act)return;
-  if(Array.isArray(act.interval_summary)&&act.interval_summary.length>1){
-    toast('Sesión de intervalos','El desacople no es interpretable en esfuerzo no continuo — no la analizo.','⚠️');
-    return;
-  }
   if(btnEl){btnEl.textContent='...';btnEl.disabled=true;}
   var res=await fetchActivityStreams(activityId,act);
   if(res.error){toast('No se pudo analizar',res.error,'⚠️');if(btnEl){btnEl.textContent='Analizar';btnEl.disabled=false;}return;}
@@ -4030,11 +4026,17 @@ function renderEndurance(){
       var z12pct=(ztot>0)?(((zt[0]||0)+(zt[1]||0))/ztot):0;
       var sc=S.streamsCache[a.id];
       var streamOk=sc&&sc.fingerprint===_activityFingerprint(a)?sc.metrics:null;
-      // Sesión de intervalos (no continua) — el desacople NO tiene sentido fisiológico aquí,
-      // confirmado con evidencia real: tu carrera del 10/07 trae interval_summary "6x 7m3s..." y
-      // decoupling:null — Intervals probablemente lo omite por eso, no por falta de capacidad.
+      // CORREGIDO 2026-07-19: mi hipótesis de "sesión de intervalos → sin desacople" quedó
+      // RETRACTADA con evidencia real — la carrera del 17/07 también trae interval_summary y aun
+      // así PaHr/DecouplingGAP sí tienen valor. isIntervalSession se queda solo como dato
+      // informativo (para el aviso "Interv." en la tabla), ya NO bloquea nada.
       var isIntervalSession=Array.isArray(a.interval_summary)&&a.interval_summary.length>1;
-      var decouplingOfficial=(a.decoupling!=null)?a.decoupling:null;
+      // Nombres de campo REALES confirmados con el JSON del 17/07 (namespace PascalCase,
+      // passthrough Garmin/Firstbeat, distinto de icu_*): PaHr llega como STRING, ojo con eso.
+      var paHr=(a.PaHr!=null)?parseFloat(a.PaHr):null; // "Aerobic Pace Decoupling" oficial
+      var decouplingGap=(a.DecouplingGAP!=null)?Math.round(a.DecouplingGAP*1000)/10:null; // 0.105 → 10.5%
+      var decouplingOfficial=(paHr!=null&&!isNaN(paHr))?paHr:null; // PaHr = el que la UI llama "Aerobic Pace Decoupling", el más citado en literatura de running
+      var runCadenceOfficial=safeNum(a.RunCadence,0)||null; // cadencia TOTAL real, confirmado ≈2×average_cadence
       return {id:a.id,t:t,date:a.start_date_local||'',paceMs:paceMs,hr:hr,
         ef:efOfficial||(streamOk&&streamOk.ef)||efLocal,efSource:efOfficial?'oficial':(streamOk&&streamOk.ef)?'streams':'propio(resumen)',
         distKm:a.distance?Math.round(a.distance/100)/10:null,
@@ -4043,10 +4045,12 @@ function renderEndurance(){
         isZ2:z12pct>=0.6, name:a.name||a.type, stream:streamOk,
         isIntervalSession:isIntervalSession,
         decoupling:decouplingOfficial!=null?decouplingOfficial:(streamOk?streamOk.drift:null),
-        decouplingSource:decouplingOfficial!=null?'oficial':(streamOk?'streams':null),
+        decouplingSource:decouplingOfficial!=null?'oficial (PaHr)':(streamOk?'streams':null),
+        decouplingGap:decouplingGap, // segunda métrica, corregida por desnivel — se muestra aparte, no se mezcla
         // Campos OFICIALES nuevos — directos de Intervals, sin recalcular:
         gapMs:safeNum(a.gap,0)||null, // m/s, ritmo ajustado por pendiente
-        cadence:safeNum(a.average_cadence,0)||null, // ⚠ probablemente cadencia de UNA pierna, no total — ver nota en UI
+        cadence:runCadenceOfficial||(safeNum(a.average_cadence,0)?safeNum(a.average_cadence,0)*2:null), // real si existe, si no estimación ×2 marcada
+        cadenceSource:runCadenceOfficial?'oficial':'estimado(×2 de 1 pierna)',
         strideM:safeNum(a.average_stride,0)||null,
         elevGain:a.total_elevation_gain!=null?Math.round(a.total_elevation_gain):null,
         elevLoss:a.total_elevation_loss!=null?Math.round(a.total_elevation_loss):null,
@@ -4056,7 +4060,16 @@ function renderEndurance(){
         intensity:safeNum(a.icu_intensity,0)||null,
         polarization:(a.polarization_index!=null)?a.polarization_index:null,
         hrZones:Array.isArray(a.icu_hr_zones)?a.icu_hr_zones:null, // límites reales de zona, no supuestos
-        lthr:safeNum(a.lthr,0)||null};
+        lthr:safeNum(a.lthr,0)||null,
+        // CORRECCIÓN 2026-07-19: dije que no había evidencia de estos campos — estaba equivocado,
+        // solo estaban en un namespace distinto que no había visto todavía. Sí existen.
+        aerobicEffect:(a.AerobicEffect!=null)?a.AerobicEffect:null,
+        anaerobicEffect:(a.AnaerobicEffect!=null)?a.AnaerobicEffect:null,
+        performanceCondition:(a.PerformanceCondition!=null)?a.PerformanceCondition:null,
+        vo2maxGarmin:(a.VO2MaxGarmin!=null)?Math.round(a.VO2MaxGarmin*10)/10:null,
+        epoc:(a.EPOC!=null)?Math.round(a.EPOC):null,
+        verticalOsc:(a.VerticalOscillation!=null)?a.VerticalOscillation:null,
+        paceAtHRZ2:safeNum(a.PaceAtHRZ2,0)||null};
     })
     .filter(function(r){return isFinite(r.t);})
     .sort(function(a,b){return a.t-b.t;}); // cronológico ascendente
@@ -4121,18 +4134,21 @@ function renderEndurance(){
     show.forEach(function(r){
       var ds=(r.date||'').split('T')[0].slice(5);
       var streamBtn;
-      if(r.isIntervalSession&&r.decoupling==null){
-        streamBtn='<span class="mono" style="font-size:9px;color:var(--fg4);" title="Sesión de intervalos — el desacople no es interpretable en esfuerzo no continuo">— intervalos</span>';
-      } else if(r.decouplingSource==='oficial'){
-        streamBtn='<span class="mono" style="font-size:9px;color:var(--g);" title="decoupling oficial de Intervals">✓ Intervals</span>';
+      if(r.decouplingSource==='oficial (PaHr)'){
+        streamBtn='<span class="mono" style="font-size:9px;color:var(--g);" title="Aerobic Pace Decoupling oficial de Intervals/Garmin">✓ oficial</span>';
       } else if(r.stream){
         streamBtn='<span class="mono" style="font-size:9px;color:var(--c);" title="Desacople '+(r.stream.drift!=null?r.stream.drift+'%':'n/d')+'">✓ analizada</span>';
       } else {
         streamBtn='<button onclick="analyzeRunStreams(\''+r.id+'\',this)" style="font-size:9px;color:var(--fg3);background:none;border:1px solid var(--line);border-radius:5px;padding:1px 5px;cursor:pointer;">Analizar</button>';
       }
-      html+='<div style="display:flex;align-items:center;padding:4px 0;border-bottom:1px solid var(--line);"><span style="flex:1.3;color:var(--fg2);">'+ds+(r.isZ2?' <span style="color:var(--c);font-size:9px;">Z2</span>':'')+(r.isIntervalSession?' <span style="color:var(--y);font-size:9px;">Interv.</span>':'')+'</span><span class="mono" style="flex:0.9;text-align:right;color:var(--fg);">'+fmtPace(r.paceMs)+'</span><span class="mono" style="flex:0.7;text-align:right;color:var(--fg2);">'+(r.hr||'—')+'</span><span class="mono" style="flex:0.8;text-align:right;color:var(--c);" title="fuente: '+r.efSource+'">'+(r.ef?r.ef.toFixed(2):'—')+'</span><span style="flex:0.9;text-align:right;">'+streamBtn+'</span></div>';
-      if(r.decoupling!=null){
-        html+='<div style="font-size:10px;color:var(--fg3);padding:2px 0 4px;">Desacople ('+r.decouplingSource+'): <span class="mono" style="color:'+(Math.abs(r.decoupling)>5?'var(--y)':'var(--fg2)')+';">'+(r.decoupling>0?'+':'')+r.decoupling+'%</span>'+(r.stream&&r.stream.hrFirstHalf!=null?' · FC 1ª/2ª mitad: '+r.stream.hrFirstHalf+'→'+r.stream.hrSecondHalf+' ppm':'')+(r.stream&&r.stream.paceVariability!=null?' · Variabilidad ritmo: '+r.stream.paceVariability+'%':'')+'</div>';
+      html+='<div style="display:flex;align-items:center;padding:4px 0;border-bottom:1px solid var(--line);"><span style="flex:1.3;color:var(--fg2);">'+ds+(r.isZ2?' <span style="color:var(--c);font-size:9px;">Z2</span>':'')+(r.isIntervalSession?' <span style="color:var(--fg4);font-size:9px;" title="Tiene interval_summary — no impide calcular desacople, es solo informativo">Interv.</span>':'')+'</span><span class="mono" style="flex:0.9;text-align:right;color:var(--fg);">'+fmtPace(r.paceMs)+'</span><span class="mono" style="flex:0.7;text-align:right;color:var(--fg2);">'+(r.hr||'—')+'</span><span class="mono" style="flex:0.8;text-align:right;color:var(--c);" title="fuente: '+r.efSource+'">'+(r.ef?r.ef.toFixed(2):'—')+'</span><span style="flex:0.9;text-align:right;">'+streamBtn+'</span></div>';
+      if(r.decoupling!=null||r.decouplingGap!=null){
+        html+='<div style="font-size:10px;color:var(--fg3);padding:2px 0 4px;">';
+        if(r.decoupling!=null)html+='Desacople ('+r.decouplingSource+'): <span class="mono" style="color:'+(Math.abs(r.decoupling)>5?'var(--y)':'var(--fg2)')+';">'+(r.decoupling>0?'+':'')+r.decoupling+'%</span>';
+        if(r.decouplingGap!=null)html+=' · Desacople GAP (corregido por desnivel): <span class="mono" style="color:var(--fg2);">'+r.decouplingGap+'%</span>';
+        if(r.stream&&r.stream.hrFirstHalf!=null)html+=' · FC 1ª/2ª mitad: '+r.stream.hrFirstHalf+'→'+r.stream.hrSecondHalf+' ppm';
+        if(r.stream&&r.stream.paceVariability!=null)html+=' · Variabilidad ritmo: '+r.stream.paceVariability+'%';
+        html+='</div>';
       }
     });
     html+='</div>';
@@ -4225,12 +4241,31 @@ function renderEndurance(){
       gapNote=gapDiffPct<0.03?'🟢 casi igual al ritmo real — el desnivel apenas influyó':'🟡 diferencia real por desnivel/terreno';
     }
     html+=stRow('GAP (ritmo ajustado)', lastRun.gapMs?fmtPace(lastRun.gapMs)+'/km':'—', gapNote);
-    html+=stRow('Cadencia', lastRun.cadence?lastRun.cadence.toFixed(0)+' spm (~1 pierna) · ≈'+Math.round(lastRun.cadence*2)+' spm totales':'—', '⚠ sin confirmar con Garmin si es de 1 pierna o total');
+    html+=stRow('Cadencia', lastRun.cadence?lastRun.cadence.toFixed(0)+' spm':'—', lastRun.cadenceSource==='oficial'?'total, oficial (RunCadence)':'estimado — average_cadence×2, sin campo RunCadence en este registro');
     html+=stRow('Longitud de zancada', lastRun.strideM?lastRun.strideM.toFixed(2)+' m':'—','');
     html+=stRow('Desnivel +/-', (lastRun.elevGain!=null)?lastRun.elevGain+'m / '+(lastRun.elevLoss||0)+'m':'—','');
     html+=stRow('Calorías', lastRun.calories?String(lastRun.calories):'—','');
     if(S.metrics.avgNocturnalHR){
       html+=stRow('FC nocturna (contexto)', S.metrics.avgNocturnalHR+' ppm', 'media de sueño, más sensible que la FC reposo puntual a sobrecarga/enfermedad');
+    }
+    // CONFIRMADO 2026-07-19 con JSON real — antes dije que no había evidencia de estos campos,
+    // estaba mal: existen en un namespace PascalCase (passthrough Garmin/Firstbeat), separado
+    // de los icu_*. Performance Condition se muestra como contexto, no como indicador principal
+    // (muy dependiente del día — criterio ya discutido y compartido).
+    if(lastRun.aerobicEffect!=null||lastRun.anaerobicEffect!=null){
+      html+=stRow('Aerobic / Anaerobic Effect', (lastRun.aerobicEffect!=null?lastRun.aerobicEffect.toFixed(1):'—')+' / '+(lastRun.anaerobicEffect!=null?lastRun.anaerobicEffect.toFixed(1):'—'),'escala Firstbeat 0-5 · oficial');
+    }
+    if(lastRun.performanceCondition!=null){
+      html+=stRow('Performance Condition', String(lastRun.performanceCondition), 'contexto del día, no indicador de tendencia — varía sesión a sesión');
+    }
+    if(lastRun.vo2maxGarmin!=null){
+      html+=stRow('VO₂max (Garmin, esta sesión)', lastRun.vo2maxGarmin+' ml/kg/min','estimación puntual de Firstbeat, puede diferir del VO2max de tendencia');
+    }
+    if(lastRun.epoc!=null){
+      html+=stRow('EPOC', String(lastRun.epoc),'consumo de oxígeno post-ejercicio estimado · oficial');
+    }
+    if(lastRun.verticalOsc!=null){
+      html+=stRow('Oscilación vertical', lastRun.verticalOsc.toFixed(1)+' cm','oficial');
     }
     // Interpretación automática — SOLO con lo que hay dato real para decir; nunca una plantilla fija.
     var obs=[];
@@ -4239,11 +4274,11 @@ function renderEndurance(){
     else if(piBand)obs.push('PI '+lastRun.polarization.toFixed(2)+', por debajo del corte de "polarizado" — normal en una sesión suelta, el índice está pensado para bloques completos, no sacaría conclusiones de una sola carrera.');
     if(gapNote.indexOf('🟢')===0)obs.push('El desnivel no distorsionó el esfuerzo real (GAP ≈ ritmo).');
     if(lastRun.decoupling!=null)obs.push('Desacople '+lastRun.decoupling+'% ('+(Math.abs(lastRun.decoupling)<=5?'dentro de rango aceptable':'por encima del rango típico de 5%')+').');
-    else if(lastRun.isIntervalSession)obs.push('Sesión de intervalos — el desacople no aplica aquí, no es un dato que falte.');
+    if(lastRun.decouplingGap!=null&&Math.abs((lastRun.decouplingGap||0)-(lastRun.decoupling||0))>3)obs.push('El desacople corregido por desnivel (GAP) difiere bastante del sin corregir — con '+lastRun.elevGain+'m de desnivel, el corregido es probablemente más representativo del esfuerzo real.');
     if(obs.length){
       html+='<div style="margin-top:8px;padding:8px;background:var(--bg4);border-radius:6px;font-size:11px;color:var(--fg2);line-height:1.6;"><b style="color:var(--fg);">Interpretación</b><br>'+obs.map(function(o){return '• '+o;}).join('<br>')+'</div>';
     }
-    html+='<div style="font-size:10px;color:var(--fg4);margin-top:6px;">Campos numéricos, directos de Intervals.icu (confirmado 2026-07-16) — Atlas no los recalcula, solo interpreta.</div>';
+    html+='<div style="font-size:10px;color:var(--fg4);margin-top:6px;">Campos numéricos, directos de Intervals.icu/Garmin (confirmado 2026-07-19 con JSON real de tu cuenta) — Atlas no los recalcula, solo interpreta.</div>';
     html+='</div></div>';
   }
 
@@ -4671,7 +4706,12 @@ async function fetchIntervals(){
       // icu_intensity, polarization_index, icu_hr_zones (límites reales, no supuestos), lthr,
       // decoupling, icu_efficiency_factor (por si Intervals empieza a rellenarlo), interval_summary
       // (para detectar sesiones no continuas y no pedir desacople donde no tiene sentido).
-      fetch(`https://intervals.icu/api/v1/athlete/${aid}/activities?oldest=${from14}&newest=${today}&fields=id,name,type,sport_type,start_date_local,distance,moving_time,icu_training_load,icu_zone_times,icu_hr_zone_times,average_heartrate,max_heartrate,icu_rpe,pace,gap,average_cadence,average_stride,total_elevation_gain,total_elevation_loss,calories,trimp,hr_load,icu_intensity,polarization_index,icu_hr_zones,lthr,decoupling,icu_efficiency_factor,interval_summary`,{headers:H,mode:'cors'})
+      // 2026-07-19: añadidos los nombres de campo REALES confirmados con el JSON de tu actividad
+      // del 17/07 — un espacio de nombres aparte (PascalCase, passthrough de Garmin/Firstbeat, no
+      // icu_*): PaHr (Aerobic Pace Decoupling, viene como STRING), DecouplingGAP, RunCadence
+      // (cadencia total real, average_cadence es de 1 pierna), PaceAtHRZ2, AerobicEffect,
+      // AnaerobicEffect, PerformanceCondition, VO2MaxGarmin, EPOC, VerticalOscillation.
+      fetch(`https://intervals.icu/api/v1/athlete/${aid}/activities?oldest=${from14}&newest=${today}&fields=id,name,type,sport_type,start_date_local,distance,moving_time,icu_training_load,icu_zone_times,icu_hr_zone_times,average_heartrate,max_heartrate,icu_rpe,pace,gap,average_cadence,average_stride,total_elevation_gain,total_elevation_loss,calories,trimp,hr_load,icu_intensity,polarization_index,icu_hr_zones,lthr,decoupling,icu_efficiency_factor,interval_summary,PaHr,DecouplingGAP,RunCadence,PaceAtHRZ2,AerobicEffect,AnaerobicEffect,PerformanceCondition,VO2MaxGarmin,EPOC,VerticalOscillation`,{headers:H,mode:'cors'})
     ]);
     if(!wR.ok)throw new Error(wR.status===401||wR.status===403?'API Key incorrecta':'Error '+wR.status);
     const wellness=await wR.json();let fitnessHistory=[];if(fR.ok)fitnessHistory=await fR.json();let activities=[];if(aR.ok)activities=await aR.json();
