@@ -2862,7 +2862,12 @@ const RULES=[
   {id:'hrv_rhr_coupling',priority:7,domain:'general',cond:(f,i)=>S._hrv?.coupling==='suppressed_strong',action:'⚠ HRV↓+FCr↑ simultáneos — señal doble de supresión autonómica. Trata la sesión de hoy (fuerza o cardio) como si HRV estuviera suprimida.',conf:0.9},
   {id:'high_doms_lower',priority:6,domain:'fuerza',cond:(f,i)=>f.drivers.includes('high_doms_lower'),action:'🦵 DOMS de pierna alto. Si hoy toca fuerza inferior: quita la última serie de cada ejercicio (~20-25% menos volumen) y no llegues al fallo en cuádriceps.',conf:0.8},
   {id:'low_sleep',priority:6,domain:'general',cond:(f,i)=>f.drivers.includes('low_sleep'),action:'😴 Sueño insuficiente. En fuerza: para 1-2 RIR más lejos del fallo de lo planeado. En cardio: mantén los minutos, no subas de zona.',conf:0.85},
-  {id:'neg_tsb',priority:5,domain:'cardio',cond:(f,i)=>f.drivers.includes('negative_tsb'),action:'📊 TSB negativo — acumulación de carga cardio. Si tienes Z2 pendiente hoy, hazlo pero no añadas minutos extra; considera un día de Z1 corto en vez de Z2 largo esta semana.',conf:0.75},
+  // FIX 2026-07-18: TSB negativo por sí solo NO debe disparar "reduce carga". Es el estado normal
+  // de un bloque de entrenamiento continuo — CTL/ATL lo reflejan, no es una señal de alarma aislada.
+  // Ahora se combina con HRV/sueño/Body Battery/fatiga local de pierna: si TSB está bajo pero la
+  // recuperación autonómica y local son buenas, la recomendación es la contraria (mantener el plan).
+  {id:'neg_tsb_corroborated',priority:5,domain:'cardio',cond:(f,i)=>f.drivers.includes('negative_tsb')&&((f.signals.hrv&&f.signals.hrv.warn)||(f.signals.sleep&&f.signals.sleep.warn)||(f.signals.bb&&f.signals.bb.warn)||(f.lowerScore!=null&&f.lowerScore<50)),action:'📊 TSB negativo Y al menos otra señal de recuperación floja (HRV/sueño/Body Battery/piernas). Aquí sí conviene bajar: si tienes Z2 pendiente, hazlo pero no añadas minutos extra; mejor Z1 corto que Z2 largo esta semana.',conf:0.8},
+  {id:'neg_tsb_isolated',priority:2,domain:'cardio',cond:(f,i)=>f.drivers.includes('negative_tsb')&&!((f.signals.hrv&&f.signals.hrv.warn)||(f.signals.sleep&&f.signals.sleep.warn)||(f.signals.bb&&f.signals.bb.warn)||(f.lowerScore!=null&&f.lowerScore<50)),action:'📊 TSB negativo, pero HRV/sueño/Body Battery/piernas están bien — estado normal de bloque de entrenamiento continuo, no una señal de alarma por sí sola. Puedes hacer el rodaje Z2 previsto tal cual; solo evita añadir volumen o intensidad extra hoy.',conf:0.7},
   {id:'high_srpe',priority:5,domain:'fuerza',cond:(f,i)=>f.drivers.includes('high_srpe_48h'),action:'💪 sRPE 48h elevado por la sesión de fuerza reciente. Evita otra sesión de la misma zona hoy; si toca, pásala a mañana.',conf:0.8},
   {id:'hrv_rebound',priority:3,domain:'general',cond:(f,i)=>S._hrv?.state==='rebound'&&f.systemic<30,action:'✅ HRV en rebote y fatiga baja — margen real para progresar hoy. En fuerza: prueba +1 serie o RIR objetivo un punto más cerca del fallo en el ejercicio principal. En cardio: puedes añadir 5-10min a la sesión planeada.',conf:0.75},
   {id:'all_green',priority:1,domain:'general',cond:(f,i)=>f.systemic<30&&!f.drivers.includes('knee_pain')&&!i.blockLower,action:'✅ Sin señales de alarma en ningún sistema. Ejecuta la sesión planeada tal cual — no hay motivo para reducir ni razón concreta para forzar progresión hoy.',conf:0.8},
@@ -4190,16 +4195,43 @@ function renderEndurance(){
   if(nRuns>0){
     var lastRun=runs[nRuns-1];
     html+='<div class="card" style="margin-bottom:12px;"><div class="card-hdr"><span class="t-md">Calidad de la sesión</span><span class="mono" style="font-size:10px;color:var(--fg3);">última: '+(lastRun.date||'').split('T')[0].slice(5)+'</span></div><div class="card-body">';
-    html+=stRow('Intensidad (icu_intensity)', lastRun.intensity!=null?lastRun.intensity.toFixed(1)+'%':'—','% de FTP/umbral estimado');
-    html+=stRow('TRIMP', lastRun.trimp!=null?lastRun.trimp.toFixed(0):'—','carga de sesión, oficial');
-    html+=stRow('HR Load', lastRun.hrLoad!=null?String(lastRun.hrLoad):'—','oficial');
-    html+=stRow('Polarization Index', lastRun.polarization!=null?lastRun.polarization.toFixed(2):'—', lastRun.polarization!=null?(lastRun.polarization<-0.2?'polarizado hacia baja intensidad':lastRun.polarization>0.2?'polarizado hacia alta intensidad':'mixto'):'');
-    html+=stRow('GAP (ritmo ajustado)', lastRun.gapMs?fmtPace(lastRun.gapMs)+'/km':'—', (lastRun.gapMs&&lastRun.paceMs)?(Math.abs(lastRun.gapMs-lastRun.paceMs)<0.05?'~igual al ritmo real, desnivel apenas afectó':'diferencia real por desnivel'):'');
-    html+=stRow('Cadencia', lastRun.cadence?lastRun.cadence.toFixed(0)+' spm':'—', '⚠ probablemente de 1 pierna, no total — sin confirmar con Garmin');
+    html+=stRow('Intensidad', lastRun.intensity!=null?lastRun.intensity.toFixed(1)+'%':'—','% de FTP/umbral estimado · Intervals');
+    html+=stRow('TRIMP', lastRun.trimp!=null?lastRun.trimp.toFixed(0):'—','carga de sesión · Intervals');
+    html+=stRow('HR Load', lastRun.hrLoad!=null?String(lastRun.hrLoad):'—','Intervals');
+    var piLabel='—',piBand=null;
+    if(lastRun.polarization!=null){
+      // CORREGIDO 2026-07-19: el umbral que usaba antes (±0.2) me lo inventé — no correspondía a
+      // nada publicado. El PI real es de Treff et al. 2019: log10(Z1/(Z2·Z3·100)), y el corte que
+      // SÍ está en la literatura para considerar una distribución "polarizada" es >2.00, no 0.2.
+      // Con ese corte real, valores típicos de sesión suelta (0.81, -0.51, 2.05...) casi nunca
+      // llegan a "polarizado" — el PI se pensó para bloques de entrenamiento completos, no una
+      // sesión aislada, así que además hay que leerlo con cautela en este contexto.
+      piBand=lastRun.polarization>2.00?'polarizado':lastRun.polarization<0?'concentrado en Z2':'no polarizado';
+      piLabel=(piBand==='polarizado'?'🟢 ':'🟡 ')+lastRun.polarization.toFixed(2)+' · '+piBand+' (corte publicado: >2.00, Treff 2019)';
+    }
+    html+=stRow('Polarization Index', piLabel, 'sobre 1 sesión — el índice está pensado para bloques completos, no una sesión suelta');
+    var gapNote='';
+    if(lastRun.gapMs&&lastRun.paceMs){
+      var gapDiffPct=Math.abs(lastRun.gapMs-lastRun.paceMs)/lastRun.paceMs;
+      gapNote=gapDiffPct<0.03?'🟢 casi igual al ritmo real — el desnivel apenas influyó':'🟡 diferencia real por desnivel/terreno';
+    }
+    html+=stRow('GAP (ritmo ajustado)', lastRun.gapMs?fmtPace(lastRun.gapMs)+'/km':'—', gapNote);
+    html+=stRow('Cadencia', lastRun.cadence?lastRun.cadence.toFixed(0)+' spm (~1 pierna) · ≈'+Math.round(lastRun.cadence*2)+' spm totales':'—', '⚠ sin confirmar con Garmin si es de 1 pierna o total');
     html+=stRow('Longitud de zancada', lastRun.strideM?lastRun.strideM.toFixed(2)+' m':'—','');
     html+=stRow('Desnivel +/-', (lastRun.elevGain!=null)?lastRun.elevGain+'m / '+(lastRun.elevLoss||0)+'m':'—','');
     html+=stRow('Calorías', lastRun.calories?String(lastRun.calories):'—','');
-    html+='<div style="font-size:10px;color:var(--fg4);margin-top:6px;">Todos estos campos vienen directos de Intervals.icu (confirmado 2026-07-16 con tu cuenta real) — Atlas no recalcula ninguno.</div>';
+    // Interpretación automática — SOLO con lo que hay dato real para decir; nunca una plantilla fija.
+    var obs=[];
+    if(lastRun.isZ2)obs.push('Sesión predominantemente Z2 (aeróbica).');
+    if(piBand==='polarizado')obs.push('Distribución de intensidad polarizada (PI>2.00, corte publicado) — coherente con un rodaje de base bien ejecutado.');
+    else if(piBand)obs.push('PI '+lastRun.polarization.toFixed(2)+', por debajo del corte de "polarizado" — normal en una sesión suelta, el índice está pensado para bloques completos, no sacaría conclusiones de una sola carrera.');
+    if(gapNote.indexOf('🟢')===0)obs.push('El desnivel no distorsionó el esfuerzo real (GAP ≈ ritmo).');
+    if(lastRun.decoupling!=null)obs.push('Desacople '+lastRun.decoupling+'% ('+(Math.abs(lastRun.decoupling)<=5?'dentro de rango aceptable':'por encima del rango típico de 5%')+').');
+    else if(lastRun.isIntervalSession)obs.push('Sesión de intervalos — el desacople no aplica aquí, no es un dato que falte.');
+    if(obs.length){
+      html+='<div style="margin-top:8px;padding:8px;background:var(--bg4);border-radius:6px;font-size:11px;color:var(--fg2);line-height:1.6;"><b style="color:var(--fg);">Interpretación</b><br>'+obs.map(function(o){return '• '+o;}).join('<br>')+'</div>';
+    }
+    html+='<div style="font-size:10px;color:var(--fg4);margin-top:6px;">Campos numéricos, directos de Intervals.icu (confirmado 2026-07-16) — Atlas no los recalcula, solo interpreta.</div>';
     html+='</div></div>';
   }
 
