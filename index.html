@@ -433,7 +433,11 @@ textarea.field{resize:vertical;min-height:60px;}
     <div style="margin-bottom:12px;"><div style="font-size:15px;font-weight:600;color:var(--fg);">🫀 Endurance</div><div style="font-size:11px;color:var(--fg3);margin-top:2px;">¿Estoy mejorando como corredor? Adaptación, no carga.</div></div>
     <div id="enduranceBody"><div style="font-size:12px;color:var(--fg3);">Cargando…</div></div>
     <button class="btn btn-g btn-full" style="margin-top:8px;" onclick="renderEndurance()">Actualizar</button>
-    <button class="btn btn-full" style="margin-top:6px;font-size:11px;color:var(--fg3);background:none;border:1px solid var(--line);" onclick="runFieldDiagnostic()">🔍 Ver todos los campos disponibles (diagnóstico)</button>
+    <!-- FIX 2026-07-19: este botón llamaba a runFieldDiagnostic(), una función que ya no existe
+         desde que la sustituí por el explorador permanente (showApiExplorer/renderApiExplorer) —
+         por eso no hacía nada. Corregido, y añadido el contenedor que faltaba (apiExplorerPanel). -->
+    <button class="btn btn-full" style="margin-top:6px;font-size:11px;color:var(--fg3);background:none;border:1px solid var(--line);" onclick="showApiExplorer()">🔍 Modo desarrollador — explorador de campos API</button>
+    <div id="apiExplorerPanel" style="display:none;margin-top:10px;"></div>
   </div>
 </div>
 <!-- MEV/MAV -->
@@ -4604,7 +4608,14 @@ async function renderApiExplorer(actIdOverride){
   var el=safeDOM('apiExplorerPanel'); if(!el)return;
   el.innerHTML='<div style="font-size:12px;color:var(--fg3);">Consultando API…</div>';
   var acts=safeArr(S.metrics.activities);
-  var target=actIdOverride||(acts.length?acts[acts.length-1].id:null);
+  // FIX 2026-07-19: asumía que la última posición del array era la actividad más reciente — el
+  // orden que devuelve la API no está garantizado. Ahora se busca explícitamente por fecha.
+  var mostRecent=acts.slice().sort(function(a,b){
+    var ta=new Date(a.start_date_local||a.start_date||0).getTime();
+    var tb=new Date(b.start_date_local||b.start_date||0).getTime();
+    return tb-ta;
+  })[0];
+  var target=actIdOverride||(mostRecent?mostRecent.id:null);
   if(!target){el.innerHTML='<div style="font-size:12px;color:var(--fg3);">Sin actividades sincronizadas todavía para elegir una de ejemplo.</div>';return;}
   var res=await apiFieldExplorer(target);
   if(res.error){el.innerHTML='<div style="font-size:12px;color:var(--r);">'+res.error+'</div>';return;}
