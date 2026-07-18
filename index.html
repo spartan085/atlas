@@ -291,6 +291,7 @@ textarea.field{resize:vertical;min-height:60px;}
       <div id="sec-metrics" style="display:none;margin-top:4px;">
         <div class="sg">
           <div class="st o"><div class="st-src">FC Reposo</div><div class="st-val" id="m-rhr">—</div><div class="st-unit">ppm <span id="m-rhr-d" style="font-size:10px;"></span></div></div>
+          <div class="st o"><div class="st-src">FC Nocturna</div><div class="st-val" id="m-nocturnal-rhr">—</div><div class="st-unit">ppm (media sueño)</div></div>
           <div class="st p"><div class="st-src">Pasos</div><div class="st-val" id="m-steps">—</div><div class="st-unit">pasos</div></div>
           <div class="st b"><div class="st-src">VO2max</div><div class="st-val" id="m-vo2max">—</div><div class="st-unit">ml/kg/min</div></div>
           <div class="st c"><div class="st-src">Proteína</div><div class="st-val sm" id="m-prot-quick">—</div><div class="st-unit">g / 180g</div></div>
@@ -3749,6 +3750,10 @@ function updateMetrics(){
   const sv=(id,v)=>{const e=safeDOM(id);if(e)e.textContent=v!=null?v:'—';};
   sv('m-hrv',m.hrv?m.hrv+'ms':null);sv('m-sleep',m.sleep);sv('m-sleep-score',m.sleepScore?'score '+m.sleepScore:'');
   sv('m-bb',m.bb);sv('m-rhr',m.restingHR?m.restingHR+'ppm':null);
+  // 2026-07-19: avgNocturnalHR ya se sincronizaba (latestBio.avgSleepingHR) pero nunca se mostraba
+  // en ningún sitio — señal real de recuperación (una FC nocturna elevada frente a tu línea base
+  // es de los indicadores más tempranos de sobrecarga o enfermedad incipiente), pedida por Carlos.
+  sv('m-nocturnal-rhr',m.avgNocturnalHR?m.avgNocturnalHR+'ppm':null);
   sv('m-steps',m.steps?(m.steps>=1000?(Math.round(m.steps/1000)+'k'):m.steps):null);
   var mProt=safeDOM('m-prot-quick');
   if(mProt)mProt.textContent=m.protein?Math.round(m.protein):'—';
@@ -4224,6 +4229,9 @@ function renderEndurance(){
     html+=stRow('Longitud de zancada', lastRun.strideM?lastRun.strideM.toFixed(2)+' m':'—','');
     html+=stRow('Desnivel +/-', (lastRun.elevGain!=null)?lastRun.elevGain+'m / '+(lastRun.elevLoss||0)+'m':'—','');
     html+=stRow('Calorías', lastRun.calories?String(lastRun.calories):'—','');
+    if(S.metrics.avgNocturnalHR){
+      html+=stRow('FC nocturna (contexto)', S.metrics.avgNocturnalHR+' ppm', 'media de sueño, más sensible que la FC reposo puntual a sobrecarga/enfermedad');
+    }
     // Interpretación automática — SOLO con lo que hay dato real para decir; nunca una plantilla fija.
     var obs=[];
     if(lastRun.isZ2)obs.push('Sesión predominantemente Z2 (aeróbica).');
@@ -4608,15 +4616,18 @@ async function renderApiExplorer(actIdOverride){
   var el=safeDOM('apiExplorerPanel'); if(!el)return;
   el.innerHTML='<div style="font-size:12px;color:var(--fg3);">Consultando API…</div>';
   var acts=safeArr(S.metrics.activities);
-  // FIX 2026-07-19: asumía que la última posición del array era la actividad más reciente — el
-  // orden que devuelve la API no está garantizado. Ahora se busca explícitamente por fecha.
-  var mostRecent=acts.slice().sort(function(a,b){
+  // FIX 2026-07-19: cogía la actividad más reciente de CUALQUIER tipo, incluida fuerza — si tu
+  // última sesión registrada era D-algo de fuerza, te traía esos campos en vez de tu carrera.
+  // Filtrado a tipos de cardio/carrera, que es el contexto real de este botón (pestaña Endurance).
+  var CARDIO_TYPES=['Run','VirtualRun','TrailRun','Ride','VirtualRide','Walk','Hike','Swim'];
+  var cardioActs=acts.filter(function(a){return CARDIO_TYPES.indexOf(a.type||a.sport_type)>=0;});
+  var mostRecent=cardioActs.slice().sort(function(a,b){
     var ta=new Date(a.start_date_local||a.start_date||0).getTime();
     var tb=new Date(b.start_date_local||b.start_date||0).getTime();
     return tb-ta;
   })[0];
   var target=actIdOverride||(mostRecent?mostRecent.id:null);
-  if(!target){el.innerHTML='<div style="font-size:12px;color:var(--fg3);">Sin actividades sincronizadas todavía para elegir una de ejemplo.</div>';return;}
+  if(!target){el.innerHTML='<div style="font-size:12px;color:var(--fg3);">Sin actividades de cardio/carrera sincronizadas todavía para elegir una de ejemplo.</div>';return;}
   var res=await apiFieldExplorer(target);
   if(res.error){el.innerHTML='<div style="font-size:12px;color:var(--r);">'+res.error+'</div>';return;}
   var statusCol={valor:'var(--g)',vacio:'var(--y)',inexistente:'var(--fg4)'};
