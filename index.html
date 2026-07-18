@@ -3975,6 +3975,10 @@ function miniBars(vals,opts){
 async function analyzeRunStreams(activityId,btnEl){
   var act=safeArr(S.metrics.activities).find(function(a){return String(a.id)===String(activityId);});
   if(!act)return;
+  if(Array.isArray(act.interval_summary)&&act.interval_summary.length>1){
+    toast('Sesión de intervalos','El desacople no es interpretable en esfuerzo no continuo — no la analizo.','⚠️');
+    return;
+  }
   if(btnEl){btnEl.textContent='...';btnEl.disabled=true;}
   var res=await fetchActivityStreams(activityId,act);
   if(res.error){toast('No se pudo analizar',res.error,'⚠️');if(btnEl){btnEl.textContent='Analizar';btnEl.disabled=false;}return;}
@@ -3999,20 +4003,46 @@ function renderEndurance(){
   var runs=acts.filter(function(a){return RUN.indexOf(a.type||a.sport_type)>=0;})
     .map(function(a){
       var t=new Date(a.start_date_local||a.start_date||0).getTime();
-      var paceMs=safeNum(a.pace,0);
-      if(!paceMs && a.distance && a.moving_time) paceMs=a.distance/a.moving_time; // m/s
+      var paceMs=safeNum(a.pace,0); // OFICIAL — Intervals ya lo da, no se deriva
+      if(!paceMs && a.distance && a.moving_time) paceMs=a.distance/a.moving_time; // fallback solo si falta
       var hr=safeNum(a.average_heartrate,0);
-      var ef=(paceMs>0&&hr>0)?(paceMs*60/hr):null; // m/min por ppm; ↑ = más eficiente
+      // EF propio: SOLO porque icu_efficiency_factor viene null en tus actividades de Garmin
+      // (confirmado 2026-07-16, no es una suposición). Si algún día Intervals lo rellena, se usa
+      // el oficial directamente — ver más abajo.
+      var efLocal=(paceMs>0&&hr>0)?(paceMs*60/hr):null;
+      var efOfficial=safeNum(a.icu_efficiency_factor,0)||null;
       var zt=a.icu_hr_zone_times||a.icu_zone_times||[];
       var ztot=Array.isArray(zt)?zt.reduce(function(s,v){return s+(v||0);},0):0;
       var z12pct=(ztot>0)?(((zt[0]||0)+(zt[1]||0))/ztot):0;
       var sc=S.streamsCache[a.id];
       var streamOk=sc&&sc.fingerprint===_activityFingerprint(a)?sc.metrics:null;
-      return {id:a.id,t:t,date:a.start_date_local||'',paceMs:paceMs,hr:hr,ef:(streamOk&&streamOk.ef)||ef,
+      // Sesión de intervalos (no continua) — el desacople NO tiene sentido fisiológico aquí,
+      // confirmado con evidencia real: tu carrera del 10/07 trae interval_summary "6x 7m3s..." y
+      // decoupling:null — Intervals probablemente lo omite por eso, no por falta de capacidad.
+      var isIntervalSession=Array.isArray(a.interval_summary)&&a.interval_summary.length>1;
+      var decouplingOfficial=(a.decoupling!=null)?a.decoupling:null;
+      return {id:a.id,t:t,date:a.start_date_local||'',paceMs:paceMs,hr:hr,
+        ef:efOfficial||(streamOk&&streamOk.ef)||efLocal,efSource:efOfficial?'oficial':(streamOk&&streamOk.ef)?'streams':'propio(resumen)',
         distKm:a.distance?Math.round(a.distance/100)/10:null,
         dur:a.moving_time?Math.round(a.moving_time/60):null,
         load:safeNum(a.icu_training_load,0),z12pct:z12pct,
-        isZ2:z12pct>=0.6, name:a.name||a.type, stream:streamOk};
+        isZ2:z12pct>=0.6, name:a.name||a.type, stream:streamOk,
+        isIntervalSession:isIntervalSession,
+        decoupling:decouplingOfficial!=null?decouplingOfficial:(streamOk?streamOk.drift:null),
+        decouplingSource:decouplingOfficial!=null?'oficial':(streamOk?'streams':null),
+        // Campos OFICIALES nuevos — directos de Intervals, sin recalcular:
+        gapMs:safeNum(a.gap,0)||null, // m/s, ritmo ajustado por pendiente
+        cadence:safeNum(a.average_cadence,0)||null, // ⚠ probablemente cadencia de UNA pierna, no total — ver nota en UI
+        strideM:safeNum(a.average_stride,0)||null,
+        elevGain:a.total_elevation_gain!=null?Math.round(a.total_elevation_gain):null,
+        elevLoss:a.total_elevation_loss!=null?Math.round(a.total_elevation_loss):null,
+        calories:safeNum(a.calories,0)||null,
+        trimp:safeNum(a.trimp,0)||null,
+        hrLoad:safeNum(a.hr_load,0)||null,
+        intensity:safeNum(a.icu_intensity,0)||null,
+        polarization:(a.polarization_index!=null)?a.polarization_index:null,
+        hrZones:Array.isArray(a.icu_hr_zones)?a.icu_hr_zones:null, // límites reales de zona, no supuestos
+        lthr:safeNum(a.lthr,0)||null};
     })
     .filter(function(r){return isFinite(r.t);})
     .sort(function(a,b){return a.t-b.t;}); // cronológico ascendente
@@ -4076,16 +4106,19 @@ function renderEndurance(){
     html+='<div style="display:flex;color:var(--fg3);font-size:10px;text-transform:uppercase;letter-spacing:0.5px;padding:3px 0;border-bottom:1px solid var(--line);"><span style="flex:1.3;">Fecha</span><span style="flex:0.9;text-align:right;">Ritmo</span><span style="flex:0.7;text-align:right;">FC</span><span style="flex:0.8;text-align:right;">EF</span><span style="flex:0.9;text-align:right;"></span></div>';
     show.forEach(function(r){
       var ds=(r.date||'').split('T')[0].slice(5);
-      var streamBtn=r.stream
-        ?'<span class="mono" style="font-size:9px;color:var(--c);" title="Desacople '+(r.stream.drift!=null?r.stream.drift+'%':'n/d')+'">✓ analizada</span>'
-        :'<button onclick="analyzeRunStreams(\''+r.id+'\',this)" style="font-size:9px;color:var(--fg3);background:none;border:1px solid var(--line);border-radius:5px;padding:1px 5px;cursor:pointer;">Analizar</button>';
-      html+='<div style="display:flex;align-items:center;padding:4px 0;border-bottom:1px solid var(--line);"><span style="flex:1.3;color:var(--fg2);">'+ds+(r.isZ2?' <span style="color:var(--c);font-size:9px;">Z2</span>':'')+'</span><span class="mono" style="flex:0.9;text-align:right;color:var(--fg);">'+fmtPace(r.paceMs)+'</span><span class="mono" style="flex:0.7;text-align:right;color:var(--fg2);">'+(r.hr||'—')+'</span><span class="mono" style="flex:0.8;text-align:right;color:var(--c);">'+(r.ef?r.ef.toFixed(2):'—')+'</span><span style="flex:0.9;text-align:right;">'+streamBtn+'</span></div>';
-      if(r.stream&&(r.stream.drift!=null||r.stream.paceVariability!=null)){
-        html+='<div style="font-size:10px;color:var(--fg3);padding:2px 0 4px;">';
-        if(r.stream.drift!=null)html+='Desacople: <span class="mono" style="color:'+(r.stream.drift>5?'var(--y)':'var(--fg2)')+';">'+(r.stream.drift>0?'+':'')+r.stream.drift+'%</span> · ';
-        if(r.stream.hrFirstHalf!=null)html+='FC 1ª/2ª mitad: '+r.stream.hrFirstHalf+'→'+r.stream.hrSecondHalf+' ppm · ';
-        if(r.stream.paceVariability!=null)html+='Variabilidad ritmo: '+r.stream.paceVariability+'%';
-        html+='</div>';
+      var streamBtn;
+      if(r.isIntervalSession&&r.decoupling==null){
+        streamBtn='<span class="mono" style="font-size:9px;color:var(--fg4);" title="Sesión de intervalos — el desacople no es interpretable en esfuerzo no continuo">— intervalos</span>';
+      } else if(r.decouplingSource==='oficial'){
+        streamBtn='<span class="mono" style="font-size:9px;color:var(--g);" title="decoupling oficial de Intervals">✓ Intervals</span>';
+      } else if(r.stream){
+        streamBtn='<span class="mono" style="font-size:9px;color:var(--c);" title="Desacople '+(r.stream.drift!=null?r.stream.drift+'%':'n/d')+'">✓ analizada</span>';
+      } else {
+        streamBtn='<button onclick="analyzeRunStreams(\''+r.id+'\',this)" style="font-size:9px;color:var(--fg3);background:none;border:1px solid var(--line);border-radius:5px;padding:1px 5px;cursor:pointer;">Analizar</button>';
+      }
+      html+='<div style="display:flex;align-items:center;padding:4px 0;border-bottom:1px solid var(--line);"><span style="flex:1.3;color:var(--fg2);">'+ds+(r.isZ2?' <span style="color:var(--c);font-size:9px;">Z2</span>':'')+(r.isIntervalSession?' <span style="color:var(--y);font-size:9px;">Interv.</span>':'')+'</span><span class="mono" style="flex:0.9;text-align:right;color:var(--fg);">'+fmtPace(r.paceMs)+'</span><span class="mono" style="flex:0.7;text-align:right;color:var(--fg2);">'+(r.hr||'—')+'</span><span class="mono" style="flex:0.8;text-align:right;color:var(--c);" title="fuente: '+r.efSource+'">'+(r.ef?r.ef.toFixed(2):'—')+'</span><span style="flex:0.9;text-align:right;">'+streamBtn+'</span></div>';
+      if(r.decoupling!=null){
+        html+='<div style="font-size:10px;color:var(--fg3);padding:2px 0 4px;">Desacople ('+r.decouplingSource+'): <span class="mono" style="color:'+(Math.abs(r.decoupling)>5?'var(--y)':'var(--fg2)')+';">'+(r.decoupling>0?'+':'')+r.decoupling+'%</span>'+(r.stream&&r.stream.hrFirstHalf!=null?' · FC 1ª/2ª mitad: '+r.stream.hrFirstHalf+'→'+r.stream.hrSecondHalf+' ppm':'')+(r.stream&&r.stream.paceVariability!=null?' · Variabilidad ritmo: '+r.stream.paceVariability+'%':'')+'</div>';
       }
     });
     html+='</div>';
@@ -4153,6 +4186,23 @@ function renderEndurance(){
   }
   html+='</div></div>';
 
+  // ── 4.5 CALIDAD DE LA SESIÓN — campos oficiales confirmados el 16/07, última carrera ──
+  if(nRuns>0){
+    var lastRun=runs[nRuns-1];
+    html+='<div class="card" style="margin-bottom:12px;"><div class="card-hdr"><span class="t-md">Calidad de la sesión</span><span class="mono" style="font-size:10px;color:var(--fg3);">última: '+(lastRun.date||'').split('T')[0].slice(5)+'</span></div><div class="card-body">';
+    html+=stRow('Intensidad (icu_intensity)', lastRun.intensity!=null?lastRun.intensity.toFixed(1)+'%':'—','% de FTP/umbral estimado');
+    html+=stRow('TRIMP', lastRun.trimp!=null?lastRun.trimp.toFixed(0):'—','carga de sesión, oficial');
+    html+=stRow('HR Load', lastRun.hrLoad!=null?String(lastRun.hrLoad):'—','oficial');
+    html+=stRow('Polarization Index', lastRun.polarization!=null?lastRun.polarization.toFixed(2):'—', lastRun.polarization!=null?(lastRun.polarization<-0.2?'polarizado hacia baja intensidad':lastRun.polarization>0.2?'polarizado hacia alta intensidad':'mixto'):'');
+    html+=stRow('GAP (ritmo ajustado)', lastRun.gapMs?fmtPace(lastRun.gapMs)+'/km':'—', (lastRun.gapMs&&lastRun.paceMs)?(Math.abs(lastRun.gapMs-lastRun.paceMs)<0.05?'~igual al ritmo real, desnivel apenas afectó':'diferencia real por desnivel'):'');
+    html+=stRow('Cadencia', lastRun.cadence?lastRun.cadence.toFixed(0)+' spm':'—', '⚠ probablemente de 1 pierna, no total — sin confirmar con Garmin');
+    html+=stRow('Longitud de zancada', lastRun.strideM?lastRun.strideM.toFixed(2)+' m':'—','');
+    html+=stRow('Desnivel +/-', (lastRun.elevGain!=null)?lastRun.elevGain+'m / '+(lastRun.elevLoss||0)+'m':'—','');
+    html+=stRow('Calorías', lastRun.calories?String(lastRun.calories):'—','');
+    html+='<div style="font-size:10px;color:var(--fg4);margin-top:6px;">Todos estos campos vienen directos de Intervals.icu (confirmado 2026-07-16 con tu cuenta real) — Atlas no recalcula ninguno.</div>';
+    html+='</div></div>';
+  }
+
   // ── 5. TENDENCIAS (récords) ──
   html+='<div class="card" style="margin-bottom:12px;"><div class="card-hdr"><span class="t-md">Tendencias</span></div><div class="card-body">';
   if(nRuns===0){
@@ -4163,6 +4213,7 @@ function renderEndurance(){
     var bestEf=runs.filter(function(r){return r.ef;}).sort(function(a,b){return b.ef-a.ef;})[0];
     var maxDist=runs.reduce(function(m,r){return (r.distKm&&r.distKm>(m?m.distKm:0))?r:m;},null);
     var maxDur=runs.reduce(function(m,r){return (r.dur&&r.dur>(m?m.dur:0))?r:m;},null);
+    var maxElev=runs.reduce(function(m,r){return (r.elevGain!=null&&r.elevGain>(m?m.elevGain:-1))?r:m;},null);
     // Mayor carga semanal: suma icu_training_load por semana ISO
     var loadByWeek={};
     runs.forEach(function(r){if(!r.t)return;var d=new Date(r.t);var onejan=new Date(d.getFullYear(),0,1);var wk=Math.ceil((((d-onejan)/86400000)+onejan.getDay()+1)/7);var key=d.getFullYear()+'-W'+wk;loadByWeek[key]=(loadByWeek[key]||0)+(r.load||0);});
@@ -4172,9 +4223,9 @@ function renderEndurance(){
     html+=stRow('Mejor EF (histórico)', bestEf?bestEf.ef.toFixed(2):'—', bestEf?bestEf.date.split('T')[0].slice(5):'');
     html+=stRow('Mayor distancia', maxDist?maxDist.distKm+' km':'—', maxDist?maxDist.date.split('T')[0].slice(5):'');
     html+=stRow('Mayor duración', maxDur?maxDur.dur+' min':'—', maxDur?maxDur.date.split('T')[0].slice(5):'');
+    html+=stRow('Mayor desnivel', maxElev&&maxElev.elevGain?maxElev.elevGain+' m':'—', maxElev?maxElev.date.split('T')[0].slice(5):'campo total_elevation_gain, confirmado 2026-07-16');
     html+=stRow('Mayor carga semanal', maxWeek?maxWeek[1]+' UA':'—', maxWeek?maxWeek[0]:'');
     html+=stRow('CTL máximo (histórico)', ctl!=null?String(ctl):'—','solo tenemos el CTL actual, no histórico completo');
-    html+='<div style="font-size:10px;color:var(--fg4);margin-top:4px;">Desnivel: no disponible — el campo no llega en la sincronización actual de Intervals.</div>';
   }
   html+='</div></div>';
 
@@ -4230,7 +4281,7 @@ function renderEndurance(){
   var analyzed=runs.filter(function(r){return r.stream;}).length;
   html+='<div style="padding:4px 0;">🔥 <b style="color:var(--fg2);">Desacople/mitades/variabilidad de ritmo</b> — ya disponible bajo demanda: pulsa "Analizar" en cualquier carrera de la tabla de Eficiencia. Analizadas hasta ahora: '+analyzed+'/'+nRuns+'.</div>';
   html+='<div style="padding:4px 0;">🫀 <b style="color:var(--fg2);">Recuperación de FC post-esfuerzo</b> — no disponible aunque analices streams: el reloj deja de grabar al parar la actividad, así que el stream no cubre el postesfuerzo real.</div>';
-  html+='<div style="padding:4px 0;">👣 <b style="color:var(--fg2);">Cadencia</b> — el campo no llega en la sincronización actual de resumen, aunque Garmin sí la mide. Los streams sí la piden (types incluye cadence); pendiente de mostrarla en el desglose por carrera.</div>';
+  html+='<div style="padding:4px 0;">👣 <b style="color:var(--fg2);">Cadencia</b> — confirmada disponible (`average_cadence`, 16/07), ya se muestra en "Calidad de la sesión". Pendiente real: confirmar si Garmin la reporta como total o de una sola pierna antes de fiarnos del número tal cual (el valor visto, ~84 spm, sugiere una sola pierna).</div>';
   html+='<div style="padding:4px 0;">⚡ <b style="color:var(--fg2);">Potencia</b> — no tienes footpod ni potenciómetro de carrera; se mostrará "No disponible" de forma permanente salvo que añadas ese sensor, no por falta de sincronización.</div>';
   html+='<div style="padding:4px 0;">🗺️ <b style="color:var(--fg2);">Página individual de actividad (mapa + gráficas sincronizadas)</b> — los streams ya se descargan y cachean, pero falta la vista de mapa/gráficas sincronizadas en sí. Es la pieza más grande que falta del spec original.</div>';
   html+='<div style="padding:4px 0;">🔀 <b style="color:var(--fg2);">Comparador de dos carreras</b> — viable con los campos actuales; no construido todavía porque con '+nRuns+' carreras comparar dos no aporta mucho — mejor esperar a tener más.</div>';
@@ -4481,34 +4532,73 @@ function cardioResidualAtDate(refTime,activities){
 }
 function _cardioLevelLabel(v){return v>=100?'alta':v>=50?'moderada':'baja';}
 
-// DIAGNÓSTICO 2026-07-16: pide el resumen de UNA actividad SIN restringir 'fields' — para ver
-// de verdad qué campos manda Intervals, en vez de que Claude siga adivinando. No cachea, no
-// transforma nada: JSON crudo tal cual llega.
-async function debugFullActivityFields(activityId){
+// MODO DESARROLLADOR 2026-07-16 — explorador de API permanente, no un botón desechable.
+// Pide el resumen de UNA actividad SIN restringir 'fields' (JSON completo tal cual) y lo
+// categoriza en 3 grupos, exactamente como pidió Carlos: presente con valor / presente pero
+// vacío / inexistente. Pensado para reutilizarse cada vez que haga falta investigar un campo
+// nuevo de la API — no se borra después de usarlo una vez.
+const ATLAS_FIELDS_OF_INTEREST=[
+  'decoupling','average_cadence','max_cadence','elevation_gain','total_elevation_gain',
+  'average_speed','max_speed','calories','icu_ctl','icu_atl','icu_ftp','vo2max',
+  'icu_hr_zone_times','icu_pace_zone_times','gap','pace','distance','moving_time',
+  'average_heartrate','max_heartrate','icu_training_load','icu_rpe','icu_intensity',
+  'name','type','start_date_local','icu_recording_time'
+];
+function _fieldStatus(obj,key){
+  if(!Object.prototype.hasOwnProperty.call(obj,key))return 'inexistente';
+  var v=obj[key];
+  if(v===null||v===undefined||v===''||(Array.isArray(v)&&v.length===0))return 'vacio';
+  return 'valor';
+}
+async function apiFieldExplorer(activityId){
   const {aid,key}=S.int; if(!aid||!key) return {error:'Sin API Key de Intervals conectada.'};
   const auth='Basic '+btoa('API_KEY:'+key);
   try{
     const r=await fetch(`https://intervals.icu/api/v1/activity/${activityId}`,{headers:{'Authorization':auth,'Accept':'application/json'},mode:'cors'});
     if(!r.ok) return {error:'Error '+r.status};
     const raw=await r.json();
-    return {ok:true,fieldCount:Object.keys(raw).length,fields:Object.keys(raw).sort(),raw:raw};
+    const allFields=Object.keys(raw).sort().map(function(k){return {key:k,status:_fieldStatus(raw,k),preview:JSON.stringify(raw[k]).slice(0,60)};});
+    const ofInterest=ATLAS_FIELDS_OF_INTEREST.map(function(k){return {key:k,status:_fieldStatus(raw,k),preview:_fieldStatus(raw,k)==='valor'?JSON.stringify(raw[k]).slice(0,60):null};});
+    return {ok:true,activityId:activityId,activityName:raw.name||raw.type,raw:raw,allFields:allFields,ofInterest:ofInterest};
   }catch(e){ return {error:'Fallo de red: '+e.message}; }
 }
-async function runFieldDiagnostic(){
-  var acts=safeArr(S.metrics.activities).filter(function(a){return ['Run','VirtualRun','TrailRun'].indexOf(a.type)>=0;});
-  if(!acts.length){toast('Sin carreras','No hay ninguna actividad de correr para diagnosticar','⚠️');return;}
-  var res=await debugFullActivityFields(acts[acts.length-1].id);
-  if(res.error){toast('Diagnóstico falló',res.error,'⚠️');return;}
-  console.log('CAMPOS DISPONIBLES ('+res.fieldCount+'):',res.fields);
-  console.log('JSON COMPLETO:',res.raw);
-  var el=safeDOM('enduranceBody');
-  if(el){
-    var pre=document.createElement('div');
-    pre.style.cssText='background:var(--bg4);border-radius:8px;padding:10px;margin-bottom:12px;font-family:monospace;font-size:9px;color:var(--fg2);white-space:pre-wrap;word-break:break-all;max-height:300px;overflow:auto;';
-    pre.textContent='CAMPOS ('+res.fieldCount+'): '+res.fields.join(', ')+'\n\n'+JSON.stringify(res.raw,null,2);
-    el.insertBefore(pre,el.firstChild);
-  }
-  toast('Diagnóstico listo',res.fieldCount+' campos — revisa arriba y la consola','✅');
+function showApiExplorer(){
+  var el=safeDOM('apiExplorerPanel'); if(!el)return;
+  var show=el.style.display==='none'||!el.style.display;
+  el.style.display=show?'block':'none';
+  if(show)renderApiExplorer();
+}
+async function renderApiExplorer(actIdOverride){
+  var el=safeDOM('apiExplorerPanel'); if(!el)return;
+  el.innerHTML='<div style="font-size:12px;color:var(--fg3);">Consultando API…</div>';
+  var acts=safeArr(S.metrics.activities);
+  var target=actIdOverride||(acts.length?acts[acts.length-1].id:null);
+  if(!target){el.innerHTML='<div style="font-size:12px;color:var(--fg3);">Sin actividades sincronizadas todavía para elegir una de ejemplo.</div>';return;}
+  var res=await apiFieldExplorer(target);
+  if(res.error){el.innerHTML='<div style="font-size:12px;color:var(--r);">'+res.error+'</div>';return;}
+  var statusCol={valor:'var(--g)',vacio:'var(--y)',inexistente:'var(--fg4)'};
+  var statusLbl={valor:'✅ presente con valor',vacio:'🟡 presente pero vacío',inexistente:'❌ no existe'};
+  var html='<div style="font-size:11px;color:var(--fg3);margin-bottom:8px;">Actividad de ejemplo: <b style="color:var(--fg2);">'+res.activityName+'</b> ('+res.raw.type+') · '+res.allFields.length+' campos totales en la respuesta</div>';
+  html+='<div style="font-weight:600;font-size:12px;color:var(--fg);margin-bottom:4px;">Campos de interés para ATLAS</div>';
+  html+='<table style="width:100%;font-size:10px;border-collapse:collapse;margin-bottom:10px;">';
+  res.ofInterest.forEach(function(f){
+    html+='<tr style="border-bottom:1px solid var(--line);"><td style="padding:3px 4px 3px 0;color:var(--fg2);">'+f.key+'</td><td style="padding:3px;color:'+statusCol[f.status]+';">'+statusLbl[f.status]+'</td><td class="mono" style="padding:3px;color:var(--fg3);text-align:right;">'+(f.preview||'')+'</td></tr>';
+  });
+  html+='</table>';
+  html+='<div style="font-weight:600;font-size:12px;color:var(--fg);margin-bottom:4px;">Todos los campos que devuelve tu cuenta</div>';
+  html+='<div style="max-height:180px;overflow:auto;font-size:9px;font-family:monospace;color:var(--fg3);background:var(--bg4);border-radius:6px;padding:8px;margin-bottom:8px;">';
+  html+=res.allFields.map(function(f){return '<span style="color:'+(f.status==='valor'?'var(--fg2)':'var(--fg4)')+';">'+f.key+'</span>';}).join(', ');
+  html+='</div>';
+  html+='<button class="btn btn-g btn-sm btn-full" onclick="_showRawJson(\''+target+'\')">Ver JSON completo</button>';
+  html+='<div id="rawJsonBox_'+target+'" style="display:none;margin-top:8px;max-height:260px;overflow:auto;font-size:9px;font-family:monospace;color:var(--fg2);background:var(--bg4);border-radius:6px;padding:8px;white-space:pre-wrap;word-break:break-all;"></div>';
+  window._apiExplorerRaw=window._apiExplorerRaw||{}; window._apiExplorerRaw[target]=res.raw;
+  el.innerHTML=html;
+}
+function _showRawJson(id){
+  var box=safeDOM('rawJsonBox_'+id); if(!box)return;
+  var show=box.style.display==='none'||!box.style.display;
+  box.style.display=show?'block':'none';
+  if(show&&window._apiExplorerRaw&&window._apiExplorerRaw[id])box.textContent=JSON.stringify(window._apiExplorerRaw[id],null,2);
 }
 
 async function fetchIntervals(){
@@ -4521,7 +4611,13 @@ async function fetchIntervals(){
     const [wR,fR,aR]=await Promise.all([
       fetch(`https://intervals.icu/api/v1/athlete/${aid}/wellness?oldest=${from30}&newest=${today}`,{headers:H,mode:'cors'}),
       fetch(`https://intervals.icu/api/v1/athlete/${aid}/ctl-history?oldest=${from14}&newest=${today}`,{headers:H,mode:'cors'}),
-      fetch(`https://intervals.icu/api/v1/athlete/${aid}/activities?oldest=${from14}&newest=${today}&fields=id,name,type,sport_type,start_date_local,distance,moving_time,icu_training_load,icu_zone_times,icu_hr_zone_times,average_heartrate,max_heartrate,icu_rpe,pace`,{headers:H,mode:'cors'})
+      // 2026-07-16: añadidos los campos oficiales confirmados en la respuesta real de la cuenta
+      // de Carlos (174 campos totales) que Endurance ahora usa directamente en vez de recalcular:
+      // gap, average_cadence, average_stride, total_elevation_gain/loss, calories, trimp, hr_load,
+      // icu_intensity, polarization_index, icu_hr_zones (límites reales, no supuestos), lthr,
+      // decoupling, icu_efficiency_factor (por si Intervals empieza a rellenarlo), interval_summary
+      // (para detectar sesiones no continuas y no pedir desacople donde no tiene sentido).
+      fetch(`https://intervals.icu/api/v1/athlete/${aid}/activities?oldest=${from14}&newest=${today}&fields=id,name,type,sport_type,start_date_local,distance,moving_time,icu_training_load,icu_zone_times,icu_hr_zone_times,average_heartrate,max_heartrate,icu_rpe,pace,gap,average_cadence,average_stride,total_elevation_gain,total_elevation_loss,calories,trimp,hr_load,icu_intensity,polarization_index,icu_hr_zones,lthr,decoupling,icu_efficiency_factor,interval_summary`,{headers:H,mode:'cors'})
     ]);
     if(!wR.ok)throw new Error(wR.status===401||wR.status===403?'API Key incorrecta':'Error '+wR.status);
     const wellness=await wR.json();let fitnessHistory=[];if(fR.ok)fitnessHistory=await fR.json();let activities=[];if(aR.ok)activities=await aR.json();
