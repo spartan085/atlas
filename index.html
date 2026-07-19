@@ -4015,6 +4015,12 @@ function renderStrengthLoad(elId,labelId,acts,offset){
   }).join('');
 }
 
+function baselineProgress(current,needed,label){
+  var pct=Math.min(100,Math.round(current/needed*100));
+  var blocks=Math.round(pct/12.5);
+  var bar=''; for(var i=0;i<8;i++)bar+=(i<blocks?'█':'░');
+  return '<div style="margin-top:4px;"><span class="mono" style="font-size:11px;color:var(--c);letter-spacing:1px;">'+bar+'</span> <span style="font-size:10px;color:var(--fg3);">'+current+'/'+needed+' '+label+'</span></div>';
+}
 function miniBars(vals,opts){
   opts=opts||{};
   var valid=vals.map(function(v){return v==null?null:v;});
@@ -4046,6 +4052,7 @@ async function analyzeRunStreams(activityId,btnEl){
 function renderEvolucion(){
   var el=safeDOM('evoBody'); if(!el)return;
   var html='';
+  var completeness={fuerza:0,cardio:0,comp:0}; // 0-1, para el resumen de confianza superior
 
   // ── FUERZA: tonelaje semanal real (Σ kg×reps de todas las series con _exDetail) ──
   var strengthLogs=safeArr(S.logs).filter(function(l){return l&&!l._cardio&&l._exDetail;});
@@ -4065,9 +4072,12 @@ function renderEvolucion(){
     tonByWeek[key]=(tonByWeek[key]||0)+tonnage;
   });
   var weekKeys=Object.keys(tonByWeek).sort();
+  completeness.fuerza=Math.min(1,weekKeys.length/4);
   html+='<div class="card" style="margin-bottom:12px;"><div class="card-hdr"><span class="t-md">💪 Fuerza</span></div><div class="card-body">';
   if(weekKeys.length<3){
-    html+='<div style="font-size:12px;color:var(--fg3);">Sin semanas suficientes con datos completos de series (kg+reps) — hacen falta al menos 3-4 semanas. Ahora: '+weekKeys.length+'.</div>';
+    html+='<div style="font-size:12px;color:var(--y);">🟡 Construyendo línea base</div>';
+    html+=baselineProgress(weekKeys.length,4,'semanas con series completas (kg+reps)');
+    html+='<div style="font-size:10px;color:var(--fg4);margin-top:4px;">Sigue registrando kg+reps en Hevy y esto se activa solo.</div>';
   } else {
     var lastW=weekKeys.slice(-2), prevW=weekKeys.slice(-4,-2);
     var avgLast=lastW.reduce(function(s,k){return s+tonByWeek[k];},0)/lastW.length;
@@ -4097,8 +4107,11 @@ function renderEvolucion(){
       return {t:new Date(a.start_date_local||0).getTime(),ef:efOfficial||efLocal};
     }).filter(function(r){return isFinite(r.t)&&r.ef;}).sort(function(a,b){return a.t-b.t;});
   html+='<div class="card" style="margin-bottom:12px;"><div class="card-hdr"><span class="t-md">🫀 Cardio</span></div><div class="card-body">';
+  completeness.cardio=Math.min(1,runs.length/6);
   if(runs.length<6){
-    html+='<div style="font-size:12px;color:var(--fg3);">Con '+runs.length+' carrera'+(runs.length===1?'':'s')+' con EF calculable aún no hay base para hablar de tendencia (hacen falta ~6-8). Ver Endurance para el detalle actual.</div>';
+    html+='<div style="font-size:12px;color:var(--y);">🟡 Construyendo línea base</div>';
+    html+=baselineProgress(runs.length,6,'carreras con EF calculable');
+    html+='<div style="font-size:10px;color:var(--fg4);margin-top:4px;">Ver Endurance para el detalle actual mientras se completa.</div>';
   } else {
     var lastR=runs.slice(-5), prevR=runs.slice(-10,-5);
     var aL=lastR.reduce(function(a,r){return a+r.ef;},0)/lastR.length;
@@ -4115,8 +4128,16 @@ function renderEvolucion(){
   html+='</div></div>';
 
   // ── COMPOSICIÓN CORPORAL: histórico real de báscula ──
-  var wHist=safeArr(S.metrics.weightHistory).filter(function(w){return w&&safeNum(w.w||w.weight||w.kg,0)>0;})
-    .map(function(w){return {t:new Date(w.date||w.id||0).getTime(),kg:safeNum(w.w||w.weight||w.kg,0),fat:safeNum(w.fat,0)||null};})
+  // FIX 2026-07-19: bug real reportado — llegó a mostrar "-26,2 kg en 28 días", imposible
+  // fisiológicamente. Causa más probable: una lectura de báscula corrupta/mal sincronizada
+  // entrando sin filtro en el cálculo. Dos capas de defensa, no un parche cosmético:
+  // (1) se descarta cualquier lectura fuera de un rango humano plausible (40-160kg) ANTES de
+  //     usarla para nada — ataja el problema en el origen, no solo en la resta final.
+  // (2) si aun así el delta resultante implica un cambio fisiológicamente imposible (>6kg en
+  //     ≤30 días — ya de por sí un ritmo agresivo de pérdida de grasa son ~1.5kg/semana), se
+  //     muestra como aviso de posible error, nunca como conclusión.
+  var wHist=safeArr(S.metrics.weightHistory).filter(function(w){var v=safeNum(w.w||w.weight||w.kg,0);return v>=40&&v<=160;})
+    .map(function(w){return {t:new Date(w.date||w.id||0).getTime(),kg:safeNum(w.w||w.weight||w.kg,0),fat:safeNum(w.fat,0)||null,musc:safeNum(w.musc,0)||null};})
     .filter(function(w){return isFinite(w.t);}).sort(function(a,b){return a.t-b.t;});
   html+='<div class="card" style="margin-bottom:12px;"><div class="card-hdr"><span class="t-md">⚖️ Composición corporal</span></div><div class="card-body">';
   if(wHist.length<2){
@@ -4127,22 +4148,47 @@ function renderEvolucion(){
     var ref=wHist.reduce(function(best,w){return (Math.abs(w.t-target)<Math.abs((best?best.t:Infinity)-target))?w:best;},null);
     var latest=wHist[wHist.length-1];
     var daysSpan=Math.round((latest.t-ref.t)/86400000);
+    completeness.comp=Math.min(1,Math.max(0,daysSpan)/30);
     if(ref.t===latest.t||daysSpan<14){
       html+='<div style="font-size:12px;color:var(--fg3);">Tu registro más antiguo útil es de hace '+daysSpan+' días — todavía no hay ~30 días de rango para una comparación honesta.</div>';
     } else {
       var dKg=Math.round((latest.kg-ref.kg)*10)/10;
-      html+='<div style="font-size:13px;color:var(--fg);font-weight:600;">'+(dKg>0?'+':'')+dKg+' kg en '+daysSpan+' días</div>';
-      if(latest.fat!=null&&ref.fat!=null){
-        var dFat=Math.round((latest.fat-ref.fat)*10)/10;
-        html+='<div style="font-size:12px;color:var(--fg2);margin-top:4px;">'+(dFat>0?'+':'')+dFat+' pp grasa corporal ('+ref.fat+'% → '+latest.fat+'%)</div>';
+      var plausibleMax=(daysSpan/7)*2; // ~2kg/semana como techo generoso antes de sospechar error, no como objetivo
+      if(Math.abs(dKg)>plausibleMax){
+        html+='<div style="font-size:12px;color:var(--y);">⚠ El dato bruto muestra '+(dKg>0?'+':'')+dKg+' kg en '+daysSpan+' días — un cambio así de rápido no es fisiológicamente plausible. Probable error de sincronización de báscula, no una tendencia real. Revisa el histórico en Datos antes de confiar en este número.</div>';
+      } else {
+        var dFatV=(latest.fat!=null&&ref.fat!=null)?Math.round((latest.fat-ref.fat)*10)/10:null;
+        var dMusc=(latest.musc!=null&&ref.musc!=null)?Math.round((latest.musc-ref.musc)*10)/10:null;
+        function trendArrow(v,invertGood){if(v==null||Math.abs(v)<0.3)return '➡';return (invertGood?v<0:v>0)?'⬇':'⬆';}
+        html+='<div style="display:flex;flex-direction:column;gap:5px;font-size:12px;color:var(--fg2);">';
+        html+='<div>Peso '+trendArrow(dKg,true)+' <b style="color:var(--fg);">'+(dKg>0?'+':'')+dKg+' kg</b></div>';
+        if(dFatV!=null)html+='<div>Grasa '+trendArrow(dFatV,true)+' <b style="color:var(--fg);">'+(dFatV>0?'+':'')+dFatV+' pp</b> ('+ref.fat+'% → '+latest.fat+'%)</div>';
+        if(dMusc!=null)html+='<div>Músculo '+trendArrow(dMusc,false)+' <b style="color:var(--fg);">'+(dMusc>0?'+':'')+dMusc+' kg</b></div>';
+        html+='</div>';
+        // Conclusión honesta: solo si hay grasa Y músculo para juzgar recomposición real, si no, solo describe el peso.
+        if(dFatV!=null&&dMusc!=null){
+          var recomp=dFatV<-0.3&&dMusc>=-0.3;
+          html+='<div style="margin-top:8px;padding:6px 8px;background:var(--bg4);border-radius:6px;font-size:12px;color:'+(recomp?'var(--g)':'var(--fg2)')+';font-weight:600;">'+(recomp?'✅ Recomposición positiva — grasa baja, músculo se mantiene o sube.':'➡ Sin patrón claro de recomposición todavía en esta ventana.')+'</div>';
+        }
+        html+='<div style="font-size:10px;color:var(--fg4);margin-top:6px;">Comparado contra el registro más cercano a hace 30 días ('+new Date(ref.t).toISOString().split('T')[0]+'), no un promedio suavizado.</div>';
       }
-      html+='<div style="font-size:10px;color:var(--fg4);margin-top:6px;">Comparado contra el registro más cercano a hace 30 días ('+new Date(ref.t).toISOString().split('T')[0]+'), no un promedio suavizado.</div>';
     }
   }
   html+='</div></div>';
 
-  html+='<div style="font-size:10px;color:var(--fg4);text-align:center;padding:8px;">Balance fuerza↔cardio y adaptación conjunta: pendiente — necesita más semanas de datos consistentes en ambas disciplinas antes de que una conclusión cruzada sea honesta.</div>';
-  el.innerHTML=html;
+  html+='<div style="font-size:10px;color:var(--fg4);text-align:center;padding:8px;">Balance fuerza↔cardio y adaptación conjunta: en validación — necesita más semanas de datos consistentes en ambas disciplinas antes de que una conclusión cruzada sea honesta.</div>';
+
+  // ── RESUMEN SUPERIOR — confianza global, calculada a partir de las 3 secciones (no un juicio nuevo) ──
+  var overallConf=Math.round(((completeness.fuerza+completeness.cardio+completeness.comp)/3)*100);
+  var confState=overallConf>=80?{e:'🟢',t:'Con base suficiente'}:overallConf>=35?{e:'🟡',t:'Aprendiendo'}:{e:'⚪',t:'Recopilando datos'};
+  var confBlocks=Math.round(overallConf/12.5); var confBar=''; for(var i=0;i<8;i++)confBar+=(i<confBlocks?'█':'░');
+  var summaryHtml='<div class="card" style="margin-bottom:12px;border:1px solid var(--c);"><div class="card-hdr"><span class="t-md">Estado general</span></div><div class="card-body">';
+  summaryHtml+='<div style="font-size:14px;font-weight:600;color:var(--fg);">'+confState.e+' '+confState.t+'</div>';
+  summaryHtml+='<div style="font-size:11px;color:var(--fg3);margin-top:4px;">Atlas todavía está construyendo suficiente histórico para evaluar tendencias con confianza en las tres áreas.</div>';
+  summaryHtml+='<div style="margin-top:8px;"><span class="mono" style="font-size:13px;color:var(--c);letter-spacing:1px;">'+confBar+'</span> <span class="mono" style="font-size:11px;color:var(--fg3);">'+overallConf+'%</span></div>';
+  summaryHtml+='</div></div>';
+
+  el.innerHTML=summaryHtml+html;
 }
 // ══ ENDURANCE / CARDIO — adaptación aeróbica (6.4.0, ampliada 2026-07-16) ══
 // Enfoque: NO carga, sino "¿estoy mejorando como corredor?". Métrica reina: eficiencia (ritmo/FC).
