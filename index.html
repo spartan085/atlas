@@ -184,6 +184,19 @@ textarea.field{resize:vertical;min-height:60px;}
 
 <!-- HOY -->
 <div class="screen active" id="s-hoy">
+  <!-- QUÉ HACER HOY — síntesis ejecutiva. 2026-07-19: ahora se rellena SIEMPRE con lógica local
+       (renderTodaySummary, sin gastar llamada a la IA) en vez de depender de "Sincroniza" — es la
+       única conclusión que debería verse sin pulsar nada, per feedback UX repetido. -->
+  <div id="todaySummary" style="margin:12px 18px 0;padding:12px 14px;background:var(--bg2);border:1px solid var(--line);border-radius:14px;">
+    <div style="font-family:'Geist Mono',monospace;font-size:9px;color:var(--fg3);letter-spacing:2px;margin-bottom:8px;">QUÉ HACER HOY</div>
+    <div id="todaySummaryItems" style="display:flex;flex-direction:column;gap:5px;">
+      <div style="font-size:12px;color:var(--fg3);">Calculando…</div>
+    </div>
+  </div>
+
+  <button onclick="toggleHoyDetail()" id="hoyDetailToggle" style="display:block;width:calc(100% - 36px);margin:8px 18px 0;padding:8px;background:none;border:1px dashed var(--line);border-radius:10px;color:var(--fg3);font-size:11px;cursor:pointer;">▾ Ver por qué (datos, señales, desglose)</button>
+
+  <div id="hoyDetailWrap" style="display:none;">
   <div class="rsys-grid">
     <div class="rsys-card idle" id="rsys-cardio"><div class="rsys-name">Cardio · Autonómico</div><div class="rsys-val" id="rsys-cardio-val">—</div><div class="rsys-lbl" id="rsys-cardio-lbl">Sin datos</div><ul class="rsys-sigs" id="rsys-cardio-sigs"></ul></div>
     <div class="rsys-card idle" id="rsys-neuro"><div class="rsys-name">Neuromuscular</div><div class="rsys-val" id="rsys-neuro-val">—</div><div class="rsys-lbl" id="rsys-neuro-lbl">Sin datos</div><ul class="rsys-sigs" id="rsys-neuro-sigs"></ul></div>
@@ -213,22 +226,17 @@ textarea.field{resize:vertical;min-height:60px;}
   <!-- 2026-07-19: resumen de cardio oficial (Intervals/Garmin) en HOY — antes solo vivía en
        Endurance; Carlos señaló que HOY/FATIGA no usaban nada de esto para la decisión del día. -->
   <div id="cardioTodaySummary" style="display:none;margin:8px 18px 0;"></div>
-
-  <!-- QUÉ HACER HOY — síntesis ejecutiva -->
-  <div id="todaySummary" style="margin:8px 18px 0;padding:12px 14px;background:var(--bg2);border:1px solid var(--line);border-radius:14px;">
-    <div style="font-family:'Geist Mono',monospace;font-size:9px;color:var(--fg3);letter-spacing:2px;margin-bottom:8px;">HOY</div>
-    <div id="todaySummaryItems" style="display:flex;flex-direction:column;gap:5px;">
-      <div style="font-size:12px;color:var(--fg3);">Sincroniza para ver recomendaciones</div>
-    </div>
-  </div>
-
-  <div class="pad" style="padding-top:4px;">
-
-    <!-- NIVEL 1: siempre visible -->
+  <div class="pad" style="padding-top:4px;padding-bottom:0;">
+    <!-- Recomendaciones detalladas — movidas aquí dentro del desplegable: eran redundantes con
+         el resumen de arriba, decían lo mismo tres veces con distinto formato (feedback UX). -->
     <div class="card" id="recsCard" style="display:none;">
       <div class="card-hdr"><span class="t-md">Recomendaciones</span><span class="mono" style="font-size:10px;color:var(--fg3);" id="recsConf"></span></div>
       <div class="card-body"><ul class="rec-list" id="recsList"></ul></div>
     </div>
+  </div>
+  </div><!-- /hoyDetailWrap -->
+
+  <div class="pad" style="padding-top:4px;">
 
     <div class="sg">
       <div class="st c"><div class="st-src">HRV · Garmin</div><div class="st-val" id="m-hrv">—</div><div class="st-unit">ms</div><div class="st-delta" id="m-hrv-d"></div></div>
@@ -671,6 +679,16 @@ textarea.field{resize:vertical;min-height:60px;}
 </div>
 
 <!-- PLAN -->
+<!-- EVOLUCIÓN — 2026-07-19: ¿estoy mejor que hace un mes? Fuerza (tonelaje real de Hevy),
+     Cardio (EF ya calculado en Endurance), Composición (báscula). Nada proyectado ni inventado:
+     si no hay ~4 semanas de dato, dice explícitamente que no hay base suficiente. -->
+<div class="screen" id="s-evo">
+  <div class="pad">
+    <div style="margin-bottom:12px;"><div style="font-size:15px;font-weight:600;color:var(--fg);">📈 Evolución</div><div style="font-size:11px;color:var(--fg3);margin-top:2px;">¿Estoy mejor que hace un mes? No cómo estoy hoy.</div></div>
+    <div id="evoBody"><div style="font-size:12px;color:var(--fg3);">Cargando…</div></div>
+    <button class="btn btn-g btn-full" style="margin-top:8px;" onclick="renderEvolucion()">Actualizar</button>
+  </div>
+</div>
 <div class="screen" id="s-plan">
   <div class="pad">
     <div class="card" style="margin-bottom:10px;">
@@ -708,6 +726,9 @@ textarea.field{resize:vertical;min-height:60px;}
   <button class="ni" id="ni-log" onclick="showS('s-log')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M12 20h9M16.5 3.5a2.121 2.121 0 013 3L7 19l-4 1 1-4L16.5 3.5z"/></svg><span class="nl">LOG</span></button>
   <button class="ni" id="ni-datos" onclick="showS('s-datos')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><ellipse cx="12" cy="5" rx="9" ry="3"/><path d="M21 12c0 1.66-4 3-9 3s-9-1.34-9-3"/><path d="M3 5v14c0 1.66 4 3 9 3s9-1.34 9-3V5"/></svg><span class="nl">DATOS</span></button>
   <button class="ni" id="ni-plan" onclick="showS('s-plan')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><polyline points="9 11 12 14 22 4"/><path d="M21 12v7a2 2 0 01-2 2H5a2 2 0 01-2-2V5a2 2 0 012-2h11"/></svg><span class="nl">PLAN</span></button>
+  <!-- 2026-07-19: EVOLUCIÓN — la pregunta "¿estoy mejor que hace un mes?", pedida por dos rondas
+       de auditoría independientes como la pieza que más falta. -->
+  <button class="ni" id="ni-evo" onclick="showS('s-evo')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><polyline points="23 6 13.5 15.5 8.5 10.5 1 18"/><polyline points="17 6 23 6 23 12"/></svg><span class="nl">EVOLUCIÓN</span></button>
 </nav>
 </div>
 
@@ -3024,8 +3045,12 @@ function renderReadinessGrid(){
     const vEl=safeDOM(id+'-val'),lEl=safeDOM(id+'-lbl'),sEl=safeDOM(id+'-sigs');
     const st=score>=70?'ok':score>=45?'warn':'bad';
     card.className='rsys-card '+st;
-    if(vEl)vEl.textContent=score+'%';
-    if(lEl)lEl.textContent=stateLabel(score);
+    // 2026-07-19: "76%" solo no dice nada (¿76% de qué escala?) — ambas auditorías lo señalaron.
+    // La etiqueta de texto (stateLabel) ya existía pero el número dominaba visualmente. Ahora el
+    // número lleva emoji+"/100" explícito y es más pequeño que la etiqueta, no al revés.
+    const emoji=st==='ok'?'🟢':st==='warn'?'🟡':'🔴';
+    if(vEl){vEl.textContent=emoji+' '+score+'/100';vEl.style.fontSize='16px';}
+    if(lEl){lEl.textContent=stateLabel(score);lEl.style.fontSize='13px';lEl.style.fontWeight='600';lEl.style.color='var(--fg)';}
     if(sEl)sEl.innerHTML=sigKeys.filter(k=>f.signals[k]).map(k=>{
       const s=f.signals[k];const c=s.warn?'var(--r)':s.ok?'var(--g)':'var(--y)';
       return`<li style="color:${c};">${s.warn?'↓':s.ok?'✓':'~'} ${s.label}</li>`;
@@ -4010,6 +4035,111 @@ async function analyzeRunStreams(activityId,btnEl){
   renderEndurance();
 }
 
+// ══ EVOLUCIÓN — 2026-07-19 ══
+// "¿Estoy mejor que hace un mes?" — no reinventa cálculos: reutiliza tonelaje real de Hevy (_exDetail),
+// el mismo EF que ya usa Endurance, y el histórico de báscula que ya se sincroniza. Ninguna
+// proyección: si no hay ~4 semanas de dato para una sección, lo dice explícitamente y no rellena.
+function renderEvolucion(){
+  var el=safeDOM('evoBody'); if(!el)return;
+  var html='';
+
+  // ── FUERZA: tonelaje semanal real (Σ kg×reps de todas las series con _exDetail) ──
+  var strengthLogs=safeArr(S.logs).filter(function(l){return l&&!l._cardio&&l._exDetail;});
+  var tonByWeek={};
+  strengthLogs.forEach(function(l){
+    var p=String(l.date||'').split('/');
+    var d=p.length===3?new Date(p[2],p[1]-1,p[0]):new Date(l.date);
+    if(isNaN(d.getTime()))return;
+    var onejan=new Date(d.getFullYear(),0,1);
+    var wk=Math.ceil((((d-onejan)/86400000)+onejan.getDay()+1)/7);
+    var key=d.getFullYear()+'-W'+wk;
+    var tonnage=0;
+    safeArr(l._exDetail).forEach(function(ex){safeArr(ex.sets).forEach(function(st){
+      var kg=safeNum(st.kg||st.weight,0), reps=safeNum(st.reps,0);
+      if(kg>0&&reps>0)tonnage+=kg*reps;
+    });});
+    tonByWeek[key]=(tonByWeek[key]||0)+tonnage;
+  });
+  var weekKeys=Object.keys(tonByWeek).sort();
+  html+='<div class="card" style="margin-bottom:12px;"><div class="card-hdr"><span class="t-md">💪 Fuerza</span></div><div class="card-body">';
+  if(weekKeys.length<3){
+    html+='<div style="font-size:12px;color:var(--fg3);">Sin semanas suficientes con datos completos de series (kg+reps) — hacen falta al menos 3-4 semanas. Ahora: '+weekKeys.length+'.</div>';
+  } else {
+    var lastW=weekKeys.slice(-2), prevW=weekKeys.slice(-4,-2);
+    var avgLast=lastW.reduce(function(s,k){return s+tonByWeek[k];},0)/lastW.length;
+    var avgPrev=prevW.length?prevW.reduce(function(s,k){return s+tonByWeek[k];},0)/prevW.length:null;
+    html+='<div style="font-size:11px;color:var(--fg3);margin-bottom:4px;">Tonelaje semanal (Σ kg × reps, todas las series registradas)</div>';
+    html+=miniBars(weekKeys.slice(-8).map(function(k){return tonByWeek[k];}),{color:'var(--c)'});
+    if(avgPrev){
+      var pctTon=Math.round((avgLast-avgPrev)/avgPrev*1000)/10;
+      var col=pctTon>3?'var(--g)':pctTon<-3?'var(--r)':'var(--fg3)';
+      html+='<div style="margin-top:8px;padding:8px;background:var(--bg4);border-radius:6px;font-size:13px;color:'+col+';font-weight:600;">'+(pctTon>0?'📈 +':pctTon<0?'📉 ':'➡ ')+pctTon+'% de tonelaje (últimas 2 semanas vs 2 anteriores)</div>';
+      html+='<div style="font-size:10px;color:var(--fg4);margin-top:4px;">Tonelaje total, no fuerza máxima — puede subir por más series sin que subas de peso en la barra. Para eso, mira e1RM por ejercicio en LOG.</div>';
+    } else {
+      html+='<div style="margin-top:6px;font-size:11px;color:var(--y);">Solo hay 2 semanas comparables — la tendencia es orientativa, no fiable todavía.</div>';
+    }
+  }
+  html+='</div></div>';
+
+  // ── CARDIO: mismo EF que ya calcula Endurance, reutilizado, no recalculado con otra fórmula ──
+  var acts=safeArr(S.metrics.activities);
+  var CARDIO_TYPES=['Run','VirtualRun','TrailRun'];
+  var runs=acts.filter(function(a){return CARDIO_TYPES.indexOf(a.type||a.sport_type)>=0;})
+    .map(function(a){
+      var paceMs=safeNum(a.pace,0)||(a.distance&&a.moving_time?a.distance/a.moving_time:0);
+      var hr=safeNum(a.average_heartrate,0);
+      var efOfficial=safeNum(a.icu_efficiency_factor,0)||null;
+      var efLocal=(paceMs>0&&hr>0)?(paceMs*60/hr):null;
+      return {t:new Date(a.start_date_local||0).getTime(),ef:efOfficial||efLocal};
+    }).filter(function(r){return isFinite(r.t)&&r.ef;}).sort(function(a,b){return a.t-b.t;});
+  html+='<div class="card" style="margin-bottom:12px;"><div class="card-hdr"><span class="t-md">🫀 Cardio</span></div><div class="card-body">';
+  if(runs.length<6){
+    html+='<div style="font-size:12px;color:var(--fg3);">Con '+runs.length+' carrera'+(runs.length===1?'':'s')+' con EF calculable aún no hay base para hablar de tendencia (hacen falta ~6-8). Ver Endurance para el detalle actual.</div>';
+  } else {
+    var lastR=runs.slice(-5), prevR=runs.slice(-10,-5);
+    var aL=lastR.reduce(function(a,r){return a+r.ef;},0)/lastR.length;
+    var aP=prevR.length?prevR.reduce(function(a,r){return a+r.ef;},0)/prevR.length:null;
+    if(aP){
+      var pctEf=Math.round((aL-aP)/aP*1000)/10;
+      var colE=pctEf>2?'var(--g)':pctEf<-2?'var(--r)':'var(--fg3)';
+      html+='<div style="padding:8px;background:var(--bg4);border-radius:6px;font-size:13px;color:'+colE+';font-weight:600;">'+(pctEf>0?'📈 +':pctEf<0?'📉 ':'➡ ')+pctEf+'% de eficiencia (EF, últimas 5 carreras vs 5 anteriores)</div>';
+      html+='<div style="font-size:10px;color:var(--fg4);margin-top:4px;">Mismo cálculo que en Endurance (ritmo/FC, prioriza icu_efficiency_factor si Intervals lo rellena) — no es una fórmula nueva.</div>';
+    } else {
+      html+='<div style="font-size:11px;color:var(--y);">Solo hay una ventana de 5 comparable — orientativo, no fiable todavía.</div>';
+    }
+  }
+  html+='</div></div>';
+
+  // ── COMPOSICIÓN CORPORAL: histórico real de báscula ──
+  var wHist=safeArr(S.metrics.weightHistory).filter(function(w){return w&&safeNum(w.w||w.weight||w.kg,0)>0;})
+    .map(function(w){return {t:new Date(w.date||w.id||0).getTime(),kg:safeNum(w.w||w.weight||w.kg,0),fat:safeNum(w.fat,0)||null};})
+    .filter(function(w){return isFinite(w.t);}).sort(function(a,b){return a.t-b.t;});
+  html+='<div class="card" style="margin-bottom:12px;"><div class="card-hdr"><span class="t-md">⚖️ Composición corporal</span></div><div class="card-body">';
+  if(wHist.length<2){
+    html+='<div style="font-size:12px;color:var(--fg3);">Sin histórico suficiente de báscula todavía.</div>';
+  } else {
+    var now=Date.now();
+    var target=now-30*86400000;
+    var ref=wHist.reduce(function(best,w){return (Math.abs(w.t-target)<Math.abs((best?best.t:Infinity)-target))?w:best;},null);
+    var latest=wHist[wHist.length-1];
+    var daysSpan=Math.round((latest.t-ref.t)/86400000);
+    if(ref.t===latest.t||daysSpan<14){
+      html+='<div style="font-size:12px;color:var(--fg3);">Tu registro más antiguo útil es de hace '+daysSpan+' días — todavía no hay ~30 días de rango para una comparación honesta.</div>';
+    } else {
+      var dKg=Math.round((latest.kg-ref.kg)*10)/10;
+      html+='<div style="font-size:13px;color:var(--fg);font-weight:600;">'+(dKg>0?'+':'')+dKg+' kg en '+daysSpan+' días</div>';
+      if(latest.fat!=null&&ref.fat!=null){
+        var dFat=Math.round((latest.fat-ref.fat)*10)/10;
+        html+='<div style="font-size:12px;color:var(--fg2);margin-top:4px;">'+(dFat>0?'+':'')+dFat+' pp grasa corporal ('+ref.fat+'% → '+latest.fat+'%)</div>';
+      }
+      html+='<div style="font-size:10px;color:var(--fg4);margin-top:6px;">Comparado contra el registro más cercano a hace 30 días ('+new Date(ref.t).toISOString().split('T')[0]+'), no un promedio suavizado.</div>';
+    }
+  }
+  html+='</div></div>';
+
+  html+='<div style="font-size:10px;color:var(--fg4);text-align:center;padding:8px;">Balance fuerza↔cardio y adaptación conjunta: pendiente — necesita más semanas de datos consistentes en ambas disciplinas antes de que una conclusión cruzada sea honesta.</div>';
+  el.innerHTML=html;
+}
 // ══ ENDURANCE / CARDIO — adaptación aeróbica (6.4.0, ampliada 2026-07-16) ══
 // Enfoque: NO carga, sino "¿estoy mejorando como corredor?". Métrica reina: eficiencia (ritmo/FC).
 // HONESTIDAD DE DATOS: EF y tendencias Z2 se calculan de datos de resumen (pace + FC media, presentes
@@ -4731,6 +4861,19 @@ function renderCombinedStateSummary(){
   html+='</div></div>';
   el.innerHTML=html; el.style.display='block';
 }
+function toggleHoyDetail(){
+  var w=safeDOM('hoyDetailWrap'), btn=safeDOM('hoyDetailToggle'); if(!w||!btn)return;
+  var show=w.style.display==='none';
+  w.style.display=show?'block':'none';
+  btn.textContent=show?'▴ Ocultar detalle':'▾ Ver por qué (datos, señales, desglose)';
+}
+// 2026-07-19: renderTodaySummary() YA EXISTÍA más abajo (usa DecisionEngine/S._decision), con
+// confianza, contradicción, gating por coste — mucho más completa que una versión nueva. Estaba
+// construida pero JAMÁS conectada a ningún trigger (código muerto). Se conecta abajo en el router
+// de showS(), no se duplica aquí. También arreglé dos bugs reales que tenía sin ejecutar nunca:
+// 'contradictory' se leía antes de calcularse (hoisting) y el override de seguridad de rodilla
+// comparaba contra un texto que aún no existía en ese punto — ver comentarios FIX en DecisionEngine.
+
 // Resumen de cardio oficial en HOY — 2026-07-19. Combina PaHr/GAP/Training Load (Garmin/Intervals)
 // con carga cardio residual y FC nocturna (Atlas) EN TEXTO, nunca en un número fusionado — mismo
 // criterio ya aplicado a TSB: cada señal se nombra, ninguna sustituye a las demás.
@@ -4740,23 +4883,40 @@ function renderCardioTodaySummary(){
   var CARDIO_TYPES=['Run','VirtualRun','TrailRun'];
   var runs=acts.filter(function(a){return CARDIO_TYPES.indexOf(a.type||a.sport_type)>=0;});
   if(!runs.length){el.style.display='none';return;}
-  var last=runs.slice().sort(function(a,b){return new Date(b.start_date_local||0)-new Date(a.start_date_local||0);})[0];
+  // FIX 2026-07-19: antes cogía solo la ÚLTIMA carrera. Pero la carga residual de HOY puede venir
+  // sobre todo de una sesión de hace 2-3 días (p.ej. 90min Z2) y no de un trote suave de ayer.
+  // Ahora se calcula la contribución REAL de cada carrera reciente a cardioResidual (misma fórmula
+  // de decaimiento que usa FatigueEngine) y se muestra la que más pesa, no la más reciente.
+  var HL_CARDIO=safeNum(S.residualHL&&S.residualHL.cardio,36);
+  var now=Date.now();
+  var recent=runs.filter(function(a){return (now-new Date(a.start_date_local||0).getTime())<=7*86400000;});
+  var withContribution=recent.map(function(a){
+    var t=new Date(a.start_date_local||0).getTime();
+    var age=now-t;
+    var load=safeNum(a.icu_training_load,0);
+    var contribution=load*Math.exp(-0.6931*age/(HL_CARDIO*3600000));
+    return {act:a,contribution:contribution,ageH:age/3600000};
+  }).sort(function(x,y){return y.contribution-x.contribution;});
+  var dominant=withContribution[0];
+  var last=dominant?dominant.act:runs.slice().sort(function(a,b){return new Date(b.start_date_local||0)-new Date(a.start_date_local||0);})[0];
+  var isLatest=last&&runs.slice().sort(function(a,b){return new Date(b.start_date_local||0)-new Date(a.start_date_local||0);})[0].id===last.id;
   var fCard=S._fatigue;
   var noct=nocturnalHRTrend();
   var paHr=(last.PaHr!=null)?parseFloat(last.PaHr):null;
   var decGap=(last.DecouplingGAP!=null)?Math.round(last.DecouplingGAP*1000)/10:null;
   var daysAgo=Math.round((Date.now()-new Date(last.start_date_local||0).getTime())/86400000);
-  var html='<div class="card"><div class="card-hdr"><span class="t-md">🫀 Cardio (Intervals/Garmin)</span><span class="mono" style="font-size:9px;color:var(--fg3);">última carrera: hace '+daysAgo+'d</span></div><div class="card-body" style="font-size:11px;color:var(--fg2);line-height:1.7;">';
+  var label=isLatest?'última carrera':'sesión más relevante (mayor aporte a tu carga actual)';
+  var html='<div class="card"><div class="card-hdr"><span class="t-md">🫀 Cardio (Intervals/Garmin)</span><span class="mono" style="font-size:9px;color:var(--fg3);">'+label+': hace '+daysAgo+'d</span></div><div class="card-body" style="font-size:11px;color:var(--fg2);line-height:1.7;">';
   var bits=[];
-  if(paHr!=null&&!isNaN(paHr))bits.push('Aerobic Pace Decoupling <b>'+paHr+'%</b>');
+  if(paHr!=null&&!isNaN(paHr))bits.push('Aerobic Pace Decoupling <b>'+paHr+'%</b> '+(paHr<=5?'🟢 dentro del rango esperado':paHr<=10?'🟡 algo elevado':'🔴 alto — revisa ritmo, calor o hidratación'));
   if(decGap!=null)bits.push('GAP Decoupling <b>'+decGap+'%</b>');
   if(last.icu_training_load!=null)bits.push('Training Load <b>'+last.icu_training_load+'</b>');
   if(bits.length)html+='<div>📡 '+bits.join(' · ')+'</div>';
   if(fCard&&fCard.cardioResidual!=null){
-    html+='<div style="margin-top:4px;">🔬 Carga cardio residual (Atlas) <b>'+fCard.cardioResidual+' UA</b> · '+((fCard.trainingState&&fCard.trainingState.cardioLevel)||'—')+'</div>';
+    html+='<div style="margin-top:4px;">🔬 Carga cardio residual (Atlas, últimas 7d con decaimiento) <b>'+fCard.cardioResidual+' UA</b> · '+((fCard.trainingState&&fCard.trainingState.cardioLevel)||'—')+'</div>';
   }
   if(noct&&noct.latest!=null){
-    html+='<div style="margin-top:4px;">'+(noct.band?noct.band.emoji:'')+' FC nocturna <b>'+noct.latest+'ppm</b>'+(noct.deviation!=null?' ('+(noct.deviation>0?'+':'')+noct.deviation+' vs línea base 28d)':'')+'</div>';
+    html+='<div style="margin-top:4px;">'+(noct.band?noct.band.emoji:'')+' FC nocturna <b>'+noct.latest+'ppm</b>'+(noct.deviation!=null?' ('+(noct.deviation>0?'+':'')+noct.deviation+' vs línea base 28d'+(noct.stdev28!=null?', σ '+noct.stdev28:'')+')':'')+'</div>';
   }
   // Interpretación conjunta EN TEXTO — combina señales sin fusionarlas en un número.
   if(noct&&noct.band&&(noct.band.emoji==='🟡'||noct.band.emoji==='🔴')){
@@ -4779,17 +4939,26 @@ function nocturnalHRTrend(){
   var last7=withAge.filter(function(x){return (now-x.t)<=7*86400000;});
   var last28=withAge.filter(function(x){return (now-x.t)<=28*86400000;});
   var baseline28=last28.length>=5?(last28.reduce(function(a,x){return a+x.v;},0)/last28.length):null;
+  var stdev28=null;
+  if(baseline28!=null&&last28.length>=5){
+    var variance=last28.reduce(function(a,x){return a+Math.pow(x.v-baseline28,2);},0)/last28.length;
+    stdev28=Math.round(Math.sqrt(variance)*10)/10;
+  }
   var avg7=last7.length?(last7.reduce(function(a,x){return a+x.v;},0)/last7.length):null;
   var latest=withAge.length?withAge[withAge.length-1].v:null;
   var deviation=(latest!=null&&baseline28!=null)?Math.round((latest-baseline28)*10)/10:null;
   var band=null;
   if(deviation!=null){
+    // 2026-07-19: banda ahora tiene en cuenta tu propia variabilidad (σ), no un umbral fijo para
+    // todo el mundo — +3lpm es normal si tu σ habitual es 3, pero anómalo si tu σ es 0.8.
+    var sigmaNote=stdev28!=null?' (tu σ habitual: '+stdev28+'lpm)':'';
+    var sigmaMult=stdev28&&stdev28>0?Math.abs(deviation)/stdev28:null;
     if(deviation<=-2)band={emoji:'🔵',label:'por debajo de tu línea base',note:'favorable si HRV también está bien — revisa HRV antes de asumir que es solo buena recuperación'};
-    else if(Math.abs(deviation)<=2)band={emoji:'🟢',label:'dentro de tu línea base (±2 lpm)',note:'normal'};
-    else if(deviation<=5)band={emoji:'🟡',label:'+'+deviation+' lpm sobre tu línea base',note:'posible fatiga o estrés acumulado — vigilar, no es una alarma por sí sola'};
-    else band={emoji:'🔴',label:'+'+deviation+' lpm sobre tu línea base, sostenido',note:'revisar carga, sueño o posible enfermedad — junto con HRV/sueño, no aislado'};
+    else if(sigmaMult!=null?sigmaMult<=1.5:Math.abs(deviation)<=2)band={emoji:'🟢',label:'dentro de tu línea base'+sigmaNote,note:'normal'};
+    else if(sigmaMult!=null?sigmaMult<=3:deviation<=5)band={emoji:'🟡',label:'+'+deviation+' lpm sobre tu línea base'+sigmaNote,note:'posible fatiga o estrés acumulado — vigilar, no es una alarma por sí sola'};
+    else band={emoji:'🔴',label:'+'+deviation+' lpm sobre tu línea base'+sigmaNote,note:'fuera de tu variabilidad habitual — revisar carga, sueño o posible enfermedad, junto con HRV/sueño, no aislado'};
   }
-  return {latest:latest,avg7:avg7?Math.round(avg7*10)/10:null,baseline28:baseline28?Math.round(baseline28*10)/10:null,deviation:deviation,band:band,nDays:withAge.length};
+  return {latest:latest,avg7:avg7?Math.round(avg7*10)/10:null,baseline28:baseline28?Math.round(baseline28*10)/10:null,stdev28:stdev28,deviation:deviation,band:band,nDays:withAge.length};
 }
 async function fetchIntervals(){
   const {aid,key}=S.int;if(!aid||!key)return;
@@ -6411,8 +6580,10 @@ function DecisionEngine(fatigue, hrv, muscleFatigue, interference, metrics, prog
   else if (mfKeys > 0) whyConf.push('fatiga muscular parcial ('+mfKeys+'/9 grupos)');
   else whyConf.push('Hevy sin datos suficientes');
   // Divergence
-  if (contradictory) whyConf.push('señales sistémicas y locales divergen');
-  else if (confScore >= 0.8) whyConf.push('señales coherentes entre sí');
+  // FIX 2026-07-19: aquí se comprobaba 'contradictory' antes de que existiera (se calcula más abajo,
+  // línea ~6533) — por hoisting de 'var' leía undefined/false SIEMPRE, así que "señales divergen"
+  // nunca se mostraba y "señales coherentes" podía aparecer incluso cuando sí divergían. Movido
+  // correctamente a después de calcular 'contradictory' (ver más abajo).
 
   var confNote = confScore < 0.5 ? 'Sincroniza Intervals y Hevy' :
                  confScore < 0.8 ? 'Datos parciales' + (hrvAge ? ' · ' + hrvAge : '') :
@@ -6468,9 +6639,12 @@ function DecisionEngine(fatigue, hrv, muscleFatigue, interference, metrics, prog
   var contradictoryNote = '';
   if (contradictory) {
     contradictoryNote = 'Señales contradictorias — usa sensaciones como desempate';
+    whyConf.push('señales sistémicas y locales divergen');
     // Contradictory = moderate confidence cap regardless of data
     if (confScore > 0.62) confScore = 0.62; // P3: contradictory caps at 0.62 not 0.7
     confLabel = 'Moderada';
+  } else if (confScore >= 0.8) {
+    whyConf.push('señales coherentes entre sí');
   }
 
   // ── P6: Decision cost — aggressive recs need higher confidence ──
@@ -6496,11 +6670,10 @@ function DecisionEngine(fatigue, hrv, muscleFatigue, interference, metrics, prog
     displayItems = displayItems.filter(function(i){return !i.safety;});
     displayItems.unshift(safetyItem);
     displayItems = displayItems.slice(0, 3); // still max 3 but safety always first
-    if (rec === 'Sin señal suficiente — mantén programación normal') {
-      rec = 'Precaución rodilla — ajusta intensidad';
-      recCol = 'var(--y)';
-      noAction = false;
-    }
+    // FIX 2026-07-19: aquí se comparaba rec con un string ('Sin señal suficiente...') que en este
+    // punto de la función TODAVÍA no se había asignado (se asigna más abajo, ~línea 6612) — la
+    // comparación nunca era cierta y el aviso de rodilla nunca sobrescribía la recomendación.
+    // El override real se aplica ahora al final, incondicional, porque seguridad > cualquier rec.
   }
 
   // Block lower decisions also gated by confidence
@@ -6551,6 +6724,15 @@ function DecisionEngine(fatigue, hrv, muscleFatigue, interference, metrics, prog
     noActionReason = 'contradictory';
     rec = 'Señales mixtas — mantén plan y usa sensaciones';
     recCol = 'var(--fg3)';
+  }
+
+  // FIX 2026-07-19: override de seguridad de rodilla, movido aquí (después de que rec quede
+  // definitivo) para que sí surta efecto siempre que knee>=4, sin depender de qué recomendación
+  // haya salido antes — seguridad tiene prioridad sobre cualquier otro cálculo de esta función.
+  if (knee >= 4) {
+    rec = 'Precaución rodilla — ajusta intensidad';
+    recCol = 'var(--y)';
+    noAction = false;
   }
 
   return {
@@ -7457,15 +7639,16 @@ function showS(id){
   document.querySelectorAll('.screen').forEach(function(s){s.classList.remove('active');});
   var t=safeDOM(id);if(t)t.classList.add('active');
   document.querySelectorAll('.ni').forEach(function(n){n.classList.remove('active');});
-  var map={'s-hoy':'ni-hoy','s-fatiga':'ni-fatiga','s-cardio':'ni-cardio','s-mav':'ni-mav','s-log':'ni-log','s-datos':'ni-datos','s-plan':'ni-plan'}; // 6.4.1: 's-cardio' reactivada
+  var map={'s-hoy':'ni-hoy','s-fatiga':'ni-fatiga','s-cardio':'ni-cardio','s-mav':'ni-mav','s-log':'ni-log','s-datos':'ni-datos','s-plan':'ni-plan','s-evo':'ni-evo'};
   var btn=safeDOM(map[id]);if(btn)btn.classList.add('active');
   window.scrollTo(0,0);try{document.querySelector(".main").scrollTop=0;document.documentElement.scrollTop=0;document.body.scrollTop=0;}catch(e){}
   if(id==='s-mav'){safe(renderWeekZones,'rz');safe(renderMAV,'rm');safe(renderProgressionPanel,'rp');safe(renderE1RMPanel,'re');safe(renderEffectiveSets,'ref');safe(renderMovementPatterns,'rmp');}
-  if(id==='s-hoy'){safe(loadEstado,'le');safe(wireEstadoAutosave,'we');safe(checkBackupReminder,'cbr');safe(renderWeekSummary,'rws');safe(renderKneePrompt,'rkp');safe(renderCombinedStateSummary,'rcss');safe(renderCardioTodaySummary,'rcts');}
+  if(id==='s-hoy'){safe(loadEstado,'le');safe(wireEstadoAutosave,'we');safe(checkBackupReminder,'cbr');safe(renderWeekSummary,'rws');safe(renderKneePrompt,'rkp');safe(renderTodaySummary,'rts');safe(renderCombinedStateSummary,'rcss');safe(renderCardioTodaySummary,'rcts');}
   if(id==='s-log'){safe(renderLog,'rl');safe(populateLogSessions,'pls');}
   if(id==='s-fatiga'){safe(renderFatigueSignals,'rs');safe(renderMuscleFatigue,'rmf');safe(renderInterferencePanel,'ri');safe(renderDensityPanel,'rd');safe(renderConfidencePanel,'rc');safe(renderValidationPanel,'rv');safe(populateResidualHL,'phl');}
   if(id==='s-datos'){safe(renderValidationDashboard,'rvd');}if(id==='s-plan'){safe(function(){selectMeso(S.currentMeso||1);},'meso');}
   if(id==='s-cardio'){safe(renderEndurance,'rend');}
+  if(id==='s-evo'){safe(renderEvolucion,'revo');}
 }
 async function syncAll(){if(S.int.aid&&S.int.key)await fetchIntervals();if(S.hevy?.key)await fetchHevy();}
 function toast(title,msg,icon,ms=3500){const el=document.createElement('div');el.className='toast';el.innerHTML=`<div class="toast-t">${icon||'ℹ️'} ${title}</div>${msg?`<div class="toast-m">${msg}</div>`:''}`;document.body.appendChild(el);setTimeout(()=>el.remove(),ms);}
