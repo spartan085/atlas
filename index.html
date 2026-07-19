@@ -1367,11 +1367,11 @@ function FatigueEngine(metrics,logs,hevyRecent,domsUpper,domsLower,knee){
   const _rank={baja:1,moderada:2,alta:3};
   const globalLevel=Object.keys(_rank).find(k=>_rank[k]===Math.max(_rank[strengthLevel],_rank[cardioLevel]));
   let _stateRec;
-  if(strengthLevel==='alta'&&cardioLevel!=='alta') _stateRec='Fuerza cargada; evita piernas/empujes pesados. Z2 permitido.';
-  else if(cardioLevel==='alta'&&strengthLevel!=='alta') _stateRec='Cardio acumulado; fuerza técnica OK, evita intervalos/tirada larga.';
-  else if(strengthLevel==='alta'&&cardioLevel==='alta') _stateRec='Doble carga alta — sesión ligera o descanso.';
-  else if(globalLevel==='moderada') _stateRec='Carga moderada; sigue el plan y ajusta si aparece dolor.';
-  else _stateRec='Recuperado; ventana para estímulo de calidad.';
+  if(strengthLevel==='alta'&&cardioLevel!=='alta') _stateRec='Fuerza residual alta, cardio bajo — hoy es mejor día para trabajo aeróbico que para otra sesión dura de fuerza. Evita repetir piernas o empuje/tirón pesado.';
+  else if(cardioLevel==='alta'&&strengthLevel!=='alta') _stateRec='Cardio acumulado, fuerza fresca — bien para técnica o fuerza moderada; evita intervalos o tirada larga hoy.';
+  else if(strengthLevel==='alta'&&cardioLevel==='alta') _stateRec='Fuerza y cardio cargados a la vez — mejor sesión ligera o descanso hoy que forzar cualquiera de las dos.';
+  else if(globalLevel==='moderada') _stateRec='Carga moderada en general — sigue el plan previsto y ajusta sobre la marcha si aparece dolor o molestia.';
+  else _stateRec='Recuperado en fuerza y cardio — buen día para buscar calidad, no solo cumplir el plan.';
   const trainingState={strengthResidual,cardioResidual,strengthLevel,cardioLevel,globalLevel,recommendation:_stateRec};
 
   return{
@@ -4853,11 +4853,11 @@ function renderCombinedStateSummary(){
   var ts=f.trainingState;
   var col=ts.globalLevel==='alta'?'var(--r)':ts.globalLevel==='moderada'?'var(--y)':'var(--g)';
   var lvlEmoji={alta:'🔴',moderada:'🟡',baja:'🟢'};
-  var html='<div class="card" style="border:1px solid '+col+';"><div class="card-hdr"><span class="t-md">Estado combinado — fuerza + cardio</span></div><div class="card-body" style="font-size:11px;color:var(--fg2);line-height:1.7;">';
+  var html='<div class="card" style="border:1px solid '+col+';"><div class="card-hdr"><span class="t-md">Compatibilidad de entrenamiento</span></div><div class="card-body" style="font-size:11px;color:var(--fg2);line-height:1.7;">';
   html+='<div>'+(lvlEmoji[ts.strengthLevel]||'')+' Fuerza: <b>'+ts.strengthLevel+'</b> (residual '+Math.round(ts.strengthResidual)+' UA)</div>';
   html+='<div>'+(lvlEmoji[ts.cardioLevel]||'')+' Cardio: <b>'+ts.cardioLevel+'</b> (residual '+ts.cardioResidual+' UA)</div>';
   html+='<div style="margin-top:8px;padding:8px;background:var(--bg4);border-radius:6px;color:var(--fg);font-weight:600;">'+ts.recommendation+'</div>';
-  html+='<div style="font-size:9px;color:var(--fg4);margin-top:6px;">Cada carga se clasifica por separado (no se suman) — el consejo sale de cruzarlas, no de un promedio.</div>';
+  html+='<div style="font-size:10px;color:var(--c);margin-top:8px;display:flex;align-items:flex-start;gap:4px;"><span>ℹ️</span><span>Fuerza y cardio se clasifican por separado — nunca se suman en un solo número. La recomendación sale de cruzarlas, no de un promedio.</span></div>';
   html+='</div></div>';
   el.innerHTML=html; el.style.display='block';
 }
@@ -6529,19 +6529,19 @@ function DecisionEngine(fatigue, hrv, muscleFatigue, interference, metrics, prog
   var allRed   = upperScore < 45 || (lowerScore < 40 && systemic > 65);
 
   if (allGreen && hrvState !== 'suppressed') {
-    rec = 'Estado óptimo — ejecuta el plan completo';
+    rec = '🟢 Puedes progresar hoy — busca marca o añade una serie si la sesión sale bien.';
     recCol = 'var(--g)';
   } else if (allRed || systemic > 70) {
-    rec = 'Día de recuperación — movilidad o descanso';
+    rec = '🔴 Prioriza recuperación — movilidad o descanso, no fuerza ni cardio exigente hoy.';
     recCol = 'var(--r)';
   } else if (upperOk && !lowerOk) {
-    rec = 'Enfoca en tren superior hoy';
+    rec = '🟡 Entrena tren superior — deja pierna pesada para otro día.';
     recCol = 'var(--c)';
   } else if (!upperOk && lowerOk) {
-    rec = 'Pierna tolerable — evita empuje/tirón pesado';
+    rec = '🟡 Pierna tolerable, pero evita empuje/tirón pesado hoy.';
     recCol = 'var(--c)';
   } else {
-    rec = 'Sesión moderada — RIR conservador, densidad baja';
+    rec = '🟡 Puedes entrenar, pero no es un día para buscar récords — mantén 2-3 RIR y baja densidad un 20-30%.';
     recCol = 'var(--y)';
   }
 
@@ -6651,11 +6651,11 @@ function DecisionEngine(fatigue, hrv, muscleFatigue, interference, metrics, prog
   // "Cancel session" or "block lower" = high cost → needs conf > 0.7
   // "Reduce RIR" or "monitor" = low cost → conf > 0.4 ok
   var highCostRec = rec.indexOf('recuperación') >= 0 ||
-                    rec.indexOf('descansa') >= 0 ||
+                    rec.indexOf('descanso') >= 0 || // FIX 2026-07-19: comparaba con 'descansa', que nunca coincidía con 'descanso' — bug preexistente, nunca se ejecutaba este downgrade por esta rama
                     rec.indexOf('cancela') >= 0;
   if (highCostRec && confScore < 0.7) {
     // Downgrade to lower-cost recommendation
-    rec = 'Sesión moderada — RIR conservador, densidad baja';
+    rec = '🟡 Puedes entrenar, pero no es un día para buscar récords — mantén 2-3 RIR y baja densidad un 20-30%.';
     recCol = 'var(--y)';
   }
 
@@ -6703,26 +6703,26 @@ function DecisionEngine(fatigue, hrv, muscleFatigue, interference, metrics, prog
 
   if (progressionWindow && allPositive) {
     noAction = false;
-    rec = 'Ventana de progresión — considera aumentar carga o densidad';
+    rec = '🟢 Buen día para progresar — añade una serie o sube un poco la carga si la sesión sale bien.';
     recCol = 'var(--g)';
     displayItems.unshift({icon:'✓', col:'var(--g)', text:'HRV elevada + fatiga baja = condiciones óptimas para progresar'});
     displayItems = displayItems.slice(0,3);
   } else if (allPositive && confScore >= 0.6) {
     noAction = true;
     noActionReason = 'normal';
-    rec = 'Sin cambios — mantén programación normal';
+    rec = '🟢 Puedes entrenar según lo previsto — sin señales que pidan cambiar nada.';
     recCol = 'var(--fg3)';
   } else if (confScore < 0.4) {
     // P2: Insufficient data is different from "no changes"
     noAction = true;
     noActionReason = 'insufficient';
-    rec = 'Sin señal suficiente — mantén programación normal';
+    rec = '⚪ Sin datos suficientes hoy para una recomendación fiable — sigue el plan y guíate por tus sensaciones.';
     recCol = 'var(--fg4)';
   } else if (contradictory && !warnings.length) {
     // Contradictory but no clear warning = stay quiet
     noAction = true;
     noActionReason = 'contradictory';
-    rec = 'Señales mixtas — mantén plan y usa sensaciones';
+    rec = '🟡 Señales mixtas hoy — sigue el plan, pero deja que tus sensaciones decidan si empujar o no.';
     recCol = 'var(--fg3)';
   }
 
@@ -6730,7 +6730,7 @@ function DecisionEngine(fatigue, hrv, muscleFatigue, interference, metrics, prog
   // definitivo) para que sí surta efecto siempre que knee>=4, sin depender de qué recomendación
   // haya salido antes — seguridad tiene prioridad sobre cualquier otro cálculo de esta función.
   if (knee >= 4) {
-    rec = 'Precaución rodilla — ajusta intensidad';
+    rec = '🟠 Rodilla con molestia — entrena solo si puedes bajar intensidad y evitar el dolor.';
     recCol = 'var(--y)';
     noAction = false;
   }
