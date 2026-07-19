@@ -2889,22 +2889,22 @@ const SIGNAL_HIERARCHY = {
 
 // ══ RECOMMENDATION ENGINE ══
 const RULES=[
-  {id:'knee_pain_high',priority:10,domain:'fuerza',cond:(f,i)=>f.signals.knee?.warn,action:'🦵 Protocolo rodilla activo. Pre-activación obligatoria antes de cualquier ejercicio de pierna. Para cualquier serie con dolor >3/10.',conf:1.0},
-  {id:'severe_fatigue',priority:9,domain:'general',cond:(f,i)=>f.systemic>70,action:'🔴 Fatiga sistémica alta. Hoy: descanso, o si tocaba cardio, Z1 máx 30min y nada de fuerza.',conf:0.9},
-  {id:'high_interference',priority:8,domain:'cardio',cond:(f,i)=>i.blockLower,action:'⚠ Alta interferencia running→pierna. Si hoy tocaba fuerza de pierna, pásala a mañana; el cardio de hoy no se toca.',conf:0.85},
-  {id:'hrv_suppressed',priority:7,domain:'general',cond:(f,i)=>S._hrv?.state==='suppressed'&&S._hrvStab?.confirmed,action:'📉 HRV suprimida (confirmada 2+ señales). En fuerza: quita 1-2 series de los ejercicios accesorios, mantén los principales. En cardio: baja de zona objetivo, no de minutos.',conf:0.85},
-  {id:'hrv_rhr_coupling',priority:7,domain:'general',cond:(f,i)=>S._hrv?.coupling==='suppressed_strong',action:'⚠ HRV↓+FCr↑ simultáneos — señal doble de supresión autonómica. Trata la sesión de hoy (fuerza o cardio) como si HRV estuviera suprimida.',conf:0.9},
-  {id:'high_doms_lower',priority:6,domain:'fuerza',cond:(f,i)=>f.drivers.includes('high_doms_lower'),action:'🦵 DOMS de pierna alto. Si hoy toca fuerza inferior: quita la última serie de cada ejercicio (~20-25% menos volumen) y no llegues al fallo en cuádriceps.',conf:0.8},
-  {id:'low_sleep',priority:6,domain:'general',cond:(f,i)=>f.drivers.includes('low_sleep'),action:'😴 Sueño insuficiente. En fuerza: para 1-2 RIR más lejos del fallo de lo planeado. En cardio: mantén los minutos, no subas de zona.',conf:0.85},
+  {id:'knee_pain_high',priority:10,domain:'fuerza',cond:(f,i)=>f.signals.knee?.warn,action:'🦵 Rodilla activa — pre-activación obligatoria hoy.',detail:'Protocolo rodilla activo. Pre-activación obligatoria antes de cualquier ejercicio de pierna. Para cualquier serie con dolor >3/10.',conf:1.0},
+  {id:'severe_fatigue',priority:9,domain:'general',cond:(f,i)=>f.systemic>70,action:'🔴 Descansa hoy — fatiga sistémica alta.',detail:'Hoy: descanso, o si tocaba cardio, Z1 máx 30min y nada de fuerza.',conf:0.9},
+  {id:'high_interference',priority:8,domain:'cardio',cond:(f,i)=>i.blockLower,action:'⚠ Pierna a mañana — alta interferencia running.',detail:'Si hoy tocaba fuerza de pierna, pásala a mañana; el cardio de hoy no se toca.',conf:0.85},
+  {id:'hrv_suppressed',priority:7,domain:'general',cond:(f,i)=>S._hrv?.state==='suppressed'&&S._hrvStab?.confirmed,action:'📉 HRV suprimida — reduce accesorios, no principales.',detail:'Confirmada con 2+ señales. En fuerza: quita 1-2 series de los ejercicios accesorios, mantén los principales. En cardio: baja de zona objetivo, no de minutos.',conf:0.85},
+  {id:'hrv_rhr_coupling',priority:7,domain:'general',cond:(f,i)=>S._hrv?.coupling==='suppressed_strong',action:'⚠ Doble señal autonómica — trata como HRV suprimida.',detail:'HRV↓+FCr↑ simultáneos — señal doble de supresión autonómica. Trata la sesión de hoy (fuerza o cardio) como si HRV estuviera suprimida.',conf:0.9},
+  {id:'high_doms_lower',priority:6,domain:'fuerza',cond:(f,i)=>f.drivers.includes('high_doms_lower'),action:'🦵 Quita la última serie de pierna — DOMS alto.',detail:'Si hoy toca fuerza inferior: quita la última serie de cada ejercicio (~20-25% menos volumen) y no llegues al fallo en cuádriceps.',conf:0.8},
+  {id:'low_sleep',priority:6,domain:'general',cond:(f,i)=>f.drivers.includes('low_sleep'),action:'😴 Deja 1-2 RIR más de margen — sueño insuficiente.',detail:'En fuerza: para 1-2 RIR más lejos del fallo de lo planeado. En cardio: mantén los minutos, no subas de zona.',conf:0.85},
   // FIX 2026-07-18: TSB negativo por sí solo NO debe disparar "reduce carga". Es el estado normal
   // de un bloque de entrenamiento continuo — CTL/ATL lo reflejan, no es una señal de alarma aislada.
   // Ahora se combina con HRV/sueño/Body Battery/fatiga local de pierna: si TSB está bajo pero la
   // recuperación autonómica y local son buenas, la recomendación es la contraria (mantener el plan).
-  {id:'neg_tsb_corroborated',priority:5,domain:'cardio',cond:(f,i)=>f.drivers.includes('negative_tsb')&&((f.signals.hrv&&f.signals.hrv.warn)||(f.signals.sleep&&f.signals.sleep.warn)||(f.signals.bb&&f.signals.bb.warn)||(f.lowerScore!=null&&f.lowerScore<50)),action:'📊 TSB negativo Y al menos otra señal de recuperación floja (HRV/sueño/Body Battery/piernas). Aquí sí conviene bajar: si tienes Z2 pendiente, hazlo pero no añadas minutos extra; mejor Z1 corto que Z2 largo esta semana.',conf:0.8},
-  {id:'neg_tsb_isolated',priority:2,domain:'cardio',cond:(f,i)=>f.drivers.includes('negative_tsb')&&!((f.signals.hrv&&f.signals.hrv.warn)||(f.signals.sleep&&f.signals.sleep.warn)||(f.signals.bb&&f.signals.bb.warn)||(f.lowerScore!=null&&f.lowerScore<50)),action:'📊 TSB negativo, pero HRV/sueño/Body Battery/piernas están bien — estado normal de bloque de entrenamiento continuo, no una señal de alarma por sí sola. Puedes hacer el rodaje Z2 previsto tal cual; solo evita añadir volumen o intensidad extra hoy.',conf:0.7},
-  {id:'high_srpe',priority:5,domain:'fuerza',cond:(f,i)=>f.drivers.includes('high_srpe_48h'),action:'💪 sRPE 48h elevado por la sesión de fuerza reciente. Evita otra sesión de la misma zona hoy; si toca, pásala a mañana.',conf:0.8},
-  {id:'hrv_rebound',priority:3,domain:'general',cond:(f,i)=>S._hrv?.state==='rebound'&&f.systemic<30,action:'✅ HRV en rebote y fatiga baja — margen real para progresar hoy. En fuerza: prueba +1 serie o RIR objetivo un punto más cerca del fallo en el ejercicio principal. En cardio: puedes añadir 5-10min a la sesión planeada.',conf:0.75},
-  {id:'all_green',priority:1,domain:'general',cond:(f,i)=>f.systemic<30&&!f.drivers.includes('knee_pain')&&!i.blockLower,action:'✅ Sin señales de alarma en ningún sistema. Ejecuta la sesión planeada tal cual — no hay motivo para reducir ni razón concreta para forzar progresión hoy.',conf:0.8},
+  {id:'neg_tsb_corroborated',priority:5,domain:'cardio',cond:(f,i)=>f.drivers.includes('negative_tsb')&&((f.signals.hrv&&f.signals.hrv.warn)||(f.signals.sleep&&f.signals.sleep.warn)||(f.signals.bb&&f.signals.bb.warn)||(f.lowerScore!=null&&f.lowerScore<50)),action:'📊 Mejor Z1 corto que Z2 largo — TSB bajo + otra señal floja.',detail:'TSB negativo Y al menos otra señal de recuperación floja (HRV/sueño/Body Battery/piernas). Si tienes Z2 pendiente, hazlo pero no añadas minutos extra; mejor Z1 corto que Z2 largo esta semana.',conf:0.8},
+  {id:'neg_tsb_isolated',priority:2,domain:'cardio',cond:(f,i)=>f.drivers.includes('negative_tsb')&&!((f.signals.hrv&&f.signals.hrv.warn)||(f.signals.sleep&&f.signals.sleep.warn)||(f.signals.bb&&f.signals.bb.warn)||(f.lowerScore!=null&&f.lowerScore<50)),action:'✅ Puedes hacer el Z2 previsto — TSB bajo pero recuperación bien.',detail:'HRV/sueño/Body Battery/piernas están bien — estado normal de bloque de entrenamiento continuo, no una señal de alarma por sí sola. Solo evita añadir volumen o intensidad extra hoy.',conf:0.7},
+  {id:'high_srpe',priority:5,domain:'fuerza',cond:(f,i)=>f.drivers.includes('high_srpe_48h'),action:'💪 Evita otra sesión de la misma zona hoy.',detail:'sRPE 48h elevado por la sesión de fuerza reciente. Si toca, pásala a mañana.',conf:0.8},
+  {id:'hrv_rebound',priority:3,domain:'general',cond:(f,i)=>S._hrv?.state==='rebound'&&f.systemic<30,action:'✅ Margen real para progresar hoy.',detail:'HRV en rebote y fatiga baja. En fuerza: prueba +1 serie o RIR objetivo un punto más cerca del fallo en el ejercicio principal. En cardio: puedes añadir 5-10min a la sesión planeada.',conf:0.75},
+  {id:'all_green',priority:1,domain:'general',cond:(f,i)=>f.systemic<30&&!f.drivers.includes('knee_pain')&&!i.blockLower,action:'✅ Ejecuta la sesión planeada tal cual.',detail:'Sin señales de alarma en ningún sistema — no hay motivo para reducir ni razón concreta para forzar progresión hoy.',conf:0.8},
 ];
 function RecommendationEngine(fatigue,interference){
   const hasTier1=RULES.filter(r=>SIGNAL_HIERARCHY.tier1_safety.includes(r.id)&&r.cond(fatigue,interference)).length>0;
@@ -3679,9 +3679,13 @@ function renderRecommendations(){
   list.innerHTML=r.actions.map(a=>{
     const chain=buildReasoningChain(a.id);
     const priorityCol=a.priority>=8?'var(--r)':a.priority>=5?'var(--y)':'var(--g)';
-    const chainHTML=chain.length?`
+    // 2026-07-19: el texto completo (antes siempre visible en la línea principal) ahora vive aquí
+    // dentro, como primera línea del desplegable — la línea visible se acorta a una decisión.
+    const detailHTML=a.detail?`<div style="font-size:10px;color:var(--fg2);padding:2px 0 4px;border-bottom:1px solid var(--line2);margin-bottom:4px;">${a.detail}</div>`:'';
+    const chainHTML=(chain.length||a.detail)?`
       <div style="background:var(--bg3);border-radius:6px;padding:7px 9px;width:100%;border-left:2px solid var(--line2);margin-top:4px;">
         <div style="font-family:'Geist Mono',monospace;font-size:8px;color:var(--fg4);letter-spacing:1.5px;margin-bottom:4px;">POR QUÉ</div>
+        ${detailHTML}
         ${chain.map(e=>{
           const col=e.level==='warn'?'var(--r)':e.level==='ok'?'var(--g)':'var(--fg3)';
           const icon=e.level==='warn'?'↓':e.level==='ok'?'✓':'·';
