@@ -6208,6 +6208,31 @@ function renderTodaySummary(){
     return;
   }
 
+  // 2026-07-20 — FUNDAMENTAL, pedido explícito: antes el mensaje principal ("Prioriza
+  // recuperación, no fuerza ni cardio") no sabía que YA habías entrenado hoy, mientras que
+  // "Compatibilidad de entrenamiento" un poco más abajo sí lo sabía y decía lo contrario
+  // ("Fuerza ya hecha hoy, cardio suave está bien"). Mismo motor, dos mensajes que no se
+  // hablaban entre sí — exactamente el bug que viste en las capturas. Ahora el mensaje
+  // principal se reescribe con lenguaje de "resto del día" cuando ya entrenaste, en vez de
+  // sonar como si la sesión de hoy todavía estuviera por decidir.
+  var todayStatus=typeof todaysTrainingStatus==='function'?todaysTrainingStatus():null;
+  var ts=S._fatigue&&S._fatigue.trainingState;
+  var recOverride=null, colOverride=null;
+  if(todayStatus&&(todayStatus.strengthDone||todayStatus.cardioDone)){
+    if(todayStatus.strengthDone&&todayStatus.cardioDone){
+      recOverride='✔ Sesión completada hoy — fuerza y cardio ya hechos. Objetivo del resto del día: recuperación. No añadas nada más exigente.';
+      colOverride='var(--g)';
+    } else if(todayStatus.strengthDone){
+      var cardioLoaded=ts&&ts.cardioLevel==='alta';
+      recOverride='✔ '+(todayStatus.strengthSessName||'Fuerza')+' completado. Objetivo del resto del día: recuperación. '+(cardioLoaded?'Cardio también cargado — evita añadir nada más hoy.':'Opcional: paseo, movilidad o Z1 muy suave. Evita otra sesión de fuerza.');
+      colOverride='var(--g)';
+    } else {
+      var strengthLoaded=ts&&ts.strengthLevel==='alta';
+      recOverride='✔ '+(todayStatus.cardioSessName||'Cardio')+' completado. Objetivo del resto del día: recuperación. '+(strengthLoaded?'Fuerza también cargada — evita añadir nada más hoy.':'Opcional: movilidad ligera. Evita otra sesión de cardio exigente.');
+      colOverride='var(--g)';
+    }
+  }
+
   // Items: max 3 (2 others + 1 main warning)
   var html=d.items.map(function(item){
     return'<div style="display:flex;align-items:center;gap:8px;font-size:12px;">'
@@ -6222,8 +6247,11 @@ function renderTodaySummary(){
       +'<span style="color:var(--fg3);">'+d.extraWarning.text+'</span></div>';
   }
 
-  // Recommendation
-  html+='<div style="margin-top:8px;padding:7px 10px;background:var(--bg3);border-radius:8px;font-size:12px;font-weight:500;color:'+d.recommendationColor+';">'+d.recommendation+'</div>';
+  // Recommendation — sobrescrita si ya entrenaste hoy (ver arriba), si no, la de siempre.
+  html+='<div style="margin-top:8px;padding:7px 10px;background:var(--bg3);border-radius:8px;font-size:12px;font-weight:500;color:'+(colOverride||d.recommendationColor)+';">'+(recOverride||d.recommendation)+'</div>';
+  if(recOverride){
+    html+='<div style="font-size:9px;color:var(--fg4);margin-top:3px;">Las señales de abajo siguen describiendo tu estado fisiológico — el objetivo ya no es "qué sesión hacer", es "cómo recuperar el resto del día".</div>';
+  }
 
   // Contradictory signal note
   if(d.contradictory&&d.contradictoryNote){
