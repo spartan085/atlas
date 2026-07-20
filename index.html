@@ -6217,19 +6217,31 @@ function renderTodaySummary(){
   // sonar como si la sesión de hoy todavía estuviera por decidir.
   var todayStatus=typeof todaysTrainingStatus==='function'?todaysTrainingStatus():null;
   var ts=S._fatigue&&S._fatigue.trainingState;
-  var recOverride=null, colOverride=null;
+  var jornadaHTML=null, colOverride=null;
+  // "Jornada" — pedido explícito como imprescindible: no una frase suelta, un bloque con
+  // estructura fija (completado / queda por hacer / opcional), sensación de misión cumplida,
+  // no de prohibición. Sigue siendo el mismo fix de "ya entrenaste hoy" — solo mejor formateado.
+  function jornadaBlock(doneLine,optional){
+    var h='<div style="font-family:\'Geist Mono\',monospace;font-size:9px;color:var(--fg3);letter-spacing:1.5px;margin-bottom:5px;">JORNADA</div>';
+    h+='<div style="color:var(--g);font-size:12px;">✔ '+doneLine+'</div>';
+    h+='<div style="margin-top:6px;font-size:10px;color:var(--fg4);">Queda por hacer</div>';
+    h+='<div style="font-size:12px;color:var(--fg2);">Nada obligatorio.</div>';
+    if(optional&&optional.length){
+      h+='<div style="margin-top:6px;font-size:10px;color:var(--fg4);">Opcional</div>';
+      h+='<div style="font-size:12px;color:var(--fg2);">'+optional.map(function(o){return '· '+o;}).join('<br>')+'</div>';
+    }
+    return h;
+  }
   if(todayStatus&&(todayStatus.strengthDone||todayStatus.cardioDone)){
+    colOverride='var(--g)';
     if(todayStatus.strengthDone&&todayStatus.cardioDone){
-      recOverride='✔ Sesión completada hoy — fuerza y cardio ya hechos. Objetivo del resto del día: recuperación. No añadas nada más exigente.';
-      colOverride='var(--g)';
+      jornadaHTML=jornadaBlock('Fuerza y cardio completados.',null);
     } else if(todayStatus.strengthDone){
       var cardioLoaded=ts&&ts.cardioLevel==='alta';
-      recOverride='✔ '+(todayStatus.strengthSessName||'Fuerza')+' completado. Objetivo del resto del día: recuperación. '+(cardioLoaded?'Cardio también cargado — evita añadir nada más hoy.':'Opcional: paseo, movilidad o Z1 muy suave. Evita otra sesión de fuerza.');
-      colOverride='var(--g)';
+      jornadaHTML=jornadaBlock((todayStatus.strengthSessName||'Fuerza')+' completado.',cardioLoaded?null:['Paseo','Movilidad','Z1 muy suave']);
     } else {
       var strengthLoaded=ts&&ts.strengthLevel==='alta';
-      recOverride='✔ '+(todayStatus.cardioSessName||'Cardio')+' completado. Objetivo del resto del día: recuperación. '+(strengthLoaded?'Fuerza también cargada — evita añadir nada más hoy.':'Opcional: movilidad ligera. Evita otra sesión de cardio exigente.');
-      colOverride='var(--g)';
+      jornadaHTML=jornadaBlock((todayStatus.cardioSessName||'Cardio')+' completado.',strengthLoaded?null:['Movilidad ligera']);
     }
   }
 
@@ -6247,10 +6259,12 @@ function renderTodaySummary(){
       +'<span style="color:var(--fg3);">'+d.extraWarning.text+'</span></div>';
   }
 
-  // Recommendation — sobrescrita si ya entrenaste hoy (ver arriba), si no, la de siempre.
-  html+='<div style="margin-top:8px;padding:7px 10px;background:var(--bg3);border-radius:8px;font-size:12px;font-weight:500;color:'+(colOverride||d.recommendationColor)+';">'+(recOverride||d.recommendation)+'</div>';
-  if(recOverride){
+  // Recommendation — bloque "Jornada" estructurado si ya entrenaste hoy, si no, la de siempre.
+  if(jornadaHTML){
+    html+='<div style="margin-top:8px;padding:9px 10px;background:var(--bg3);border-radius:8px;border-left:2px solid var(--g);">'+jornadaHTML+'</div>';
     html+='<div style="font-size:9px;color:var(--fg4);margin-top:3px;">Las señales de abajo siguen describiendo tu estado fisiológico — el objetivo ya no es "qué sesión hacer", es "cómo recuperar el resto del día".</div>';
+  } else {
+    html+='<div style="margin-top:8px;padding:7px 10px;background:var(--bg3);border-radius:8px;font-size:12px;font-weight:500;color:'+d.recommendationColor+';">'+d.recommendation+'</div>';
   }
 
   // Contradictory signal note
