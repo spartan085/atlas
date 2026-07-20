@@ -4178,14 +4178,26 @@ function renderEvolucion(){
 
   html+='<div style="font-size:10px;color:var(--fg4);text-align:center;padding:8px;">Balance fuerza↔cardio y adaptación conjunta: en validación — necesita más semanas de datos consistentes en ambas disciplinas antes de que una conclusión cruzada sea honesta.</div>';
 
-  // ── RESUMEN SUPERIOR — confianza global, calculada a partir de las 3 secciones (no un juicio nuevo) ──
-  var overallConf=Math.round(((completeness.fuerza+completeness.cardio+completeness.comp)/3)*100);
-  var confState=overallConf>=80?{e:'🟢',t:'Con base suficiente'}:overallConf>=35?{e:'🟡',t:'Aprendiendo'}:{e:'⚪',t:'Recopilando datos'};
-  var confBlocks=Math.round(overallConf/12.5); var confBar=''; for(var i=0;i<8;i++)confBar+=(i<confBlocks?'█':'░');
-  var summaryHtml='<div class="card" style="margin-bottom:12px;border:1px solid var(--c);"><div class="card-hdr"><span class="t-md">Estado general</span></div><div class="card-body">';
+  // ── RESUMEN SUPERIOR — 2026-07-20, reescrito por 3 motivos explícitos de Carlos:
+  // (1) "Confianza" sonaba a que el algoritmo dudaba de sí mismo — es MADUREZ DE HISTÓRICO, no
+  //     confianza en el cálculo. (2) Una media puede esconder que una sección va a 0% mientras
+  //     otras van al 100% (ej. fuerza+composición completas, cardio a 0% → media 66%, engañoso
+  //     si tu objetivo del mes era correr). Ahora se usa el MÍNIMO para el estado global, y se
+  //     muestran las tres barras por separado, nunca fusionadas. (3) frase de propósito arriba.
+  var minConf=Math.min(completeness.fuerza,completeness.cardio,completeness.comp);
+  var minPct=Math.round(minConf*100);
+  var confState=minPct>=80?{e:'🟢',t:'Con base suficiente'}:minPct>=35?{e:'🟡',t:'Construyendo evidencia'}:{e:'⚪',t:'Recopilando datos'};
+  function sectionBar(pct,label){
+    var blocks=Math.round(pct/12.5); var bar=''; for(var i=0;i<8;i++)bar+=(i<blocks?'█':'░');
+    return '<div style="display:flex;justify-content:space-between;align-items:center;margin-top:4px;"><span style="font-size:10px;color:var(--fg3);flex:1;">'+label+'</span><span class="mono" style="font-size:11px;color:var(--c);letter-spacing:1px;">'+bar+'</span><span class="mono" style="font-size:10px;color:var(--fg3);margin-left:6px;width:32px;text-align:right;">'+pct+'%</span></div>';
+  }
+  var summaryHtml='<div style="font-size:11px;color:var(--fg3);text-align:center;padding:6px 12px 10px;font-style:italic;">Esta pantalla no evalúa cómo estás hoy; evalúa si tu entrenamiento está dando resultado.</div>';
+  summaryHtml+='<div class="card" style="margin-bottom:12px;border:1px solid var(--c);"><div class="card-hdr"><span class="t-md">Madurez del histórico</span></div><div class="card-body">';
   summaryHtml+='<div style="font-size:14px;font-weight:600;color:var(--fg);">'+confState.e+' '+confState.t+'</div>';
-  summaryHtml+='<div style="font-size:11px;color:var(--fg3);margin-top:4px;">Atlas todavía está construyendo suficiente histórico para evaluar tendencias con confianza en las tres áreas.</div>';
-  summaryHtml+='<div style="margin-top:8px;"><span class="mono" style="font-size:13px;color:var(--c);letter-spacing:1px;">'+confBar+'</span> <span class="mono" style="font-size:11px;color:var(--fg3);">'+overallConf+'%</span></div>';
+  summaryHtml+='<div style="font-size:11px;color:var(--fg3);margin-top:4px;">No es que Atlas dude del cálculo — es que todavía no hay suficiente histórico en todas las áreas. El estado de arriba refleja la sección MÁS ATRASADA, no una media que podría esconderla.</div>';
+  summaryHtml+=sectionBar(Math.round(completeness.fuerza*100),'💪 Fuerza');
+  summaryHtml+=sectionBar(Math.round(completeness.cardio*100),'🫀 Cardio');
+  summaryHtml+=sectionBar(Math.round(completeness.comp*100),'⚖️ Composición');
   summaryHtml+='</div></div>';
 
   el.innerHTML=summaryHtml+html;
@@ -4896,6 +4908,24 @@ function _showRawJson(id){
 // "Estado combinado" — 2026-07-19. NO es un algoritmo nuevo: expone trainingState (ya calculado
 // en FatigueEngine) que YA lee fuerza y cardio por separado y las interpreta juntas sin sumarlas
 // en un número — exactamente lo que Carlos pedía, solo que antes solo lo veía la IA, no él.
+// 2026-07-20: detecta qué se ha entrenado HOY (fuerza/cardio) para que las recomendaciones no
+// digan "evita fuerza" cuando ya la hiciste, ni "haz cardio" cuando ya lo hiciste. Antes,
+// trainingState/DecisionEngine solo miraban carga RESIDUAL acumulada, nunca "¿qué hice hoy
+// específicamente?" — hallazgo real de Carlos, no una suposición mía.
+function todaysTrainingStatus(){
+  var today=new Date(); today.setHours(0,0,0,0);
+  var tomorrow=new Date(today.getTime()+86400000);
+  var out={strengthDone:false,cardioDone:false,strengthSessName:null,cardioSessName:null};
+  safeArr(S.logs).forEach(function(l){
+    if(!l||!l.date)return;
+    var d=parseDate(l.date); if(!d||isNaN(d.getTime()))return;
+    if(d>=today&&d<tomorrow){
+      if(l._cardio){out.cardioDone=true; out.cardioSessName=l.sess||l.name||'cardio';}
+      else {out.strengthDone=true; out.strengthSessName=l.sess||l.name||'fuerza';}
+    }
+  });
+  return out;
+}
 function renderCombinedStateSummary(){
   var el=safeDOM('combinedStateSummary'); if(!el)return;
   var f=S._fatigue;
@@ -4903,11 +4933,43 @@ function renderCombinedStateSummary(){
   var ts=f.trainingState;
   var col=ts.globalLevel==='alta'?'var(--r)':ts.globalLevel==='moderada'?'var(--y)':'var(--g)';
   var lvlEmoji={alta:'🔴',moderada:'🟡',baja:'🟢'};
+
+  // 2026-07-20 — pedido explícito de Carlos: cruzar fisiología (trainingState) con PLAN semanal
+  // (getWeeklyBalance, ya existía) y con lo YA hecho HOY (todaysTrainingStatus, nuevo) para dar
+  // una recomendación ESPECÍFICA ("haz D5 Lower B"), no solo "fuerza alta/cardio baja" genérico.
+  var wb=typeof getWeeklyBalance==='function'?getWeeklyBalance():null;
+  var today=typeof todaysTrainingStatus==='function'?todaysTrainingStatus():null;
+
   var html='<div class="card" style="border:1px solid '+col+';"><div class="card-hdr"><span class="t-md">Compatibilidad de entrenamiento</span></div><div class="card-body" style="font-size:11px;color:var(--fg2);line-height:1.7;">';
   html+='<div>'+(lvlEmoji[ts.strengthLevel]||'')+' Fuerza: <b>'+ts.strengthLevel+'</b> (residual '+Math.round(ts.strengthResidual)+' UA)</div>';
   html+='<div>'+(lvlEmoji[ts.cardioLevel]||'')+' Cardio: <b>'+ts.cardioLevel+'</b> (residual '+ts.cardioResidual+' UA)</div>';
-  html+='<div style="margin-top:8px;padding:8px;background:var(--bg4);border-radius:6px;color:var(--fg);font-weight:600;">'+ts.recommendation+'</div>';
-  html+='<div style="font-size:10px;color:var(--c);margin-top:8px;display:flex;align-items:flex-start;gap:4px;"><span>ℹ️</span><span>Fuerza y cardio se clasifican por separado — nunca se suman en un solo número. La recomendación sale de cruzarlas, no de un promedio.</span></div>';
+
+  // ── Recomendación específica, comprometida (🥇), no solo "evita/permite" genérico ──
+  var mainRec='', altRec='';
+  if(today&&today.strengthDone&&today.cardioDone){
+    mainRec='✅ Ya has entrenado fuerza y cardio hoy — nada más que hacer, toca descanso.';
+  } else if(today&&today.strengthDone&&!today.cardioDone){
+    mainRec='✅ Fuerza ya hecha hoy ('+(today.strengthSessName||'')+'). '+(ts.cardioLevel==='alta'?'Cardio también cargado — mejor no añadir nada más hoy.':'Si quieres moverte más: cardio suave, tu carga cardio está '+ts.cardioLevel+'.');
+  } else if(today&&today.cardioDone&&!today.strengthDone){
+    mainRec='✅ Cardio ya hecho hoy ('+(today.cardioSessName||'')+'). '+(wb&&wb.nextSession?'Fuerza pendiente: '+wb.nextSession[0]+' — '+(ts.strengthLevel==='alta'?'pero fuerza está cargada, mejor mañana.':'y tus sistemas están '+ts.strengthLevel+', se puede.'):'Sin sesión de fuerza pendiente detectada.');
+  } else if(wb&&wb.nextSession){
+    var sessLabel=wb.nextSession[0]+' — '+wb.nextSession[2].split('+')[0].trim();
+    if(ts.strengthLevel==='alta'){
+      mainRec='🥈 Toca '+sessLabel+' según el plan, pero tu fuerza residual está alta. Si puedes, dale un día más.';
+      altRec=(wb.pendingCardio&&wb.pendingCardio.length&&ts.cardioLevel!=='alta')?'🥇 Mejor hoy: cardio ('+wb.pendingCardio[0][0]+' pendiente) — tus sistemas de fuerza necesitan más recuperación.':'';
+    } else {
+      mainRec='🥇 Haz '+sessLabel+' — es lo siguiente pendiente del plan y tu fuerza está '+ts.strengthLevel+'.';
+    }
+  } else if(wb&&wb.pendingCardio&&wb.pendingCardio.length){
+    mainRec='🥇 Fuerza de la semana completa — toca cardio ('+wb.pendingCardio[0][0]+' pendiente).';
+  } else {
+    mainRec=ts.recommendation; // fallback: el texto genérico de siempre, si no hay plan semanal que cruzar
+  }
+  html+='<div style="margin-top:8px;padding:8px;background:var(--bg4);border-radius:6px;color:var(--fg);font-weight:600;">'+mainRec+'</div>';
+  if(altRec)html+='<div style="margin-top:4px;padding:8px;background:var(--bg3);border-radius:6px;color:var(--fg2);font-size:10px;">'+altRec+'</div>';
+  if(wb)html+='<div style="font-size:9px;color:var(--fg4);margin-top:6px;">Semana: '+wb.strengthDone+'/'+wb.strengthTotal+' fuerza · '+wb.cardioDone+'/'+wb.cardioTotal+' cardio completadas.</div>';
+
+  html+='<div style="font-size:10px;color:var(--c);margin-top:8px;display:flex;align-items:flex-start;gap:4px;"><span>ℹ️</span><span>Fuerza y cardio se clasifican por separado — nunca se suman en un solo número. La recomendación sale de cruzar plan semanal, fisiología y lo ya entrenado hoy, no de un promedio.</span></div>';
   html+='</div></div>';
   el.innerHTML=html; el.style.display='block';
 }
