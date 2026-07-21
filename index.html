@@ -4945,13 +4945,28 @@ function renderCombinedStateSummary(){
   var wb=typeof getWeeklyBalance==='function'?getWeeklyBalance():null;
   var today=typeof todaysTrainingStatus==='function'?todaysTrainingStatus():null;
 
+  // REGLA 2026-07-20 (pedida explícitamente): ninguna tarjeta puede contradecir al Hero de arriba
+  // (QUÉ HACER HOY / S._decision). Si el Hero está en modo "prioriza recuperación" (rojo), esta
+  // tarjeta NUNCA puede sugerir una sesión como alternativa — solo puede hablar en condicional
+  // ("si decides moverte..."). Si el Hero no está en modo recuperación, sí puede ser específica
+  // sobre qué sesión es más compatible, porque no contradice nada — lo complementa.
+  var heroIsRestMode=S._decision&&S._decision.recommendationColor==='var(--r)';
+
   var html='<div class="card" style="border:1px solid '+col+';"><div class="card-hdr"><span class="t-md">Compatibilidad de entrenamiento</span></div><div class="card-body" style="font-size:11px;color:var(--fg2);line-height:1.7;">';
   html+='<div>'+(lvlEmoji[ts.strengthLevel]||'')+' Fuerza: <b>'+ts.strengthLevel+'</b> (residual '+Math.round(ts.strengthResidual)+' UA)</div>';
   html+='<div>'+(lvlEmoji[ts.cardioLevel]||'')+' Cardio: <b>'+ts.cardioLevel+'</b> (residual '+ts.cardioResidual+' UA)</div>';
 
-  // ── Recomendación específica, comprometida (🥇), no solo "evita/permite" genérico ──
+  // ── Recomendación: comprometida (🥇) SOLO si no contradice al Hero; si el Hero pide
+  // recuperación, todo se reformula en condicional. ──
   var mainRec='', altRec='';
-  if(today&&today.strengthDone&&today.cardioDone){
+  if(heroIsRestMode){
+    // Nunca una alternativa de entrenamiento — solo explica/justifica y, como mucho, condiciona.
+    if(today&&(today.strengthDone||today.cardioDone)){
+      mainRec='La decisión de arriba es recuperación. Ya has entrenado hoy ('+(today.strengthSessName||today.cardioSessName)+') — eso ya cuenta, no hace falta nada más.';
+    } else {
+      mainRec='La decisión principal de arriba es recuperación. Si aun así decides moverte, '+(ts.cardioLevel!=='alta'?'cardio muy suave es más compatible que otra sesión de fuerza.':'ambos sistemas están cargados — mejor movilidad ligera que cualquiera de los dos.');
+    }
+  } else if(today&&today.strengthDone&&today.cardioDone){
     mainRec='✅ Ya has entrenado fuerza y cardio hoy — nada más que hacer, toca descanso.';
   } else if(today&&today.strengthDone&&!today.cardioDone){
     mainRec='✅ Fuerza ya hecha hoy ('+(today.strengthSessName||'')+'). '+(ts.cardioLevel==='alta'?'Cardio también cargado — mejor no añadir nada más hoy.':'Si quieres moverte más: cardio suave, tu carga cardio está '+ts.cardioLevel+'.');
@@ -5165,6 +5180,9 @@ async function fetchIntervals(){
     S.metrics.weightHistory=Object.values(_whMap).sort(function(a,b){return (new Date(a.date))-(new Date(b.date));});
     S.int.ok=true;save();setIntStatus('ok');
     runEngines();renderHRV();renderActivities();renderWeekZones();
+    // FIX 2026-07-20: mismo bug — tras terminar la sync, la recomendación de HOY se quedaba con
+    // datos viejos (o el placeholder "Calculando…") hasta que el usuario cambiaba de pestaña.
+    safe(renderTodaySummary,'rts1');safe(renderCombinedStateSummary,'rcss1');safe(renderCardioTodaySummary,'rcts1');
     toast('Intervals sincronizado',[S.metrics.hrv?`HRV ${S.metrics.hrv}ms`:'',S._hrv?.baseline28?`base28 ${Math.round(S._hrv.baseline28)}ms`:'',S.metrics.ctl?`CTL ${Math.round(S.metrics.ctl)}`:'',S.metrics.weight?`${S.metrics.weight}kg`:'',S.metrics.protein?`Prot ${Math.round(S.metrics.protein)}g`:''].filter(Boolean).join(' · ')||'OK','✅');
   }catch(err){setIntStatus('error');toast('Error Intervals',err.message,'❌');console.error(err);}
 }
@@ -7826,6 +7844,11 @@ function init(){
   const sc=safeDOM('wkScore');if(sc)sc.textContent=S.weekDays.size+'/6';
   if(S.metrics.hrv7?.length){S._wellnessHistory=S.metrics.hrv7.map(d=>({id:d.date,hrv:d.v,restingHR:d.rhr,sleepSecs:d.sleep?safeNum(d.sleep)*3600:null}));}
   runEngines();updateMetrics();renderHRV();renderMAV();renderLog();renderActivities();renderWeekZones();safe(buildWeeklyAdaptationSnapshot,'wsnap');safe(renderKneePrompt,'rkp');
+  // FIX 2026-07-20: bug real — la pantalla HOY ya viene marcada "active" en el HTML estático, así
+  // que nunca pasa por showS('s-hoy') al cargar la app (ese es el único sitio donde estas tres
+  // funciones estaban conectadas). Resultado: "Calculando…" se quedaba fijo hasta que el usuario
+  // cambiaba de pestaña y volvía — no era lentitud, era que nunca se disparaban solas.
+  safe(renderTodaySummary,'rts0');safe(renderCombinedStateSummary,'rcss0');safe(renderCardioTodaySummary,'rcts0');
   // Auto-sync if keys saved — restore session without re-entering keys
   if(S.int.aid&&S.int.key){setTimeout(()=>fetchIntervals(),800);}
   if(S.hevy?.key){setTimeout(()=>fetchHevy(),1200);}
