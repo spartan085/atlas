@@ -3076,7 +3076,7 @@ function renderReadinessGrid(){
 }
 
 function renderFatigueHero(){
-  const f=S._fatigue;const r=S._recs;if(!f)return;
+  const f=S._fatigue;if(!f)return;
   const sv=(id,v)=>{const e=safeDOM(id);if(e)e.textContent=v;};
   const sb=(id,p,c)=>{const e=safeDOM(id);if(e){e.style.width=p+'%';if(c)e.style.background=c;}};
   sv('fe-cardio',f.autonomic+'%');sv('fe-neuro',f.mechanical+'%');sv('fe-sys',f.systemic+'%');
@@ -3085,32 +3085,37 @@ function renderFatigueHero(){
   sv('fat-cv',f.autonomic+'%');sv('fat-nm',f.mechanical+'%');sv('fat-sy',f.systemic+'%');
   const hero=safeDOM('feHero'),orb=safeDOM('feOrb'),title=safeDOM('feTitle'),msg=safeDOM('feMsg'),status=safeDOM('feStatus');
   if(!hero)return;
-  const topRec=r?.actions[0];
+  // SPRINT 2 (2026-07-20) — "director de orquesta único": esta tarjeta generaba su PROPIO
+  // veredicto (título imperativo + topRec?.action de las RULES viejas), compitiendo con
+  // S._decision de arriba — el bug de fondo que Carlos señaló ("varios jefes, ninguno manda").
+  // Ahora solo DESCRIBE el nivel de carga sistémica (dato factual), nunca recomienda, y remite
+  // explícitamente a la decisión de arriba. Los porcentajes/barras siguen siendo reales y útiles
+  // como evidencia — solo se quitó la capa de "consejo" duplicada.
   if(f.signals.knee?.warn){
     hero.className='fe-hero bad';orb.textContent='⚠️';
-    title.textContent='Protocolo rodilla activo';
-    status.textContent='DOLOR >3/10';
-    msg.textContent='Pre-activación obligatoria. Para cualquier ejercicio >3/10.';
+    title.textContent='Rodilla con dolor activo (>3/10)';
+    status.textContent='SEÑAL DE SEGURIDAD';
+    msg.textContent='Ver protocolo en la recomendación principal, arriba ↑';
   } else if(f.systemic<25){
     hero.className='fe-hero ok';orb.textContent='✓';
-    title.textContent='Disposición favorable';
+    title.textContent='Carga sistémica baja';
     status.textContent='CARGA SISTÉMICA '+f.systemic+'%';
-    msg.textContent=topRec?.action||'Señales favorables. Plan completo tolerable.';
+    msg.textContent='Descriptivo, no es la decisión — esa está arriba ↑';
   } else if(f.systemic<50){
     hero.className='fe-hero warn';orb.textContent='!';
-    title.textContent='Acumulación moderada';
+    title.textContent='Carga sistémica: acumulación moderada';
     status.textContent='CARGA SISTÉMICA '+f.systemic+'%';
-    msg.textContent=topRec?.action||'Reduce volumen 20-30%. Monitorea sensaciones.';
+    msg.textContent='Descriptivo, no es la decisión — esa está arriba ↑';
   } else if(f.systemic<70){
     hero.className='fe-hero warn';orb.textContent='!';
-    title.textContent='Fatiga elevada';
+    title.textContent='Carga sistémica: fatiga elevada';
     status.textContent='CARGA SISTÉMICA '+f.systemic+'%';
-    msg.textContent=topRec?.action||'Reduce volumen 35-50%. Evita fallo muscular.';
+    msg.textContent='Descriptivo, no es la decisión — esa está arriba ↑';
   } else{
     hero.className='fe-hero bad';orb.textContent='✕';
-    title.textContent='Carga alta — recuperación prioritaria';
+    title.textContent='Carga sistémica alta';
     status.textContent='CARGA SISTÉMICA '+f.systemic+'%';
-    msg.textContent=topRec?.action||'Descanso activo o Z1 ≤30min. Sin fuerza.';
+    msg.textContent='Descriptivo, no es la decisión — esa está arriba ↑';
   }
 }
 
