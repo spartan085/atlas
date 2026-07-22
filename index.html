@@ -4974,11 +4974,32 @@ function renderCombinedStateSummary(){
     mainRec='✅ Cardio ya hecho hoy ('+(today.cardioSessName||'')+'). '+(wb&&wb.nextSession?'Fuerza pendiente: '+wb.nextSession[0]+' — '+(ts.strengthLevel==='alta'?'pero fuerza está cargada, mejor mañana.':'y tus sistemas están '+ts.strengthLevel+', se puede.'):'Sin sesión de fuerza pendiente detectada.');
   } else if(wb&&wb.nextSession){
     var sessLabel=wb.nextSession[0]+' — '+wb.nextSession[2].split('+')[0].trim();
-    if(ts.strengthLevel==='alta'){
-      mainRec='🥈 Toca '+sessLabel+' según el plan, pero tu fuerza residual está alta. Si puedes, dale un día más.';
-      altRec=(wb.pendingCardio&&wb.pendingCardio.length&&ts.cardioLevel!=='alta')?'🥇 Mejor hoy: cardio ('+wb.pendingCardio[0][0]+' pendiente) — tus sistemas de fuerza necesitan más recuperación.':'';
+    // FIX 2026-07-20: usaba ts.strengthLevel (residual de TODO el cuerpo) para decidir sobre una
+    // sesión que puede ser solo torso o solo pierna — mezclaba fatiga irrelevante (ej. piernas
+    // cargadas afectando la decisión sobre un Upper B). El Hero de arriba ya usa el dato correcto
+    // por región (fatigue.upperScore/lowerScore, 0-100, mismo cálculo, misma fuente). Ahora esta
+    // tarjeta lee EXACTAMENTE la misma señal para la sesión específica que toca — elimina la
+    // contradicción de raíz, no solo el texto.
+    var sessIsUpper=/upper/i.test(wb.nextSession[2]);
+    var sessIsLower=/lower/i.test(wb.nextSession[2]);
+    var regionScore=sessIsUpper?f.upperScore:sessIsLower?f.lowerScore:null;
+    var regionLabel=sessIsUpper?'tren superior (torso)':sessIsLower?'tren inferior (pierna)':null;
+    if(regionScore!=null){
+      var regionBand=regionScore>=70?'fresco':regionScore>=45?'moderado':'cargado';
+      if(regionBand==='cargado'){
+        mainRec='🥈 Toca '+sessLabel+' según el plan, pero tu '+regionLabel+' está cargado ('+regionScore+'/100). Si puedes, dale un día más.';
+        altRec=(wb.pendingCardio&&wb.pendingCardio.length&&ts.cardioLevel!=='alta')?'🥇 Mejor hoy: cardio ('+wb.pendingCardio[0][0]+' pendiente) — tu '+regionLabel+' necesita más recuperación.':'';
+      } else {
+        mainRec='🥇 Haz '+sessLabel+' — es lo siguiente pendiente del plan y tu '+regionLabel+' está '+regionBand+' ('+regionScore+'/100). '+(ts.strengthLevel==='alta'?'(El residual de fuerza total es alto, pero eso incluye la otra mitad del cuerpo — no aplica a esta sesión de '+(sessIsUpper?'torso':'pierna')+'.)':'');
+      }
     } else {
-      mainRec='🥇 Haz '+sessLabel+' — es lo siguiente pendiente del plan y tu fuerza está '+ts.strengthLevel+'.';
+      // fallback si no se puede identificar torso/pierna en la etiqueta del día
+      if(ts.strengthLevel==='alta'){
+        mainRec='🥈 Toca '+sessLabel+' según el plan, pero tu fuerza residual está alta. Si puedes, dale un día más.';
+        altRec=(wb.pendingCardio&&wb.pendingCardio.length&&ts.cardioLevel!=='alta')?'🥇 Mejor hoy: cardio ('+wb.pendingCardio[0][0]+' pendiente) — tus sistemas de fuerza necesitan más recuperación.':'';
+      } else {
+        mainRec='🥇 Haz '+sessLabel+' — es lo siguiente pendiente del plan y tu fuerza está '+ts.strengthLevel+'.';
+      }
     }
   } else if(wb&&wb.pendingCardio&&wb.pendingCardio.length){
     mainRec='🥇 Fuerza de la semana completa — toca cardio ('+wb.pendingCardio[0][0]+' pendiente).';
