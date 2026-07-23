@@ -195,6 +195,9 @@ textarea.field{resize:vertical;min-height:60px;}
   </div>
 
   <button onclick="toggleHoyDetail()" id="hoyDetailToggle" style="display:block;width:calc(100% - 36px);margin:8px 18px 0;padding:8px;background:none;border:1px dashed var(--line);border-radius:10px;color:var(--fg3);font-size:11px;cursor:pointer;">▾ Ver por qué (datos, señales, desglose)</button>
+  <!-- 2026-07-20: desplegable de gráficos de fatiga (general/torso/pierna/cardio) pedido por Carlos -->
+  <button onclick="toggleFatigueCharts()" id="fatigueChartsToggle" style="display:block;width:calc(100% - 36px);margin:6px 18px 0;padding:8px;background:none;border:1px dashed var(--line);border-radius:10px;color:var(--fg3);font-size:11px;cursor:pointer;">▾ Ver gráficos de fatiga (general · torso · pierna · cardio)</button>
+  <div id="fatigueChartsWrap" style="display:none;margin:8px 18px 0;"></div>
 
   <div id="hoyDetailWrap" style="display:none;">
   <div class="rsys-grid">
@@ -904,6 +907,7 @@ function save(){
     volWindow:S.volWindow,
     residualHL:S.residualHL, // 6.4.1: vidas media configurables (hipótesis)
     streamsCache:prunedStreamsCache, // 2026-07-16: caché permanente de streams bajo demanda
+    _fatigueHistory:safeArr(S._fatigueHistory).slice(-90), // 2026-07-20: snapshot diario para gráficos de fatiga
     logWeekOffset:S.logWeekOffset,
     hevy:S.hevy?{key:S.hevy.key,totalWorkouts:S.hevy.totalWorkouts,workouts:S.hevy.workouts}:null,
     currentMeso:S.currentMeso||1,
@@ -947,6 +951,7 @@ function loadPersisted(){
         if(_hc>=6&&_hc<=168)S.residualHL.cardio=_hc;
       }
       if(p.streamsCache&&typeof p.streamsCache==='object')S.streamsCache=p.streamsCache; // 2026-07-16
+      if(Array.isArray(p._fatigueHistory))S._fatigueHistory=p._fatigueHistory; // 2026-07-20
       if(p.logWeekOffset!=null)S.logWeekOffset=p.logWeekOffset;
       if(p.hevy)S.hevy=p.hevy;
       if(p.currentMeso)S.currentMeso=p.currentMeso;
@@ -5014,6 +5019,58 @@ function renderCombinedStateSummary(){
   html+='</div></div>';
   el.innerHTML=html; el.style.display='block';
 }
+function toggleFatigueCharts(){
+  var w=safeDOM('fatigueChartsWrap'), btn=safeDOM('fatigueChartsToggle'); if(!w||!btn)return;
+  var show=w.style.display==='none';
+  w.style.display=show?'block':'none';
+  btn.textContent=show?'▴ Ocultar gráficos de fatiga':'▾ Ver gráficos de fatiga (general · torso · pierna · cardio)';
+  if(show)renderFatigueCharts();
+}
+// 2026-07-20 — pedido explícito: desplegable con fatiga general/torso/pierna/cardio.
+// HONESTO: no había snapshots diarios guardados de fatiga antes de hoy, así que un "histórico"
+// de antes sería inventado. Lo que SÍ hago: (1) mostrar el desglose de AHORA MISMO con barras
+// reales (mismos números que ya usa el resto de la app, no recalculados), y (2) empezar a
+// guardar un snapshot diario desde hoy (S._fatigueHistory) para que dentro de unas semanas esto
+// sí sea un gráfico de tendencia real — no antes.
+function saveDailyFatigueSnapshot(){
+  var f=S._fatigue; if(!f)return;
+  var today=new Date().toISOString().split('T')[0];
+  var hist=safeArr(S._fatigueHistory);
+  var existing=hist.find(function(h){return h.date===today;});
+  var snap={date:today,autonomic:f.autonomic,mechanical:f.mechanical,systemic:f.systemic,
+    upperScore:f.upperScore,lowerScore:f.lowerScore,
+    cardioResidual:f.trainingState?f.trainingState.cardioResidual:null,
+    strengthResidual:f.trainingState?Math.round(f.trainingState.strengthResidual):null};
+  if(existing){Object.assign(existing,snap);} else {hist.push(snap);}
+  S._fatigueHistory=hist.filter(function(h){return (Date.now()-new Date(h.date).getTime())<=90*86400000;}).sort(function(a,b){return a.date.localeCompare(b.date);});
+  save();
+}
+function renderFatigueCharts(){
+  var el=safeDOM('fatigueChartsWrap'); if(!el)return;
+  var f=S._fatigue;
+  if(!f){el.innerHTML='<div style="font-size:12px;color:var(--fg3);">Sincroniza para calcular.</div>';return;}
+  var hist=safeArr(S._fatigueHistory);
+  var html='';
+  function chartCard(label,emoji,valueNow,unit,histKey,color,higherIsBetter){
+    var h='<div class="card" style="margin-bottom:10px;"><div class="card-hdr"><span class="t-md">'+emoji+' '+label+'</span><span class="mono" style="font-size:12px;color:'+color+';">'+valueNow+unit+'</span></div><div class="card-body">';
+    if(hist.length>=3){
+      var series=hist.map(function(x){return x[histKey];}).filter(function(v){return v!=null;});
+      h+=miniBars(series,{color:color});
+      h+='<div style="font-size:9px;color:var(--fg4);margin-top:4px;">Últimos '+series.length+' días con snapshot guardado.</div>';
+    } else {
+      h+='<div style="font-size:10px;color:var(--fg4);">Histórico insuficiente todavía ('+hist.length+' día'+(hist.length===1?'':'s')+') — Atlas empezó a guardar esto hoy. Vuelve en unos días para ver la tendencia real.</div>';
+    }
+    h+='</div></div>';
+    return h;
+  }
+  html+=chartCard('Fuerza general','💪',Math.round(f.mechanical),'% fatiga','mechanical','var(--o)');
+  html+=chartCard('Torso','🫁',f.upperScore,'/100','upperScore','var(--c)');
+  html+=chartCard('Pierna','🦵',f.lowerScore,'/100','lowerScore','var(--g)');
+  var cardioRes=f.trainingState?f.trainingState.cardioResidual:null;
+  html+=chartCard('Cardio residual','🫀',cardioRes!=null?cardioRes:'—',' UA','cardioResidual','var(--b)');
+  el.innerHTML=html;
+  saveDailyFatigueSnapshot();
+}
 function toggleHoyDetail(){
   var w=safeDOM('hoyDetailWrap'), btn=safeDOM('hoyDetailToggle'); if(!w||!btn)return;
   var show=w.style.display==='none';
@@ -6669,8 +6726,12 @@ function DecisionEngine(fatigue, hrv, muscleFatigue, interference, metrics, prog
   // ── Status items ──
   var items = [];
 
+  // FIX 2026-07-20: umbrales YA NO asimétricos. Antes torso pedía score>=75 y pierna >=70 para
+  // el verde — dos números casi idénticos (74 vs 71) caían en categorías opuestas por un corte
+  // arbitrario distinto entre ambos, no por una diferencia real de recuperación. Unificado a
+  // >=70 para ambos, con el mismo criterio de fatiga muscular local (<35%) en los dos casos.
   // Upper body
-  if (upperScore >= 75 && avgUpper < 35) {
+  if (upperScore >= 70 && avgUpper < 35) {
     items.push({icon:'✓', col:'var(--g)', text:'Tren superior fresco — buen día para empuje o tirón'});
   } else if (upperScore < 45 || avgUpper > 55) {
     items.push({icon:'⚠', col:'var(--r)', text:'Tren superior fatigado ('+avgUpper+'%) — reduce volumen o descansa'});
@@ -6680,11 +6741,11 @@ function DecisionEngine(fatigue, hrv, muscleFatigue, interference, metrics, prog
 
   // Lower body
   if (lowerScore >= 70 && avgLower < 35) {
-    items.push({icon:'✓', col:'var(--g)', text:'Tren inferior tolerable — pierna viable'});
-  } else if (lowerScore < 40 || avgLower > 55) {
+    items.push({icon:'✓', col:'var(--g)', text:'Tren inferior fresco — pierna viable'});
+  } else if (lowerScore < 45 || avgLower > 55) {
     items.push({icon:'⚠', col:'var(--r)', text:'Fatiga pierna elevada ('+avgLower+'%) — evitar pierna pesada'});
   } else {
-    items.push({icon:'~', col:'var(--y)', text:'Tren inferior moderado ('+avgLower+'%) — cuidado con densidad'});
+    items.push({icon:'~', col:'var(--y)', text:'Tren inferior tolerable ('+avgLower+'%) — cuidado con densidad'});
   }
 
   // Hinge pattern specific
