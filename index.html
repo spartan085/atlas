@@ -229,6 +229,9 @@ textarea.field{resize:vertical;min-height:60px;}
   <!-- 2026-07-19: resumen de cardio oficial (Intervals/Garmin) en HOY — antes solo vivía en
        Endurance; Carlos señaló que HOY/FATIGA no usaban nada de esto para la decisión del día. -->
   <div id="cardioTodaySummary" style="display:none;margin:8px 18px 0;"></div>
+  <!-- 2026-07-20 (P2): Estado de la semana — objetivos + prioridad, usando getWeeklyBalance() ya
+       existente y verificado. Nada de cálculo nuevo, solo visibilidad de datos que ya se computaban. -->
+  <div id="weekStateSummary" style="display:none;margin:8px 18px 0;"></div>
   <div class="pad" style="padding-top:4px;padding-bottom:0;">
     <!-- Recomendaciones detalladas — movidas aquí dentro del desplegable: eran redundantes con
          el resumen de arriba, decían lo mismo tres veces con distinto formato (feedback UX). -->
@@ -5084,7 +5087,52 @@ function toggleHoyDetail(){
 // 'contradictory' se leía antes de calcularse (hoisting) y el override de seguridad de rodilla
 // comparaba contra un texto que aún no existía en ese punto — ver comentarios FIX en DecisionEngine.
 
-// Resumen de cardio oficial en HOY — 2026-07-19. Combina PaHr/GAP/Training Load (Garmin/Intervals)
+// P2 (2026-07-20) — Estado de la semana. Reutiliza getWeeklyBalance() íntegro, ya verificado en
+// "Compatibilidad" — no recalcula nada, solo lo organiza como objetivos + prioridad ordenada.
+function renderWeekState(){
+  var el=safeDOM('weekStateSummary'); if(!el)return;
+  var wb=typeof getWeeklyBalance==='function'?getWeeklyBalance():null;
+  if(!wb){el.style.display='none';return;}
+
+  var html='<div class="card"><div class="card-hdr"><span class="t-md">Estado de la semana</span><span class="mono" style="font-size:10px;color:var(--fg3);">'+wb.weekScore+'% completada</span></div><div class="card-body">';
+
+  // ── Objetivos: checklist simple, fuerza y cardio ──
+  html+='<div style="font-family:\'Geist Mono\',monospace;font-size:9px;color:var(--fg3);letter-spacing:1.5px;margin-bottom:5px;">OBJETIVOS</div>';
+  html+='<div style="font-size:12px;color:'+(wb.strengthDone>=wb.strengthTotal?'var(--g)':'var(--fg2)')+';">'+(wb.strengthDone>=wb.strengthTotal?'✅':'⬜')+' Fuerza '+wb.strengthDone+'/'+wb.strengthTotal+'</div>';
+  html+='<div style="font-size:12px;color:'+(wb.cardioDone>=wb.cardioTotal?'var(--g)':'var(--fg2)')+';margin-top:2px;">'+(wb.cardioDone>=wb.cardioTotal?'✅':'⬜')+' Cardio '+wb.cardioDone+'/'+wb.cardioTotal+'</div>';
+  if(wb.bonusCount>0){
+    html+='<div style="font-size:11px;color:var(--fg3);margin-top:2px;">+ '+wb.bonusCount+' sesión'+(wb.bonusCount===1?'':'es')+' extra registrada'+(wb.bonusCount===1?'':'s')+' (bonus, fuera del plan)</div>';
+  }
+
+  // ── Prioridad: fuerza pendiente > cardio pendiente > músculos más atrasados del MAV (bonus) ──
+  var priorities=[];
+  wb.remainingSessions.forEach(function(d){priorities.push({label:d[0]+' — '+d[2].split('+')[0].trim(),kind:'fuerza'});});
+  wb.pendingCardio.forEach(function(d){priorities.push({label:d[0]+' — cardio',kind:'cardio'});});
+  if(wb.furthest&&wb.furthest.length){
+    wb.furthest.slice(0,2).forEach(function(m){
+      if(m.opp===0)priorities.push({label:m.muscle+' (bonus — sin sesión planificada que lo cubra, déficit '+m.deficit+' series)',kind:'bonus'});
+    });
+  }
+  if(priorities.length){
+    html+='<div style="font-family:\'Geist Mono\',monospace;font-size:9px;color:var(--fg3);letter-spacing:1.5px;margin-top:10px;margin-bottom:5px;">PRIORIDAD</div>';
+    var medals=['🥇','🥈','🥉'];
+    priorities.slice(0,5).forEach(function(p,i){
+      var num=i<3?medals[i]:(i+1)+'️⃣';
+      html+='<div style="font-size:12px;color:var(--fg2);padding:2px 0;">'+num+' '+p.label+'</div>';
+    });
+  } else {
+    html+='<div style="margin-top:10px;font-size:12px;color:var(--g);">✅ Semana completa — fuerza y cardio al día.</div>';
+  }
+
+  if(wb.skippedSessions&&wb.skippedSessions.length&&wb.remainingSessions.length===0){
+    // caso raro: sesiones "saltadas" que ya no cuentan como pendientes (semana cerrada) — informativo, no acusatorio
+    html+='<div style="font-size:9px;color:var(--fg4);margin-top:8px;">Nota: '+wb.skippedSessions.join(', ')+' no se completó esta semana.</div>';
+  }
+
+  html+='</div></div>';
+  el.innerHTML=html; el.style.display='block';
+}
+// Combina PaHr/GAP/Training Load (Garmin/Intervals)
 // con carga cardio residual y FC nocturna (Atlas) EN TEXTO, nunca en un número fusionado — mismo
 // criterio ya aplicado a TSB: cada señal se nombra, ninguna sustituye a las demás.
 function renderCardioTodaySummary(){
@@ -5260,7 +5308,7 @@ async function fetchIntervals(){
     runEngines();renderHRV();renderActivities();renderWeekZones();
     // FIX 2026-07-20: mismo bug — tras terminar la sync, la recomendación de HOY se quedaba con
     // datos viejos (o el placeholder "Calculando…") hasta que el usuario cambiaba de pestaña.
-    safe(renderTodaySummary,'rts1');safe(renderCombinedStateSummary,'rcss1');safe(renderCardioTodaySummary,'rcts1');
+    safe(renderTodaySummary,'rts1');safe(renderCombinedStateSummary,'rcss1');safe(renderCardioTodaySummary,'rcts1');safe(renderWeekState,'rwst1');
     toast('Intervals sincronizado',[S.metrics.hrv?`HRV ${S.metrics.hrv}ms`:'',S._hrv?.baseline28?`base28 ${Math.round(S._hrv.baseline28)}ms`:'',S.metrics.ctl?`CTL ${Math.round(S.metrics.ctl)}`:'',S.metrics.weight?`${S.metrics.weight}kg`:'',S.metrics.protein?`Prot ${Math.round(S.metrics.protein)}g`:''].filter(Boolean).join(' · ')||'OK','✅');
   }catch(err){setIntStatus('error');toast('Error Intervals',err.message,'❌');console.error(err);}
 }
@@ -7902,7 +7950,7 @@ function showS(id){
   var btn=safeDOM(map[id]);if(btn)btn.classList.add('active');
   window.scrollTo(0,0);try{document.querySelector(".main").scrollTop=0;document.documentElement.scrollTop=0;document.body.scrollTop=0;}catch(e){}
   if(id==='s-mav'){safe(renderWeekZones,'rz');safe(renderMAV,'rm');safe(renderProgressionPanel,'rp');safe(renderE1RMPanel,'re');safe(renderEffectiveSets,'ref');safe(renderMovementPatterns,'rmp');}
-  if(id==='s-hoy'){safe(loadEstado,'le');safe(wireEstadoAutosave,'we');safe(checkBackupReminder,'cbr');safe(renderWeekSummary,'rws');safe(renderKneePrompt,'rkp');safe(renderTodaySummary,'rts');safe(renderCombinedStateSummary,'rcss');safe(renderCardioTodaySummary,'rcts');}
+  if(id==='s-hoy'){safe(loadEstado,'le');safe(wireEstadoAutosave,'we');safe(checkBackupReminder,'cbr');safe(renderWeekSummary,'rws');safe(renderKneePrompt,'rkp');safe(renderTodaySummary,'rts');safe(renderCombinedStateSummary,'rcss');safe(renderCardioTodaySummary,'rcts');safe(renderWeekState,'rwst');}
   if(id==='s-log'){safe(renderLog,'rl');safe(populateLogSessions,'pls');}
   if(id==='s-fatiga'){safe(renderFatigueSignals,'rs');safe(renderMuscleFatigue,'rmf');safe(renderInterferencePanel,'ri');safe(renderDensityPanel,'rd');safe(renderConfidencePanel,'rc');safe(renderValidationPanel,'rv');safe(populateResidualHL,'phl');}
   if(id==='s-datos'){safe(renderValidationDashboard,'rvd');}if(id==='s-plan'){safe(function(){selectMeso(S.currentMeso||1);},'meso');}
@@ -7930,7 +7978,7 @@ function init(){
   // que nunca pasa por showS('s-hoy') al cargar la app (ese es el único sitio donde estas tres
   // funciones estaban conectadas). Resultado: "Calculando…" se quedaba fijo hasta que el usuario
   // cambiaba de pestaña y volvía — no era lentitud, era que nunca se disparaban solas.
-  safe(renderTodaySummary,'rts0');safe(renderCombinedStateSummary,'rcss0');safe(renderCardioTodaySummary,'rcts0');
+  safe(renderTodaySummary,'rts0');safe(renderCombinedStateSummary,'rcss0');safe(renderCardioTodaySummary,'rcts0');safe(renderWeekState,'rwst0');
   // Auto-sync if keys saved — restore session without re-entering keys
   if(S.int.aid&&S.int.key){setTimeout(()=>fetchIntervals(),800);}
   if(S.hevy?.key){setTimeout(()=>fetchHevy(),1200);}
