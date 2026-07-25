@@ -1171,7 +1171,7 @@ function HRVEngine(history){
   const signals=[];
   signals.push({key:'hrv_vs_base',label:`HRV ${current}ms (${pctVsBase>=0?'+':''}${pctVsBase}% vs base ${Math.round(baseline28)}ms)`,ok:pctVsBase>-5,warn:pctVsBase<-10});
   if(rhrDelta!=null)signals.push({key:'rhr_delta',label:`FC reposo delta ${rhrDelta>0?'+':''}${rhrDelta}ppm vs media 7d`,ok:rhrDelta<=2,warn:rhrDelta>4});
-  if(coupling!=='uncoupled')signals.push({key:'coupling',label:coupling==='suppressed_strong'?'⚠ HRV↓ + FCr↑ señal doble supresión':'✓ HRV↑ + FCr↓ señal doble recuperación',ok:coupling==='recovered_strong',warn:coupling==='suppressed_strong'});
+  if(coupling!=='uncoupled')signals.push({key:'coupling',label:coupling==='suppressed_strong'?'⚠ HRV↓ + FC reposo↑ — sistema nervioso sin recuperar (doble señal)':'✓ HRV↑ + FC reposo↓ — buena recuperación (doble señal)',ok:coupling==='recovered_strong',warn:coupling==='suppressed_strong'});
   if(trendSlope!==0)signals.push({key:'trend3d',label:`Tendencia 3d: ${trendSlope>0?'↑':' ↓'} ${Math.abs(Math.round(trendSlope))}ms`,ok:trendSlope>0,warn:trendSlope<-3});
   if(sleepDebt&&sleepDebt>0)signals.push({key:'sleep_debt',label:`Deuda sueño acumulada: ${sleepDebt}h (últimas 5 noches)`,ok:sleepDebt<1,warn:sleepDebt>3});
   const drivers=signals.filter(s=>s.warn).map(s=>s.key);
@@ -1195,7 +1195,7 @@ function FatigueEngine(metrics,logs,hevyRecent,domsUpper,domsLower,knee){
     else if(p<-8)autonomic+=20;
     else if(p>8)autonomic-=10;
     signals.hrv={label:hrv.signals[0]?.label||`HRV ${metrics.hrv}ms`,ok:p>-5,warn:p<-10};
-    if(hrv.coupling==='suppressed_strong'){autonomic+=15;drivers.push('hrv_rhr_coupling');signals.coupling={label:'HRV↓+FCr↑ doble supresión',ok:false,warn:true};}
+    if(hrv.coupling==='suppressed_strong'){autonomic+=15;drivers.push('hrv_rhr_coupling');signals.coupling={label:'HRV↓+FC reposo↑ — sistema nervioso sin recuperar',ok:false,warn:true};}
   }
   const sl=metrics.sleep?safeNum(metrics.sleep):null;
   if(sl){const sf=sl>=7.5?0:sl>=7?10:sl>=6?25:sl>=5?45:65;autonomic+=sf;if(sl<6)drivers.push('low_sleep');signals.sleep={label:`Sueño ${sl}h`,ok:sl>=7,warn:sl<5.5};}
@@ -1375,10 +1375,10 @@ function FatigueEngine(metrics,logs,hevyRecent,domsUpper,domsLower,knee){
   const _rank={baja:1,moderada:2,alta:3};
   const globalLevel=Object.keys(_rank).find(k=>_rank[k]===Math.max(_rank[strengthLevel],_rank[cardioLevel]));
   let _stateRec;
-  if(strengthLevel==='alta'&&cardioLevel!=='alta') _stateRec='Fuerza residual alta, cardio bajo — hoy es mejor día para trabajo aeróbico que para otra sesión dura de fuerza. Evita repetir piernas o empuje/tirón pesado.';
-  else if(cardioLevel==='alta'&&strengthLevel!=='alta') _stateRec='Cardio acumulado, fuerza fresca — bien para técnica o fuerza moderada; evita intervalos o tirada larga hoy.';
+  if(strengthLevel==='alta'&&cardioLevel!=='alta') _stateRec='Todavía no te has recuperado del todo de fuerza, pero el cardio va bien — hoy es mejor día para trabajo aeróbico que para otra sesión dura de fuerza. Evita repetir piernas o empuje/tirón pesado.';
+  else if(cardioLevel==='alta'&&strengthLevel!=='alta') _stateRec='Llevas carga de cardio acumulada, pero la fuerza está fresca — bien para técnica o fuerza moderada; evita intervalos o tirada larga hoy.';
   else if(strengthLevel==='alta'&&cardioLevel==='alta') _stateRec='Fuerza y cardio cargados a la vez — mejor sesión ligera o descanso hoy que forzar cualquiera de las dos.';
-  else if(globalLevel==='moderada') _stateRec='Carga moderada en general — sigue el plan previsto y ajusta sobre la marcha si aparece dolor o molestia.';
+  else if(globalLevel==='moderada') _stateRec='Esfuerzo acumulado moderado en general — sigue el plan previsto y ajusta sobre la marcha si aparece dolor o molestia.';
   else _stateRec='Recuperado en fuerza y cardio — buen día para buscar calidad, no solo cumplir el plan.';
   const trainingState={strengthResidual,cardioResidual,strengthLevel,cardioLevel,globalLevel,recommendation:_stateRec};
 
@@ -1983,9 +1983,9 @@ function DensityEngine(hevyRecent){
       densityLevel,
       metabolicStress,
       densityFatigueMult,
-      note: setsPerMin > 0.3 ? `Densidad alta (${setsPerMin}s/min) — posible mayor coste metabólico` :
-            setsPerMin < 0.15 ? `Baja densidad (${setsPerMin}s/min) — orientado a fuerza` :
-            `Densidad moderada (${setsPerMin}s/min)`
+      note: setsPerMin > 0.3 ? `Concentraste mucho trabajo en poco tiempo (densidad alta, ${setsPerMin}s/min) — puede costarte más recuperar` :
+            setsPerMin < 0.15 ? `Ritmo pausado entre series (densidad baja, ${setsPerMin}s/min) — orientado a fuerza` :
+            `Ritmo intermedio entre series (densidad moderada, ${setsPerMin}s/min)`
     });
   });
   return results;
@@ -2898,19 +2898,19 @@ const SIGNAL_HIERARCHY = {
 // ══ RECOMMENDATION ENGINE ══
 const RULES=[
   {id:'knee_pain_high',priority:10,domain:'fuerza',cond:(f,i)=>f.signals.knee?.warn,action:'🦵 Rodilla activa — pre-activación obligatoria hoy.',detail:'Protocolo rodilla activo. Pre-activación obligatoria antes de cualquier ejercicio de pierna. Para cualquier serie con dolor >3/10.',conf:1.0},
-  {id:'severe_fatigue',priority:9,domain:'general',cond:(f,i)=>f.systemic>70,action:'🔴 Descansa hoy — fatiga sistémica alta.',detail:'Hoy: descanso, o si tocaba cardio, Z1 máx 30min y nada de fuerza.',conf:0.9},
-  {id:'high_interference',priority:8,domain:'cardio',cond:(f,i)=>i.blockLower,action:'⚠ Pierna a mañana — alta interferencia running.',detail:'Si hoy tocaba fuerza de pierna, pásala a mañana; el cardio de hoy no se toca.',conf:0.85},
-  {id:'hrv_suppressed',priority:7,domain:'general',cond:(f,i)=>S._hrv?.state==='suppressed'&&S._hrvStab?.confirmed,action:'📉 HRV suprimida — reduce accesorios, no principales.',detail:'Confirmada con 2+ señales. En fuerza: quita 1-2 series de los ejercicios accesorios, mantén los principales. En cardio: baja de zona objetivo, no de minutos.',conf:0.85},
-  {id:'hrv_rhr_coupling',priority:7,domain:'general',cond:(f,i)=>S._hrv?.coupling==='suppressed_strong',action:'⚠ Doble señal autonómica — trata como HRV suprimida.',detail:'HRV↓+FCr↑ simultáneos — señal doble de supresión autonómica. Trata la sesión de hoy (fuerza o cardio) como si HRV estuviera suprimida.',conf:0.9},
-  {id:'high_doms_lower',priority:6,domain:'fuerza',cond:(f,i)=>f.drivers.includes('high_doms_lower'),action:'🦵 Quita la última serie de pierna — DOMS alto.',detail:'Si hoy toca fuerza inferior: quita la última serie de cada ejercicio (~20-25% menos volumen) y no llegues al fallo en cuádriceps.',conf:0.8},
-  {id:'low_sleep',priority:6,domain:'general',cond:(f,i)=>f.drivers.includes('low_sleep'),action:'😴 Deja 1-2 RIR más de margen — sueño insuficiente.',detail:'En fuerza: para 1-2 RIR más lejos del fallo de lo planeado. En cardio: mantén los minutos, no subas de zona.',conf:0.85},
+  {id:'severe_fatigue',priority:9,domain:'general',cond:(f,i)=>f.systemic>70,action:'🔴 Descansa hoy — el cuerpo aún acusa el esfuerzo acumulado (fatiga sistémica alta).',detail:'Hoy: descanso, o si tocaba cardio, Z1 máx 30min y nada de fuerza.',conf:0.9},
+  {id:'high_interference',priority:8,domain:'cardio',cond:(f,i)=>i.blockLower,action:'⚠ Pierna a mañana — correr está afectando tu recuperación de piernas (interferencia alta).',detail:'Si hoy tocaba fuerza de pierna, pásala a mañana; el cardio de hoy no se toca.',conf:0.85},
+  {id:'hrv_suppressed',priority:7,domain:'general',cond:(f,i)=>S._hrv?.state==='suppressed'&&S._hrvStab?.confirmed,action:'📉 Tu sistema nervioso aún no se ha recuperado del todo (HRV suprimida) — reduce accesorios, no principales.',detail:'Confirmada con 2+ señales. En fuerza: quita 1-2 series de los ejercicios accesorios, mantén los principales. En cardio: baja de zona objetivo, no de minutos.',conf:0.85},
+  {id:'hrv_rhr_coupling',priority:7,domain:'general',cond:(f,i)=>S._hrv?.coupling==='suppressed_strong',action:'⚠ Dos señales de recuperación autonómica reducida a la vez — trátalo como si el sistema nervioso no se hubiera recuperado (HRV suprimida).',detail:'HRV↓+FCr↑ simultáneos — señal doble de supresión autonómica. Trata la sesión de hoy (fuerza o cardio) como si HRV estuviera suprimida.',conf:0.9},
+  {id:'high_doms_lower',priority:6,domain:'fuerza',cond:(f,i)=>f.drivers.includes('high_doms_lower'),action:'🦵 Quita la última serie de pierna — todavía tienes agujetas notables (DOMS alto).',detail:'Si hoy toca fuerza inferior: quita la última serie de cada ejercicio (~20-25% menos volumen) y no llegues al fallo en cuádriceps.',conf:0.8},
+  {id:'low_sleep',priority:6,domain:'general',cond:(f,i)=>f.drivers.includes('low_sleep'),action:'😴 Deja 1-2 RIR más de margen — has dormido poco.',detail:'En fuerza: para 1-2 RIR más lejos del fallo de lo planeado. En cardio: mantén los minutos, no subas de zona.',conf:0.85},
   // FIX 2026-07-18: TSB negativo por sí solo NO debe disparar "reduce carga". Es el estado normal
   // de un bloque de entrenamiento continuo — CTL/ATL lo reflejan, no es una señal de alarma aislada.
   // Ahora se combina con HRV/sueño/Body Battery/fatiga local de pierna: si TSB está bajo pero la
   // recuperación autonómica y local son buenas, la recomendación es la contraria (mantener el plan).
-  {id:'neg_tsb_corroborated',priority:5,domain:'cardio',cond:(f,i)=>f.drivers.includes('negative_tsb')&&((f.signals.hrv&&f.signals.hrv.warn)||(f.signals.sleep&&f.signals.sleep.warn)||(f.signals.bb&&f.signals.bb.warn)||(f.lowerScore!=null&&f.lowerScore<50)),action:'📊 Mejor Z1 corto que Z2 largo — TSB bajo + otra señal floja.',detail:'TSB negativo Y al menos otra señal de recuperación floja (HRV/sueño/Body Battery/piernas). Si tienes Z2 pendiente, hazlo pero no añadas minutos extra; mejor Z1 corto que Z2 largo esta semana.',conf:0.8},
-  {id:'neg_tsb_isolated',priority:2,domain:'cardio',cond:(f,i)=>f.drivers.includes('negative_tsb')&&!((f.signals.hrv&&f.signals.hrv.warn)||(f.signals.sleep&&f.signals.sleep.warn)||(f.signals.bb&&f.signals.bb.warn)||(f.lowerScore!=null&&f.lowerScore<50)),action:'✅ Puedes hacer el Z2 previsto — TSB bajo pero recuperación bien.',detail:'HRV/sueño/Body Battery/piernas están bien — estado normal de bloque de entrenamiento continuo, no una señal de alarma por sí sola. Solo evita añadir volumen o intensidad extra hoy.',conf:0.7},
-  {id:'high_srpe',priority:5,domain:'fuerza',cond:(f,i)=>f.drivers.includes('high_srpe_48h'),action:'💪 Evita otra sesión de la misma zona hoy.',detail:'sRPE 48h elevado por la sesión de fuerza reciente. Si toca, pásala a mañana.',conf:0.8},
+  {id:'neg_tsb_corroborated',priority:5,domain:'cardio',cond:(f,i)=>f.drivers.includes('negative_tsb')&&((f.signals.hrv&&f.signals.hrv.warn)||(f.signals.sleep&&f.signals.sleep.warn)||(f.signals.bb&&f.signals.bb.warn)||(f.lowerScore!=null&&f.lowerScore<50)),action:'📊 Mejor un cardio suave y corto que uno largo — llevas carga acumulada de cardio (TSB bajo) y otra señal floja a la vez.',detail:'TSB negativo Y al menos otra señal de recuperación floja (HRV/sueño/Body Battery/piernas). Si tienes Z2 pendiente, hazlo pero no añadas minutos extra; mejor Z1 corto que Z2 largo esta semana.',conf:0.8},
+  {id:'neg_tsb_isolated',priority:2,domain:'cardio',cond:(f,i)=>f.drivers.includes('negative_tsb')&&!((f.signals.hrv&&f.signals.hrv.warn)||(f.signals.sleep&&f.signals.sleep.warn)||(f.signals.bb&&f.signals.bb.warn)||(f.lowerScore!=null&&f.lowerScore<50)),action:'✅ Puedes hacer el Z2 previsto — llevas carga acumulada de cardio (TSB bajo), pero el resto de tu recuperación está bien.',detail:'HRV/sueño/Body Battery/piernas están bien — estado normal de bloque de entrenamiento continuo, no una señal de alarma por sí sola. Solo evita añadir volumen o intensidad extra hoy.',conf:0.7},
+  {id:'high_srpe',priority:5,domain:'fuerza',cond:(f,i)=>f.drivers.includes('high_srpe_48h'),action:'💪 Evita otra sesión de la misma zona hoy — vienes de un esfuerzo grande hace poco (carga reciente alta).',detail:'sRPE 48h elevado por la sesión de fuerza reciente. Si toca, pásala a mañana.',conf:0.8},
   {id:'hrv_rebound',priority:3,domain:'general',cond:(f,i)=>S._hrv?.state==='rebound'&&f.systemic<30,action:'✅ Margen real para progresar hoy.',detail:'HRV en rebote y fatiga baja. En fuerza: prueba +1 serie o RIR objetivo un punto más cerca del fallo en el ejercicio principal. En cardio: puedes añadir 5-10min a la sesión planeada.',conf:0.75},
   {id:'all_green',priority:1,domain:'general',cond:(f,i)=>f.systemic<30&&!f.drivers.includes('knee_pain')&&!i.blockLower,action:'✅ Ejecuta la sesión planeada tal cual.',detail:'Sin señales de alarma en ningún sistema — no hay motivo para reducir ni razón concreta para forzar progresión hoy.',conf:0.8},
 ];
@@ -3106,23 +3106,23 @@ function renderFatigueHero(){
     msg.textContent='Ver protocolo en la recomendación principal, arriba ↑';
   } else if(f.systemic<25){
     hero.className='fe-hero ok';orb.textContent='✓';
-    title.textContent='Carga sistémica baja';
-    status.textContent='CARGA SISTÉMICA '+f.systemic+'%';
+    title.textContent='Poco esfuerzo acumulado estos días';
+    status.textContent='ESFUERZO ACUMULADO (carga sistémica) '+f.systemic+'%';
     msg.textContent='Descriptivo, no es la decisión — esa está arriba ↑';
   } else if(f.systemic<50){
     hero.className='fe-hero warn';orb.textContent='!';
-    title.textContent='Carga sistémica: acumulación moderada';
-    status.textContent='CARGA SISTÉMICA '+f.systemic+'%';
+    title.textContent='Empieza a notarse el esfuerzo acumulado';
+    status.textContent='ESFUERZO ACUMULADO (carga sistémica) '+f.systemic+'%';
     msg.textContent='Descriptivo, no es la decisión — esa está arriba ↑';
   } else if(f.systemic<70){
     hero.className='fe-hero warn';orb.textContent='!';
-    title.textContent='Carga sistémica: fatiga elevada';
-    status.textContent='CARGA SISTÉMICA '+f.systemic+'%';
+    title.textContent='El cuerpo acusa bastante el esfuerzo de los últimos días';
+    status.textContent='ESFUERZO ACUMULADO (carga sistémica) '+f.systemic+'%';
     msg.textContent='Descriptivo, no es la decisión — esa está arriba ↑';
   } else{
     hero.className='fe-hero bad';orb.textContent='✕';
-    title.textContent='Carga sistémica alta';
-    status.textContent='CARGA SISTÉMICA '+f.systemic+'%';
+    title.textContent='Esfuerzo acumulado alto — necesitas recuperar';
+    status.textContent='ESFUERZO ACUMULADO (carga sistémica) '+f.systemic+'%';
     msg.textContent='Descriptivo, no es la decisión — esa está arriba ↑';
   }
 }
@@ -3141,7 +3141,7 @@ function renderDensityPanel(){
         <span style="font-family:'Geist Mono',monospace;font-size:10px;color:${col};">${d.setsPerMin} s/min · ${d.densityLevel}</span>
       </div>
       <div style="font-size:10px;color:var(--fg3);">${ageH}h · ${d.durMins}min · ${d.totalSets} sets totales</div>
-      ${d.densityLevel==='alta'?`<div style="font-size:10px;color:var(--fg3);margin-top:2px;">Densidad alta · posible mayor coste metabólico</div>`:''}
+      ${d.densityLevel==='alta'?`<div style="font-size:10px;color:var(--fg3);margin-top:2px;">Mucho trabajo concentrado en poco tiempo (densidad alta) — puede costarte más recuperar</div>`:''}
     </div>`;
   }).join('');
 }
@@ -3636,7 +3636,7 @@ function renderRecommendations(){
     // Rule-specific evidence
     if(ruleId==='hrv_suppressed'||ruleId==='hrv_rhr_coupling'){
       if(hrv.pctVsBase<-5) chain.push({text:`HRV ${hrv.current}ms (${hrv.pctVsBase}% bajo baseline ${Math.round(hrv.baseline28||0)}ms)`,level:'warn'});
-      if(hrv.coupling==='suppressed_strong') chain.push({text:'HRV↓ + FCr↑ simultáneos — señal doble supresión',level:'warn'});
+      if(hrv.coupling==='suppressed_strong') chain.push({text:'HRV↓ + FC reposo↑ simultáneos — sistema nervioso sin recuperar',level:'warn'});
       if(hrv.trendSlope<-2) chain.push({text:`Tendencia 3d bajando ${Math.abs(Math.round(hrv.trendSlope))}ms`,level:'warn'});
       if(hrv.sleepDebt>1) chain.push({text:`Deuda sueño ${hrv.sleepDebt}h — modula recuperación HRV`,level:'mid'});
     }
@@ -4424,7 +4424,7 @@ function renderEndurance(){
   html+='</div></div>';
 
   // ── 4. CARGA CARDIO RESIDUAL — bandas categóricas + texto clínico, conectado con Strength ──
-  html+='<div class="card" style="margin-bottom:12px;"><div class="card-hdr"><span class="t-md">Carga cardio residual</span><span class="mono" style="font-size:10px;color:var(--fg3);">decaimiento exponencial</span></div><div class="card-body">';
+  html+='<div class="card" style="margin-bottom:12px;"><div class="card-hdr"><span class="t-md">Cuánto cardio llevas acumulado</span><span class="mono" style="font-size:10px;color:var(--fg3);">carga cardio residual</span></div><div class="card-body">';
   if(fCard&&fCard.cardioResidual!=null){
     var cLvl=fCard.trainingState?fCard.trainingState.cardioLevel:'—';
     var cCol=cLvl==='alta'?'var(--r)':cLvl==='moderada'?'var(--y)':'var(--g)';
@@ -4540,7 +4540,7 @@ function renderEndurance(){
   html+='<div class="card" style="margin-bottom:12px;"><div class="card-hdr"><span class="t-md">Progresión</span></div><div class="card-body" style="font-size:12px;color:var(--fg2);line-height:1.7;">';
   var efsCount=efs.length;
   html+='<div><b style="color:var(--fg);">¿Mejora tu capacidad aeróbica?</b> '+(efsCount>0?'Ver EF arriba — con '+efsCount+' carrera'+(efsCount===1?'':'s')+' con EF calculable, '+(nRuns<6?'aún no hay base suficiente para afirmarlo.':'la tendencia de arriba responde esto directamente.'):'sin suficientes carreras con FC+ritmo para calcular EF todavía.')+'</div>';
-  html+='<div style="margin-top:6px;"><b style="color:var(--fg);">¿Acumulas demasiada fatiga?</b> '+(fCard&&fCard.cardioResidual!=null?'Carga cardio residual = '+fCard.cardioResidual+' UA ('+((fCard.trainingState&&fCard.trainingState.cardioLevel)||'—')+'). '+(fCard.trainingState&&fCard.trainingState.cardioLevel==='alta'?'Sí, por encima de lo habitual.':'No, dentro de rango.'):'Sin calcular todavía.')+'</div>';
+  html+='<div style="margin-top:6px;"><b style="color:var(--fg);">¿Acumulas demasiada fatiga?</b> '+(fCard&&fCard.cardioResidual!=null?'Cardio acumulado (carga residual) = '+fCard.cardioResidual+' UA ('+((fCard.trainingState&&fCard.trainingState.cardioLevel)||'—')+'). '+(fCard.trainingState&&fCard.trainingState.cardioLevel==='alta'?'Sí, por encima de lo habitual.':'No, dentro de rango.'):'Sin calcular todavía.')+'</div>';
   html+='<div style="margin-top:6px;"><b style="color:var(--fg);">¿Cuándo hacer una sesión intensa?</b> Cuando carga cardio residual esté en nivel bajo/medio Y TSB no sea muy negativo (ver Estado Endurance arriba).</div>';
   html+='<div style="margin-top:6px;"><b style="color:var(--fg);">¿Te adaptas correctamente?</b> Necesita la ventana de 6-8 carreras para responder con confianza (ahora: '+nRuns+'). Antes de eso, cualquier respuesta sería sobre-interpretar 1-2 puntos de dato.</div>';
   html+='</div></div>';
@@ -4961,8 +4961,9 @@ function renderCombinedStateSummary(){
   var heroIsRestMode=S._decision&&S._decision.recommendationColor==='var(--r)';
 
   var html='<div class="card" style="border:1px solid '+col+';"><div class="card-hdr"><span class="t-md">Compatibilidad de entrenamiento</span></div><div class="card-body" style="font-size:11px;color:var(--fg2);line-height:1.7;">';
-  html+='<div>'+(lvlEmoji[ts.strengthLevel]||'')+' Fuerza: <b>'+ts.strengthLevel+'</b> (residual '+Math.round(ts.strengthResidual)+' UA)</div>';
-  html+='<div>'+(lvlEmoji[ts.cardioLevel]||'')+' Cardio: <b>'+ts.cardioLevel+'</b> (residual '+ts.cardioResidual+' UA)</div>';
+  var levelPlain={alta:'recuperación pendiente todavía',moderada:'recuperando, en camino',baja:'recuperado'};
+  html+='<div>'+(lvlEmoji[ts.strengthLevel]||'')+' Fuerza: <b>'+(levelPlain[ts.strengthLevel]||ts.strengthLevel)+'</b> <span style="color:var(--fg4);">(carga residual '+ts.strengthLevel+', '+Math.round(ts.strengthResidual)+' UA)</span></div>';
+  html+='<div>'+(lvlEmoji[ts.cardioLevel]||'')+' Cardio: <b>'+(levelPlain[ts.cardioLevel]||ts.cardioLevel)+'</b> <span style="color:var(--fg4);">(carga residual '+ts.cardioLevel+', '+ts.cardioResidual+' UA)</span></div>';
 
   // ── Recomendación: comprometida (🥇) SOLO si no contradice al Hero; si el Hero pide
   // recuperación, todo se reformula en condicional. ──
@@ -5171,7 +5172,7 @@ function renderCardioTodaySummary(){
   if(last.icu_training_load!=null)bits.push('Training Load <b>'+last.icu_training_load+'</b>');
   if(bits.length)html+='<div>📡 '+bits.join(' · ')+'</div>';
   if(fCard&&fCard.cardioResidual!=null){
-    html+='<div style="margin-top:4px;">🔬 Carga cardio residual (Atlas, últimas 7d con decaimiento) <b>'+fCard.cardioResidual+' UA</b> · '+((fCard.trainingState&&fCard.trainingState.cardioLevel)||'—')+'</div>';
+    html+='<div style="margin-top:4px;">🔬 Cardio acumulado (Atlas, últimas 7d con decaimiento) <b>'+fCard.cardioResidual+' UA</b> · '+((fCard.trainingState&&fCard.trainingState.cardioLevel)||'—')+'</div>';
   }
   if(noct&&noct.latest!=null){
     html+='<div style="margin-top:4px;">'+(noct.band?noct.band.emoji:'')+' FC nocturna <b>'+noct.latest+'ppm</b>'+(noct.deviation!=null?' ('+(noct.deviation>0?'+':'')+noct.deviation+' vs línea base 28d'+(noct.stdev28!=null?', σ '+noct.stdev28:'')+')':'')+'</div>';
@@ -6824,7 +6825,7 @@ function DecisionEngine(fatigue, hrv, muscleFatigue, interference, metrics, prog
 
   // Systemic load
   if (systemic > 65) {
-    items.push({icon:'⚠', col:'var(--r)', text:'Carga sistémica elevada ('+Math.round(systemic)+'%) — día de recuperación'});
+    items.push({icon:'⚠', col:'var(--r)', text:'Esfuerzo acumulado alto ('+Math.round(systemic)+'%) — día de recuperación'});
   }
 
   // Global recommendation
