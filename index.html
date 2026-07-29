@@ -2896,6 +2896,23 @@ const SIGNAL_HIERARCHY = {
 };
 
 // ══ RECOMMENDATION ENGINE ══
+// ══════════════════════════════════════════════════════════════════════════════════════════
+// GUÍA DE ESTILO OFICIAL DE ATLAS — 2026-07-20, pedida explícitamente para que cualquier texto
+// nuevo (RULES, DecisionEngine, cualquier render*) mantenga el mismo tono sin revisarlo caso a
+// caso. Antes de escribir o tocar un mensaje visible para el usuario, cumple esto:
+//
+//   1. Empieza siempre por la conclusión, no por el dato que la sustenta.
+//   2. Lenguaje cotidiano. Si aparece un término técnico, va entre paréntesis — lo complementa,
+//      nunca lo sustituye (el usuario aprende el vocabulario con el tiempo, no de golpe).
+//   3. Explica primero la consecuencia, después la causa.
+//   4. Una sola idea principal por mensaje visible. Si dos señales dicen lo mismo con distinta
+//      métrica, combínalas en un único mensaje — no dupliques la misma conclusión con dos
+//      redacciones distintas ocupando dos líneas (ver consolidación de recoveryFlags, abajo).
+//   5. Máximo 2-3 líneas por mensaje en la vista principal. El desglose técnico completo va
+//      siempre detrás de un desplegable ("Ver por qué"), nunca en la vista visible por defecto.
+//   6. Cada tarjeta responde a UNA pregunta. Si una tarjeta necesita responder dos preguntas
+//      distintas, probablemente hay que partirla o fusionarla con otra que ya responde una de ellas.
+// ══════════════════════════════════════════════════════════════════════════════════════════
 const RULES=[
   {id:'knee_pain_high',priority:10,domain:'fuerza',cond:(f,i)=>f.signals.knee?.warn,action:'🦵 Rodilla activa — pre-activación obligatoria hoy.',detail:'Protocolo rodilla activo. Pre-activación obligatoria antes de cualquier ejercicio de pierna. Para cualquier serie con dolor >3/10.',conf:1.0},
   {id:'severe_fatigue',priority:9,domain:'general',cond:(f,i)=>f.systemic>70,action:'🔴 Descansa hoy — el cuerpo aún acusa el esfuerzo acumulado (fatiga sistémica alta).',detail:'Hoy: descanso, o si tocaba cardio, Z1 máx 30min y nada de fuerza.',conf:0.9},
@@ -6802,30 +6819,34 @@ function DecisionEngine(fatigue, hrv, muscleFatigue, interference, metrics, prog
     items.push({icon:'⚠', col:'var(--r)', text:'Bisagra cargada ('+hingeLoad+'%) — evitar RDL/peso muerto hoy'});
   }
 
-  // Cardio / Z2
-  if (cardioScore >= 70 && hrvState !== 'suppressed') {
-    items.push({icon:'✓', col:'var(--g)', text:'Z2 compatible — FC objetivo normal'});
-  } else if (cardioScore < 45 || hrvState === 'suppressed') {
+  // Recuperación general — CONSOLIDADO 2026-07-20: antes, cardio/HRV/esfuerzo acumulado podían
+  // disparar hasta 3 items casi idénticos a la vez (todos diciendo "no estás recuperado" con
+  // una métrica distinta cada uno), ocupando las 3 líneas visibles de "Qué hacer hoy" con la
+  // misma idea repetida. Ahora, si 2+ señales apuntan a lo mismo, se combinan en un único
+  // mensaje que las cita todas — una idea, un mensaje, tal como se pidió explícitamente.
+  var recoveryFlags=[];
+  if(hrvState==='suppressed')recoveryFlags.push('HRV suprimida '+Math.round(hrvPct)+'%');
+  if(systemic>65)recoveryFlags.push('esfuerzo acumulado '+Math.round(systemic)+'%');
+  if(cardioScore<45)recoveryFlags.push('cardio bajo '+Math.round(cardioScore)+'/100');
+  if(recoveryFlags.length>=2){
+    items.push({icon:'⚠', col:'var(--r)', text:'Recuperación floja en varios frentes a la vez ('+recoveryFlags.join(' · ')+') — prioriza descansar hoy'});
+  } else if(hrvState==='suppressed'){
+    items.push({icon:'⚠', col:'var(--r)', text:'Sistema nervioso todavía bajo (HRV suprimida '+Math.round(hrvPct)+'%) — evita intensidad'});
+  } else if(systemic>65){
+    items.push({icon:'⚠', col:'var(--r)', text:'Esfuerzo acumulado alto ('+Math.round(systemic)+'%) — día de recuperación'});
+  } else if(cardioScore<45){
     items.push({icon:'⚠', col:'var(--r)', text:'Evitar intensidad cardio — prioriza recuperación'});
-  }
-
-  // HRV signal
-  if (hrvState === 'elevated') {
+  } else if(cardioScore>=70){
+    items.push({icon:'✓', col:'var(--g)', text:'Z2 compatible — FC objetivo normal'});
+  } else if(hrvState==='elevated'){
     items.push({icon:'✓', col:'var(--c)', text:'HRV elevada +'+Math.round(hrvPct)+'% — día óptimo para carga'});
-  } else if (hrvState === 'suppressed') {
-    items.push({icon:'⚠', col:'var(--r)', text:'HRV suprimida '+Math.round(hrvPct)+'% — sistema nervioso bajo'});
-  } else if (hrvState === 'low') {
+  } else if(hrvState==='low'){
     items.push({icon:'~', col:'var(--y)', text:'HRV algo baja — monitoriza sensaciones'});
   }
 
   // Interference
   if (interference && interference.level === 'high') {
     items.push({icon:'⚠', col:'var(--r)', text:'Interferencia running activa — lower comprometido'});
-  }
-
-  // Systemic load
-  if (systemic > 65) {
-    items.push({icon:'⚠', col:'var(--r)', text:'Esfuerzo acumulado alto ('+Math.round(systemic)+'%) — día de recuperación'});
   }
 
   // Global recommendation
