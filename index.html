@@ -2912,6 +2912,13 @@ const SIGNAL_HIERARCHY = {
 //      siempre detrás de un desplegable ("Ver por qué"), nunca en la vista visible por defecto.
 //   6. Cada tarjeta responde a UNA pregunta. Si una tarjeta necesita responder dos preguntas
 //      distintas, probablemente hay que partirla o fusionarla con otra que ya responde una de ellas.
+//   7. Cada mensaje debe aportar información NUEVA, no solo palabras distintas para la misma idea.
+//      Distinto de la regla 4: "Hoy no te has recuperado" + "El cuerpo acusa el esfuerzo" son dos
+//      frases distintas pero LA MISMA información — una sobra. "Hoy no te has recuperado" + "El
+//      tren inferior ya está listo" sí son dos ideas reales, se quedan las dos.
+//   8. Cuando varias evidencias sustenten una conclusión, ordénalas por peso real en la decisión,
+//      no por el orden en que se calcularon. La primera evidencia listada es la que el usuario
+//      entenderá como "la que más pesó" — que sea verdad.
 // ══════════════════════════════════════════════════════════════════════════════════════════
 const RULES=[
   {id:'knee_pain_high',priority:10,domain:'fuerza',cond:(f,i)=>f.signals.knee?.warn,action:'🦵 Rodilla activa — pre-activación obligatoria hoy.',detail:'Protocolo rodilla activo. Pre-activación obligatoria antes de cualquier ejercicio de pierna. Para cualquier serie con dolor >3/10.',conf:1.0},
@@ -3657,8 +3664,18 @@ function renderRecommendations(){
       if(hrv.trendSlope<-2) chain.push({text:`Tendencia 3d bajando ${Math.abs(Math.round(hrv.trendSlope))}ms`,level:'warn'});
       if(hrv.sleepDebt>1) chain.push({text:`Deuda sueño ${hrv.sleepDebt}h — modula recuperación HRV`,level:'mid'});
     }
-    if(ruleId==='neg_tsb'||ruleId==='severe_fatigue'){
+    // FIX 2026-07-20: comparaba contra 'neg_tsb', nombre viejo de antes de dividir la regla en
+    // neg_tsb_corroborated/neg_tsb_isolated (varios turnos atrás) — desde entonces esta rama
+    // nunca se ejecutaba para las reglas de TSB, solo por coincidencia para severe_fatigue.
+    // Aprovechado también para ordenar por PESO REAL: la métrica que disparó la regla va primero,
+    // no un orden arbitrario (regla 8 de la guía de estilo).
+    if(ruleId==='severe_fatigue'){
+      chain.push({text:`Esfuerzo acumulado (carga sistémica) ${fat.systemic}% — esto es lo que disparó la alerta`,level:'warn'});
       if(signals.tsb?.warn) chain.push({text:signals.tsb.label,level:'warn'});
+      if(signals.srpe72) chain.push({text:signals.srpe72.label,level:signals.srpe72.warn?'warn':'ok'});
+    }
+    if(ruleId==='neg_tsb_corroborated'||ruleId==='neg_tsb_isolated'){
+      if(signals.tsb?.warn) chain.push({text:signals.tsb.label+' — esto es lo que disparó la alerta',level:'warn'});
       if(signals.srpe72) chain.push({text:signals.srpe72.label,level:signals.srpe72.warn?'warn':'ok'});
       if(fat.autonomic>40) chain.push({text:`Fatiga autonómica ${fat.autonomic}%`,level:fat.autonomic>60?'warn':'mid'});
     }
