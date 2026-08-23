@@ -3011,6 +3011,12 @@ function runEngines(){
   S._density=DensityEngine(S._hevyRecent||[]);
   // 5. Fatigue — uses HRV, muscleFatigue, density
   S._fatigue=FatigueEngine(S.metrics,S.logs,S._hevyRecent||[],domsUp,domsLow,knee);
+  var _n2=new Date();
+  var _todayKey=_n2.getFullYear()+'-'+('0'+(_n2.getMonth()+1)).slice(-2)+'-'+('0'+_n2.getDate()).slice(-2);
+  if(window._lastFatigueSnapshotDate!==_todayKey){
+    window._lastFatigueSnapshotDate=_todayKey;
+    safe(saveDailyFatigueSnapshot,'sdfs');
+  }
   // 6. Interference — needs activities only
   S._interference=InterferenceEngine(S.metrics.activities||[]);
   S._runNeuro=RunningNeuromuscularEngine(S.metrics.activities||[]);
@@ -5072,7 +5078,8 @@ function toggleFatigueCharts(){
 // sí sea un gráfico de tendencia real — no antes.
 function saveDailyFatigueSnapshot(){
   var f=S._fatigue; if(!f)return;
-  var today=new Date().toISOString().split('T')[0];
+  var _n=new Date();
+  var today=_n.getFullYear()+'-'+('0'+(_n.getMonth()+1)).slice(-2)+'-'+('0'+_n.getDate()).slice(-2);
   var hist=safeArr(S._fatigueHistory);
   var existing=hist.find(function(h){return h.date===today;});
   var snap={date:today,autonomic:f.autonomic,mechanical:f.mechanical,systemic:f.systemic,
@@ -5107,7 +5114,10 @@ function renderFatigueCharts(){
   var cardioRes=f.trainingState?f.trainingState.cardioResidual:null;
   html+=chartCard('Cardio residual','🫀',cardioRes!=null?cardioRes:'—',' UA','cardioResidual','var(--b)');
   el.innerHTML=html;
-  saveDailyFatigueSnapshot();
+  // FIX 2026-08-02: el guardado del snapshot diario dependía de que el usuario abriera ESTE
+  // desplegable — si no lo abría un día, ese día no se guardaba, y el histórico nunca crecía
+  // más allá de "1 día" salvo que abrieras los gráficos cada día sin falta. Movido a runEngines(),
+  // que corre siempre que hay datos reales, sin depender de que abras nada.
 }
 function toggleHoyDetail(){
   var w=safeDOM('hoyDetailWrap'), btn=safeDOM('hoyDetailToggle'); if(!w||!btn)return;
@@ -5633,7 +5643,18 @@ function exportAllData(){
       hevyKey:null,
       claudeKey:null,
       weeklySnapshots:(function(){try{return JSON.parse(localStorage.getItem('atlas_weekly_v1')||'[]');}catch(e){return [];}})(),
-      rvlSnapshots:(function(){try{return JSON.parse(localStorage.getItem('atlas_rvl_v1')||'[]');}catch(e){return [];}})()
+      rvlSnapshots:(function(){try{return JSON.parse(localStorage.getItem('atlas_rvl_v1')||'[]');}catch(e){return [];}})(),
+      // FIX 2026-08-02: estos campos se añadieron a S/save() a lo largo de la conversación pero
+      // esta función (el backup real que se descarga/sube) nunca se actualizó — cada backup
+      // perdía en silencio streams cacheados, vidas media recalibradas, e histórico de fatiga.
+      streamsCache:S.streamsCache||{},
+      residualHL:S.residualHL||{strength:60,cardio:36},
+      _fatigueHistory:safeArr(S._fatigueHistory),
+      weekDays:S.weekDays?[...S.weekDays]:undefined,
+      weekStart:S.weekStart,
+      weekOffset:S.weekOffset,
+      volWindow:S.volWindow,
+      logWeekOffset:S.logWeekOffset
     };
     var blob=new Blob([JSON.stringify(payload,null,2)],{type:'application/json'});
     var url=URL.createObjectURL(blob);
@@ -5676,6 +5697,15 @@ function importAllData(){
         // Restore localStorage snapshots
         if(Array.isArray(data.weeklySnapshots))localStorage.setItem('atlas_weekly_v1',JSON.stringify(data.weeklySnapshots));
         if(Array.isArray(data.rvlSnapshots))localStorage.setItem('atlas_rvl_v1',JSON.stringify(data.rvlSnapshots));
+        // FIX 2026-08-02: restaurar los campos que ahora sí exporta exportAllData().
+        if(data.streamsCache&&typeof data.streamsCache==='object')S.streamsCache=data.streamsCache;
+        if(data.residualHL&&typeof data.residualHL==='object')S.residualHL=data.residualHL;
+        if(Array.isArray(data._fatigueHistory))S._fatigueHistory=data._fatigueHistory;
+        if(Array.isArray(data.weekDays))S.weekDays=data.weekDays;
+        if(data.weekStart!=null)S.weekStart=data.weekStart;
+        if(data.weekOffset!=null)S.weekOffset=data.weekOffset;
+        if(data.volWindow!=null)S.volWindow=data.volWindow;
+        if(data.logWeekOffset!=null)S.logWeekOffset=data.logWeekOffset;
         save();
         var logN=Array.isArray(data.logs)?data.logs.length:0;
         var wkN=Array.isArray(data.weeklySnapshots)?data.weeklySnapshots.length:0;
@@ -6429,8 +6459,25 @@ function renderTodaySummary(){
     }
   }
 
+  // FIX 2026-08-02: bug real reportado con capturas — el bloque "JORNADA" de abajo sabe que ya
+  // entrenaste hoy (via todaysTrainingStatus), pero estas viñetas de arriba (d.items, calculadas
+  // por DecisionEngine sin ese contexto) seguían diciendo "buen día para empuje o tirón" o
+  // "pierna viable" para la MISMA región que acabas de entrenar — contradicción directa con la
+  // caja de abajo. Se reescriben aquí, en el único sitio que sí conoce ambos datos a la vez.
+  var todayStatus2=todayStatus;
+  var sessIsUpper2=todayStatus2&&todayStatus2.strengthSessName?/upper/i.test(todayStatus2.strengthSessName):false;
+  var sessIsLower2=todayStatus2&&todayStatus2.strengthSessName?/lower/i.test(todayStatus2.strengthSessName):false;
+  var itemsFixed=d.items.map(function(item){
+    if(sessIsUpper2&&/tren superior/i.test(item.text)&&/buen día|RIR conservador/i.test(item.text)){
+      return {icon:'✔',col:'var(--g)',text:'Torso ya entrenado hoy ('+todayStatus2.strengthSessName+') — esto es informativo, no una sugerencia para hoy'};
+    }
+    if(sessIsLower2&&/tren inferior/i.test(item.text)&&/viable|cuidado con densidad/i.test(item.text)){
+      return {icon:'✔',col:'var(--g)',text:'Pierna ya entrenada hoy ('+todayStatus2.strengthSessName+') — esto es informativo, no una sugerencia para hoy'};
+    }
+    return item;
+  });
   // Items: max 3 (2 others + 1 main warning)
-  var html=d.items.map(function(item){
+  var html=itemsFixed.map(function(item){
     return'<div style="display:flex;align-items:center;gap:8px;font-size:12px;">'
       +'<span style="color:'+item.col+';font-size:13px;width:16px;flex-shrink:0;">'+item.icon+'</span>'
       +'<span style="color:var(--fg2);">'+item.text+'</span></div>';
