@@ -4202,10 +4202,20 @@ function renderEvolucion(){
     var latest=wHist[wHist.length-1];
     var daysSpan=Math.round((latest.t-ref.t)/86400000);
     completeness.comp=Math.min(1,Math.max(0,daysSpan)/30);
+    // FIX 2026-08-24: 'latest' puede ser un peso VIEJO reutilizado — el merge de sync preserva el
+    // último peso válido cuando un día no trae uno nuevo (para no perder dato), pero eso puede
+    // esconder que la báscula lleva días/semanas sin mandar nada. Antes esto era invisible.
+    var daysSinceLatest=Math.round((now-latest.t)/86400000);
+    if(daysSinceLatest>4){
+      html+='<div style="font-size:12px;color:var(--y);">⚠ Tu último peso registrado es de hace '+daysSinceLatest+' días, no de hoy — la báscula/sync lleva sin mandar un peso nuevo. Cualquier comparación de abajo usa ese dato antiguo, no tu peso actual. Revisa la sincronización en Datos.</div>';
+    }
     if(ref.t===latest.t||daysSpan<14){
       html+='<div style="font-size:12px;color:var(--fg3);">Tu registro más antiguo útil es de hace '+daysSpan+' días — todavía no hay ~30 días de rango para una comparación honesta.</div>';
     } else {
       var dKg=Math.round((latest.kg-ref.kg)*10)/10;
+      if(dKg===0&&latest.kg===ref.kg){
+        html+='<div style="font-size:11px;color:var(--fg4);margin-bottom:4px;">Ambas lecturas dan exactamente '+latest.kg+'kg — si tu báscula lleva tiempo sin sincronizar (ver aviso arriba), esto puede ser el mismo dato repetido, no una coincidencia real.</div>';
+      }
       var plausibleMax=(daysSpan/7)*2; // ~2kg/semana como techo generoso antes de sospechar error, no como objetivo
       if(Math.abs(dKg)>plausibleMax){
         html+='<div style="font-size:12px;color:var(--y);">⚠ El dato bruto muestra '+(dKg>0?'+':'')+dKg+' kg en '+daysSpan+' días — un cambio así de rápido no es fisiológicamente plausible. Probable error de sincronización de báscula, no una tendencia real. Revisa el histórico en Datos antes de confiar en este número.</div>';
@@ -8048,7 +8058,15 @@ function toast(title,msg,icon,ms=3500){const el=document.createElement('div');el
 
 // ══ INIT ══
 function init(){
-  checkWeekReset();loadPersisted();
+  // FIX 2026-08-27: bug de fondo real, encontrado tras varios reportes de "esto nunca acumula
+  // histórico". checkWeekReset() comparaba S.weekStart contra el lunes actual para decidir si
+  // empezar semana nueva — pero se ejecutaba ANTES de loadPersisted(), así que S.weekStart todavía
+  // tenía su valor por defecto ('', string vacío) en ese momento. Una cadena vacía nunca coincide
+  // con una fecha real, así que la condición de "semana nueva" se disparaba en CADA apertura de la
+  // app, no una vez por semana — y al dispararse, guardaba (save()) el estado casi vacío encima de
+  // los datos reales, borrando _fatigueHistory (y cualquier otro campo sin recálculo de respaldo)
+  // antes de que loadPersisted() pudiera restaurarlo. Orden corregido: cargar primero, decidir después.
+  loadPersisted();checkWeekReset();
   safe(loadEstado,'le');safe(wireEstadoAutosave,'we');safe(checkBackupReminder,'cbr');safe(renderWeekSummary,'rws');
   if(S.int.aid){const e=safeDOM('intAid');if(e)e.value=S.int.aid;}
   if(S.int.key){const e=safeDOM('intKey');if(e)e.value='••••••••••••••••';}
