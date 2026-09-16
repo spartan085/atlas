@@ -174,7 +174,7 @@ textarea.field{resize:vertical;min-height:60px;}
 <header class="hdr">
   <div style="display:flex;align-items:center;gap:9px;">
     <svg width="26" height="26" viewBox="0 0 28 28" fill="none"><path d="M14 2l10.39 6v12L14 26 3.61 20V8L14 2z" fill="rgba(6,182,212,0.12)" stroke="var(--c)" stroke-width="1.2"/><path d="M14 8l5.2 3v6L14 20l-5.2-3V11L14 8z" fill="rgba(6,182,212,0.2)"/></svg>
-    <div class="wordmark">ATL<em>A</em>S <span style="font-family:'Geist Mono',monospace;font-size:10px;color:var(--fg3);letter-spacing:1px;">v6 · build 2026-09-04</span></div>
+    <div class="wordmark">ATL<em>A</em>S <span style="font-family:'Geist Mono',monospace;font-size:10px;color:var(--fg3);letter-spacing:1px;">v6 · build 2026-09-07</span></div>
   </div>
   <div class="hdr-right">
     <button class="sync-btn active" onclick="syncAll()"><span class="sdot" id="syncDot"></span> Sync</button>
@@ -917,9 +917,40 @@ function save(){
     _saved:now
   };
   var json=JSON.stringify(data);
-  try{localStorage.setItem('atlas6',json);}catch(e){
-    // If quota exceeded, try without hevy workouts
-    try{data.hevy=S.hevy?{key:S.hevy.key}:null;json=JSON.stringify(data);localStorage.setItem('atlas6',json);}catch(e2){}
+  var _saveOk=false;
+  try{localStorage.setItem('atlas6',json);_saveOk=true;}catch(e){
+    // FIX 2026-09-07: este catch solo recortaba hevy.workouts — pero streamsCache (hasta 40
+    // actividades con streams brutos cacheados) es el candidato mucho más probable a llenar la
+    // cuota, y nunca se tocaba. Si el 2º intento también fallaba, quedaba vacío: nada se
+    // guardaba, sin aviso — explica por qué _fatigueHistory (que no se reconstruye de otra
+    // fuente) siempre aparecía con 1 solo día.
+    try{
+      data.streamsCache={};
+      json=JSON.stringify(data);
+      localStorage.setItem('atlas6',json);
+      _saveOk=true;
+    }catch(e2){
+      try{
+        data.hevy=S.hevy?{key:S.hevy.key}:null;
+        json=JSON.stringify(data);
+        localStorage.setItem('atlas6',json);
+        _saveOk=true;
+      }catch(e3){
+        try{
+          var minimalData={metrics:S.metrics,weeklyVol:S.weeklyVol,weekStart:S.weekStart,
+            currentMeso:S.currentMeso||1,_fatigueHistory:safeArr(S._fatigueHistory).slice(-90),
+            logs:prunedLogs.slice(-200),_saved:now,_degraded:true};
+          localStorage.setItem('atlas6',JSON.stringify(minimalData));
+          _saveOk=true;
+          console.error('save(): cuota agotada incluso tras recortar streamsCache y hevy — modo degradado.');
+        }catch(e4){
+          console.error('save(): FALLO TOTAL — nada se ha guardado esta vez.', e4);
+        }
+      }
+    }
+  }
+  if(!_saveOk&&typeof toast==='function'){
+    toast('Guardado incompleto','El espacio de almacenamiento está lleno — algunos datos no se guardaron. Exporta un backup pronto.','⚠️');
   }
   try{sessionStorage.setItem('atlas6',json);}catch(e){}
   try{
@@ -5279,6 +5310,12 @@ async function fetchIntervals(){
   const today=new Date().toISOString().split('T')[0];
   const from30=new Date(Date.now()-180*864e5).toISOString().split('T')[0]; // 180d: enables body-comp history reconstruction (HRV/sleep engine still uses only recent values)
   const from14=new Date(Date.now()-14*864e5).toISOString().split('T')[0];
+  // FIX 2026-09-07: 14 días de ventana para actividades es incompatible con la propia filosofía
+  // de Endurance/Evolución, que necesita 6-8 carreras para construir una línea base. Corriendo
+  // ~1 vez/semana, 14 días solo da 1-2 oportunidades — nunca podía acumular 6-8 sin importar
+  // cuántas semanas pasaran. ctl-history se queda en from14 (sí tiene sentido corto); solo las
+  // actividades necesitan ventana amplia.
+  const fromActivities=new Date(Date.now()-90*864e5).toISOString().split('T')[0];
   try{
     const [wR,fR,aR]=await Promise.all([
       fetch(`https://intervals.icu/api/v1/athlete/${aid}/wellness?oldest=${from30}&newest=${today}`,{headers:H,mode:'cors'}),
@@ -5294,7 +5331,7 @@ async function fetchIntervals(){
       // icu_*): PaHr (Aerobic Pace Decoupling, viene como STRING), DecouplingGAP, RunCadence
       // (cadencia total real, average_cadence es de 1 pierna), PaceAtHRZ2, AerobicEffect,
       // AnaerobicEffect, PerformanceCondition, VO2MaxGarmin, EPOC, VerticalOscillation.
-      fetch(`https://intervals.icu/api/v1/athlete/${aid}/activities?oldest=${from14}&newest=${today}&fields=id,name,type,sport_type,start_date_local,distance,moving_time,icu_training_load,icu_zone_times,icu_hr_zone_times,average_heartrate,max_heartrate,icu_rpe,pace,gap,average_cadence,average_stride,total_elevation_gain,total_elevation_loss,calories,trimp,hr_load,icu_intensity,polarization_index,icu_hr_zones,lthr,decoupling,icu_efficiency_factor,interval_summary,PaHr,DecouplingGAP,RunCadence,PaceAtHRZ2,AerobicEffect,AnaerobicEffect,PerformanceCondition,VO2MaxGarmin,EPOC,VerticalOscillation`,{headers:H,mode:'cors'})
+      fetch(`https://intervals.icu/api/v1/athlete/${aid}/activities?oldest=${fromActivities}&newest=${today}&fields=id,name,type,sport_type,start_date_local,distance,moving_time,icu_training_load,icu_zone_times,icu_hr_zone_times,average_heartrate,max_heartrate,icu_rpe,pace,gap,average_cadence,average_stride,total_elevation_gain,total_elevation_loss,calories,trimp,hr_load,icu_intensity,polarization_index,icu_hr_zones,lthr,decoupling,icu_efficiency_factor,interval_summary,PaHr,DecouplingGAP,RunCadence,PaceAtHRZ2,AerobicEffect,AnaerobicEffect,PerformanceCondition,VO2MaxGarmin,EPOC,VerticalOscillation`,{headers:H,mode:'cors'})
     ]);
     if(!wR.ok)throw new Error(wR.status===401||wR.status===403?'API Key incorrecta':'Error '+wR.status);
     const wellness=await wR.json();let fitnessHistory=[];if(fR.ok)fitnessHistory=await fR.json();let activities=[];if(aR.ok)activities=await aR.json();
