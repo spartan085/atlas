@@ -174,7 +174,7 @@ textarea.field{resize:vertical;min-height:60px;}
 <header class="hdr">
   <div style="display:flex;align-items:center;gap:9px;">
     <svg width="26" height="26" viewBox="0 0 28 28" fill="none"><path d="M14 2l10.39 6v12L14 26 3.61 20V8L14 2z" fill="rgba(6,182,212,0.12)" stroke="var(--c)" stroke-width="1.2"/><path d="M14 8l5.2 3v6L14 20l-5.2-3V11L14 8z" fill="rgba(6,182,212,0.2)"/></svg>
-    <div class="wordmark">ATL<em>A</em>S <span style="font-family:'Geist Mono',monospace;font-size:10px;color:var(--fg3);letter-spacing:1px;">v6 · build 2026-09-07</span></div>
+    <div class="wordmark">ATL<em>A</em>S <span style="font-family:'Geist Mono',monospace;font-size:10px;color:var(--fg3);letter-spacing:1px;">v6 · build 2026-10-04b</span></div>
   </div>
   <div class="hdr-right">
     <button class="sync-btn active" onclick="syncAll()"><span class="sdot" id="syncDot"></span> Sync</button>
@@ -797,23 +797,41 @@ const S = {
     // No hay patología de hombro (retractado) → deltoides/tríceps sin restricción.
     // Cuádriceps: mrv bajado por condromalacia femoropatelar bilateral, confirmado. VMO se
     // gestiona por selección de ejercicio, no por volumen (no es entidad separada en Atlas).
+    //
+    // ACTUALIZACIÓN 2026-10-04 — Carlos sustituyó la tabla de mav por una nueva tabla de series
+    // objetivo semanales (series directas), explícita y verbal ("actualiza las series objetivo
+    // con estas"). mev/mrv de literatura se mantienen sin tocar. Deltoide lateral(8)+posterior(4)
+    // y Gemelos rodilla extendida(8)+Sóleo rodilla flexionada(8) se suman porque Atlas no separa
+    // esas subcategorías — no se pierde información real. Abductores (6 series/semana en la tabla
+    // de Carlos) NO tiene categoría en Atlas hoy — fusionarlo con Aductores ocultaría el dato de
+    // glúteo medio que es un punto débil declarado. Pendiente de respuesta de Carlos: ¿categoría
+    // nueva o se deja fuera del objetivo semanal por ahora? Hasta entonces, fuera de mavRanges.
     'Cuádriceps':    {mev:6, mav:12,mrv:16},
-    'Isquiotibiales':{mev:6, mav:11,mrv:18},
-    // Glúteo: mav=10 (rutina). Nota aparte (no de volumen): falta trabajo de abducción/glúteo
-    // medio específico en el split — pendiente de confirmar con Carlos, no resuelto aquí.
-    'Glúteo':        {mev:6, mav:10,mrv:16},
+    'Isquiotibiales':{mev:6, mav:12,mrv:18},
+    'Glúteo':        {mev:6, mav:8, mrv:16},
     'Gemelos/Sóleo': {mev:8, mav:16,mrv:22},
-    'Pectoral':      {mev:6, mav:11,mrv:18},
-    'Dorsal':        {mev:6, mav:12,mrv:20},
-    'Deltoides':     {mev:6, mav:11,mrv:20},
-    'Bíceps':        {mev:5, mav:8, mrv:16},
-    'Tríceps':       {mev:5, mav:8, mrv:16},
-    // Core: mav=13 (rutina) queda a solo 1 serie del mrv=14 de literatura — casi sin margen entre
-    // "objetivo" y "techo recuperable". No lo bajé por mi cuenta: es la consecuencia directa de
-    // pedir mav=rutina, pero vale la pena vigilar fatiga/DOMS de core en las próximas semanas,
-    // porque el margen de seguridad que normalmente da el hueco mav→mrv aquí casi no existe.
-    'Core':          {mev:2, mav:13,mrv:14},
-    'Aductores':     {mev:4, mav:8, mrv:12},
+    'Pectoral':      {mev:6, mav:14,mrv:18},
+    'Dorsal':        {mev:6, mav:13,mrv:20},
+    // Deltoides dividido en 3 cabezas (2026-10-04, a petición explícita de Carlos — antes
+    // fusionado). mev/mrv por cabeza: estimación propia repartiendo el rango combinado anterior
+    // (mev:6/mrv:20), NO literatura específica por cabeza — no existe una tabla RP por cabeza
+    // deltoidea equivalente a la de grupos musculares completos. mav lateral=8 y posterior=4
+    // SÍ son de la tabla de Carlos (series directas reales). mav anterior=4 NO está en su tabla
+    // (no programa trabajo directo de anterior, lo cubre de forma indirecta con el press) — es
+    // una estimación mía (la mitad del lateral), marcada explícitamente como no verificada.
+    'Deltoide lateral':  {mev:3, mav:8, mrv:14},
+    'Deltoide anterior': {mev:2, mav:4, mrv:10},
+    'Deltoide posterior':{mev:3, mav:4, mrv:12},
+    'Bíceps':        {mev:5, mav:10,mrv:16},
+    'Tríceps':       {mev:5, mav:10,mrv:16},
+    'Core':          {mev:2, mav:9, mrv:14},
+    'Aductores':     {mev:4, mav:6, mrv:12},
+    // Abductores: mav=6 es de la tabla de Carlos. mev/mrv NO están en su tabla — no hay
+    // literatura por separado para abductores de cadera. Uso los mismos que Aductores (mev:4,
+    // mrv:12) como placeholder simétrico razonable, no verificado. Corregible si Carlos da
+    // valores propios. Categoría nueva: antes 'abducción'/'abduction' estaban mal etiquetados
+    // como Aductores en el catálogo de ejercicios — corregido en el mismo cambio.
+    'Abductores':    {mev:4, mav:6, mrv:12},
   },
 
   // Nivel 2 — HIPÓTESIS: percepción de Carlos de que un músculo responde peor. Ciclo de vida
@@ -1011,14 +1029,14 @@ const EXERCISE_INTELLIGENCE = {
   // ── ALIASES para nombres reales de Hevy de Carlos (matching por substring) ──
   // Apuntan a las mismas propiedades que el ejercicio canónico. No cambian cálculos,
   // solo permiten que getExDB reconozca los nombres tal como llegan de Hevy.
-  'elevación lateral (':{p:['Deltoides'],s:[],ax:0.02,ecc:0.85,sys:0.22,kn:0.0,lb:0.02,sfr:0.90,hl:26,pat:'isolation',stimQ:0.85,lenMult:1.00,tags:['isolation','side-delt']},
-  'elevaciones laterales':{p:['Deltoides'],s:[],ax:0.02,ecc:0.85,sys:0.22,kn:0.0,lb:0.02,sfr:0.90,hl:26,pat:'isolation',stimQ:0.85,lenMult:1.00,tags:['isolation','side-delt']},
-  'elevación frontal (':{p:['Deltoides'],s:[],ax:0.05,ecc:0.85,sys:0.25,kn:0.0,lb:0.05,sfr:0.82,hl:28,pat:'isolation',stimQ:0.78,lenMult:1.00,tags:['isolation','front-delt']},
-  'elevaciones frontales':{p:['Deltoides'],s:[],ax:0.05,ecc:0.85,sys:0.25,kn:0.0,lb:0.05,sfr:0.82,hl:28,pat:'isolation',stimQ:0.78,lenMult:1.00,tags:['isolation','front-delt']},
+  'elevación lateral (':{p:['Deltoide lateral'],s:[],ax:0.02,ecc:0.85,sys:0.22,kn:0.0,lb:0.02,sfr:0.90,hl:26,pat:'isolation',stimQ:0.85,lenMult:1.00,tags:['isolation','side-delt']},
+  'elevaciones laterales':{p:['Deltoide lateral'],s:[],ax:0.02,ecc:0.85,sys:0.22,kn:0.0,lb:0.02,sfr:0.90,hl:26,pat:'isolation',stimQ:0.85,lenMult:1.00,tags:['isolation','side-delt']},
+  'elevación frontal (':{p:['Deltoide anterior'],s:[],ax:0.05,ecc:0.85,sys:0.25,kn:0.0,lb:0.05,sfr:0.82,hl:28,pat:'isolation',stimQ:0.78,lenMult:1.00,tags:['isolation','front-delt']},
+  'elevaciones frontales':{p:['Deltoide anterior'],s:[],ax:0.05,ecc:0.85,sys:0.25,kn:0.0,lb:0.05,sfr:0.82,hl:28,pat:'isolation',stimQ:0.78,lenMult:1.00,tags:['isolation','front-delt']},
   'extensión francesa':{p:['Tríceps'],s:[],ax:0.08,ecc:1.2,sys:0.28,kn:0.0,lb:0.1,sfr:0.86,hl:36,pat:'isolation',stimQ:0.88,lenMult:1.15,tags:['isolation','stretch-mediated']},
   'extension francesa':{p:['Tríceps'],s:[],ax:0.08,ecc:1.2,sys:0.28,kn:0.0,lb:0.1,sfr:0.86,hl:36,pat:'isolation',stimQ:0.88,lenMult:1.15,tags:['isolation','stretch-mediated']},
-  'press hombro':{p:['Deltoides'],s:['Tríceps'],ax:0.45,ecc:1.0,sys:0.55,kn:0.0,lb:0.35,sfr:0.78,hl:50,pat:'push-v',stimQ:0.82,lenMult:1.00,tags:['bilateral','overhead','axial']},
-  'press de hombro':{p:['Deltoides'],s:['Tríceps'],ax:0.45,ecc:1.0,sys:0.55,kn:0.0,lb:0.35,sfr:0.78,hl:50,pat:'push-v',stimQ:0.82,lenMult:1.00,tags:['bilateral','overhead','axial']},
+  'press hombro':{p:['Deltoide anterior','Deltoide lateral'],s:['Tríceps'],ax:0.45,ecc:1.0,sys:0.55,kn:0.0,lb:0.35,sfr:0.78,hl:50,pat:'push-v',stimQ:0.82,lenMult:1.00,tags:['bilateral','overhead','axial']},
+  'press de hombro':{p:['Deltoide anterior','Deltoide lateral'],s:['Tríceps'],ax:0.45,ecc:1.0,sys:0.55,kn:0.0,lb:0.35,sfr:0.78,hl:50,pat:'push-v',stimQ:0.82,lenMult:1.00,tags:['bilateral','overhead','axial']},
   'patada':{p:['Glúteo'],s:[],ax:0.05,ecc:0.85,sys:0.25,kn:0.05,lb:0.1,sfr:0.88,hl:30,pat:'hip-ext',stimQ:0.80,lenMult:1.0,tags:['unilateral']},
   'patada de glúteo':{p:['Glúteo'],s:[],ax:0.05,ecc:0.85,sys:0.25,kn:0.05,lb:0.1,sfr:0.88,hl:30,pat:'hip-ext',stimQ:0.80,lenMult:1.0,tags:['unilateral']},
   'patada gluteo':{p:['Glúteo'],s:[],ax:0.05,ecc:0.85,sys:0.25,kn:0.05,lb:0.1,sfr:0.88,hl:30,pat:'hip-ext',stimQ:0.80,lenMult:1.0,tags:['unilateral']},
@@ -1027,16 +1045,16 @@ const EXERCISE_INTELLIGENCE = {
   'leg curl':{p:['Isquiotibiales'],s:[],ax:0.1,ecc:1.0,sys:0.30,kn:0.1,lb:0.05,sfr:0.92,hl:36,pat:'isolation',stimQ:0.85,lenMult:1.0,tags:['bilateral']},
   'jm press':{p:['Tríceps'],s:[],ax:0.08,ecc:1.2,sys:0.28,kn:0.0,lb:0.1,sfr:0.86,hl:36,pat:'isolation',stimQ:0.88,lenMult:1.15,tags:['isolation','stretch-mediated']},
   'press jm':{p:['Tríceps'],s:[],ax:0.08,ecc:1.2,sys:0.28,kn:0.0,lb:0.1,sfr:0.86,hl:36,pat:'isolation',stimQ:0.88,lenMult:1.15,tags:['isolation','stretch-mediated']}, // 6.3.3 alias: Hevy lo nombra "Press JM (Barra)" (orden invertido vs 'jm press'). Mismos priors. Captura, no fórmula.
-  'elevacion lateral':{p:['Deltoides'],s:[],ax:0.02,ecc:0.85,sys:0.22,kn:0.0,lb:0.02,sfr:0.90,hl:26,pat:'isolation',stimQ:0.85,lenMult:1.00,tags:['isolation','side-delt']},
-  'elevacion frontal':{p:['Deltoides'],s:[],ax:0.05,ecc:0.85,sys:0.25,kn:0.0,lb:0.05,sfr:0.82,hl:28,pat:'isolation',stimQ:0.78,lenMult:1.00,tags:['isolation','front-delt']},
+  'elevacion lateral':{p:['Deltoide lateral'],s:[],ax:0.02,ecc:0.85,sys:0.22,kn:0.0,lb:0.02,sfr:0.90,hl:26,pat:'isolation',stimQ:0.85,lenMult:1.00,tags:['isolation','side-delt']},
+  'elevacion frontal':{p:['Deltoide anterior'],s:[],ax:0.05,ecc:0.85,sys:0.25,kn:0.0,lb:0.05,sfr:0.82,hl:28,pat:'isolation',stimQ:0.78,lenMult:1.00,tags:['isolation','front-delt']},
   'empuje de cadera':{p:['Glúteo'],s:['Isquiotibiales'],ax:0.2,ecc:0.85,sys:0.55,kn:0.15,lb:0.25,sfr:0.95,hl:40,pat:'hip-ext',stimQ:0.90,lenMult:1.00,tags:['bilateral','high-sfr','glute']},
   'aducción de cadera':{p:['Aductores'],s:[],ax:0.05,ecc:0.9,sys:0.25,kn:0.15,lb:0.05,sfr:0.90,hl:30,pat:'isolation',stimQ:0.82,lenMult:1.08,tags:['adductor','rehab']},
   'aduccion de cadera':{p:['Aductores'],s:[],ax:0.05,ecc:0.9,sys:0.25,kn:0.15,lb:0.05,sfr:0.90,hl:30,pat:'isolation',stimQ:0.82,lenMult:1.08,tags:['adductor','rehab']},
   'aducción de':{p:['Aductores'],s:[],ax:0.05,ecc:0.9,sys:0.25,kn:0.15,lb:0.05,sfr:0.90,hl:30,pat:'isolation',stimQ:0.82,lenMult:1.08,tags:['adductor','rehab']},
   'aducción':{p:['Aductores'],s:[],ax:0.05,ecc:0.9,sys:0.25,kn:0.15,lb:0.05,sfr:0.90,hl:30,pat:'isolation',stimQ:0.82,lenMult:1.08,tags:['adductor','rehab']},
   'aduccion':{p:['Aductores'],s:[],ax:0.05,ecc:0.9,sys:0.25,kn:0.15,lb:0.05,sfr:0.90,hl:30,pat:'isolation',stimQ:0.82,lenMult:1.08,tags:['adductor','rehab']},
-  'flexion':{p:['Pectoral'],s:['Tríceps','Deltoides'],ax:0.1,ecc:1.1,sys:0.45,kn:0.0,lb:0.15,sfr:0.82,hl:40,pat:'push-h',stimQ:0.80,lenMult:1.0,tags:['bilateral']},
-  'flexiones':{p:['Pectoral'],s:['Tríceps','Deltoides'],ax:0.1,ecc:1.1,sys:0.45,kn:0.0,lb:0.15,sfr:0.82,hl:40,pat:'push-h',stimQ:0.80,lenMult:1.0,tags:['bilateral']},
+  'flexion':{p:['Pectoral'],s:['Tríceps','Deltoide anterior'],ax:0.1,ecc:1.1,sys:0.45,kn:0.0,lb:0.15,sfr:0.82,hl:40,pat:'push-h',stimQ:0.80,lenMult:1.0,tags:['bilateral']},
+  'flexiones':{p:['Pectoral'],s:['Tríceps','Deltoide anterior'],ax:0.1,ecc:1.1,sys:0.45,kn:0.0,lb:0.15,sfr:0.82,hl:40,pat:'push-h',stimQ:0.80,lenMult:1.0,tags:['bilateral']},
   'rueda abdominal':{p:['Core'],s:[],ax:0.2,ecc:1.0,sys:0.30,kn:0.0,lb:0.30,sfr:0.78,hl:30,pat:'core',stimQ:0.82,lenMult:1.1,tags:['bilateral']},
   'abdominal corto':{p:['Core'],s:[],ax:0.18,ecc:0.9,sys:0.25,kn:0.0,lb:0.15,sfr:0.82,hl:26,pat:'core',stimQ:0.72,lenMult:1.00,tags:['flexion']},
 
@@ -1082,17 +1100,17 @@ const EXERCISE_INTELLIGENCE = {
   'aductor':             {p:['Aductores'],s:[],ax:0.05,ecc:0.9,sys:0.25,kn:0.15,lb:0.05,sfr:0.90,hl:30,pat:'isolation',stimQ:0.82,lenMult:1.08,tags:['adductor','rehab']},
   'adduction':           {p:['Aductores'],s:[],ax:0.05,ecc:0.9,sys:0.25,kn:0.15,lb:0.05,sfr:0.90,hl:30,pat:'isolation',stimQ:0.82,lenMult:1.08,tags:['adductor','rehab']},
   'adductor':            {p:['Aductores'],s:[],ax:0.05,ecc:0.9,sys:0.25,kn:0.15,lb:0.05,sfr:0.90,hl:30,pat:'isolation',stimQ:0.82,lenMult:1.08,tags:['adductor','rehab']},
-  'abducción':           {p:['Aductores'],s:[],ax:0.05,ecc:0.8,sys:0.2,kn:0.1,lb:0.04,sfr:0.92,hl:28,pat:'isolation',stimQ:0.78,lenMult:1.00,tags:['abductor','rehab']},
-  'abduction':           {p:['Aductores'],s:[],ax:0.05,ecc:0.8,sys:0.2,kn:0.1,lb:0.04,sfr:0.92,hl:28,pat:'isolation',stimQ:0.78,lenMult:1.00,tags:['abductor','rehab']},
+  'abducción':           {p:['Abductores'],s:[],ax:0.05,ecc:0.8,sys:0.2,kn:0.1,lb:0.04,sfr:0.92,hl:28,pat:'isolation',stimQ:0.78,lenMult:1.00,tags:['abductor','rehab']},
+  'abduction':           {p:['Abductores'],s:[],ax:0.05,ecc:0.8,sys:0.2,kn:0.1,lb:0.04,sfr:0.92,hl:28,pat:'isolation',stimQ:0.78,lenMult:1.00,tags:['abductor','rehab']},
   'copenhagen':          {p:['Aductores'],s:['Core'],ax:0.1,ecc:1.1,sys:0.3,kn:0.1,lb:0.1,sfr:0.85,hl:32,pat:'isolation',stimQ:0.88,lenMult:1.15,tags:['adductor']},
   'cossack':             {p:['Aductores'],s:['Cuádriceps','Glúteo'],ax:0.2,ecc:1.0,sys:0.4,kn:0.25,lb:0.1,sfr:0.82,hl:34,pat:'compound',stimQ:0.80,lenMult:1.12,tags:['adductor','mobility']},
   'sumo deadlift':       {p:['Glúteo','Aductores'],s:['Cuádriceps','Isquiotibiales'],ax:0.6,ecc:1.0,sys:0.7,kn:0.2,lb:0.4,sfr:0.80,hl:48,pat:'compound',stimQ:0.85,lenMult:1.0,tags:['adductor','hinge']},
   'peso muerto sumo':    {p:['Glúteo','Aductores'],s:['Cuádriceps','Isquiotibiales'],ax:0.6,ecc:1.0,sys:0.7,kn:0.2,lb:0.4,sfr:0.80,hl:48,pat:'compound',stimQ:0.85,lenMult:1.0,tags:['adductor','hinge']},
   // ── UPPER — Push horizontal ──
-  'press de banca':      {p:['Pectoral'],s:['Tríceps','Deltoides'],ax:0.12,ecc:1.15,sys:0.65,kn:0.0,lb:0.22,sfr:0.85,hl:48,pat:'push-h',stimQ:0.88,lenMult:1.05,tags:['bilateral','compound']},
-  'bench press':         {p:['Pectoral'],s:['Tríceps','Deltoides'],ax:0.12,ecc:1.15,sys:0.65,kn:0.0,lb:0.22,sfr:0.85,hl:48,pat:'push-h',stimQ:0.88,lenMult:1.05,tags:['bilateral']},
-  'press banca':         {p:['Pectoral'],s:['Tríceps','Deltoides'],ax:0.12,ecc:1.15,sys:0.65,kn:0.0,lb:0.22,sfr:0.85,hl:48,pat:'push-h',stimQ:0.88,lenMult:1.05,tags:['bilateral']},
-  'press inclinado':     {p:['Pectoral'],s:['Deltoides','Tríceps'],ax:0.15,ecc:1.1,sys:0.6,kn:0.0,lb:0.18,sfr:0.88,hl:46,pat:'push-i',stimQ:0.90,lenMult:1.08,tags:['bilateral','upper-pec']},
+  'press de banca':      {p:['Pectoral'],s:['Tríceps','Deltoide anterior'],ax:0.12,ecc:1.15,sys:0.65,kn:0.0,lb:0.22,sfr:0.85,hl:48,pat:'push-h',stimQ:0.88,lenMult:1.05,tags:['bilateral','compound']},
+  'bench press':         {p:['Pectoral'],s:['Tríceps','Deltoide anterior'],ax:0.12,ecc:1.15,sys:0.65,kn:0.0,lb:0.22,sfr:0.85,hl:48,pat:'push-h',stimQ:0.88,lenMult:1.05,tags:['bilateral']},
+  'press banca':         {p:['Pectoral'],s:['Tríceps','Deltoide anterior'],ax:0.12,ecc:1.15,sys:0.65,kn:0.0,lb:0.22,sfr:0.85,hl:48,pat:'push-h',stimQ:0.88,lenMult:1.05,tags:['bilateral']},
+  'press inclinado':     {p:['Pectoral'],s:['Deltoide anterior','Tríceps'],ax:0.15,ecc:1.1,sys:0.6,kn:0.0,lb:0.18,sfr:0.88,hl:46,pat:'push-i',stimQ:0.90,lenMult:1.08,tags:['bilateral','upper-pec']},
   'press declinado':     {p:['Pectoral'],s:['Tríceps'],ax:0.1,ecc:1.1,sys:0.55,kn:0.0,lb:0.15,sfr:0.82,hl:44,pat:'push-d',stimQ:0.82,lenMult:1.00,tags:['bilateral','lower-pec']},
   'aperturas':           {p:['Pectoral'],s:[],ax:0.02,ecc:1.3,sys:0.35,kn:0.0,lb:0.1,sfr:0.95,hl:42,pat:'push-h',stimQ:0.92,lenMult:1.15,tags:['isolation','stretch-mediated','high-ecc']},
   'chest fly':           {p:['Pectoral'],s:[],ax:0.02,ecc:1.3,sys:0.35,kn:0.0,lb:0.1,sfr:0.95,hl:42,pat:'push-h',stimQ:0.92,lenMult:1.15,tags:['isolation','stretch-mediated']},
@@ -1100,13 +1118,13 @@ const EXERCISE_INTELLIGENCE = {
   'cruces':              {p:['Pectoral'],s:[],ax:0.02,ecc:1.25,sys:0.32,kn:0.0,lb:0.1,sfr:0.93,hl:40,pat:'push-h',stimQ:0.90,lenMult:1.12,tags:['isolation']},
   'fondos':              {p:['Tríceps'],s:['Pectoral'],ax:0.25,ecc:1.1,sys:0.5,kn:0.0,lb:0.15,sfr:0.80,hl:46,pat:'push-h',stimQ:0.85,lenMult:1.08,tags:['bodyweight','compound']},
   // ── UPPER — Push vertical ──
-  'press de hombros':    {p:['Deltoides'],s:['Tríceps'],ax:0.42,ecc:1.0,sys:0.52,kn:0.0,lb:0.32,sfr:0.80,hl:48,pat:'push-v',stimQ:0.82,lenMult:1.00,tags:['bilateral','overhead','axial']},
-  'overhead press':      {p:['Deltoides'],s:['Tríceps'],ax:0.42,ecc:1.0,sys:0.52,kn:0.0,lb:0.32,sfr:0.80,hl:48,pat:'push-v',stimQ:0.82,lenMult:1.00,tags:['bilateral','overhead']},
-  'press militar':       {p:['Deltoides'],s:['Tríceps'],ax:0.45,ecc:1.0,sys:0.55,kn:0.0,lb:0.35,sfr:0.78,hl:50,pat:'push-v',stimQ:0.82,lenMult:1.00,tags:['bilateral','overhead','axial']},
-  'arnold':              {p:['Deltoides'],s:['Tríceps'],ax:0.35,ecc:1.0,sys:0.5,kn:0.0,lb:0.28,sfr:0.82,hl:46,pat:'push-v',stimQ:0.84,lenMult:1.00,tags:['unilateral','overhead']},
-  'elevación lateral':   {p:['Deltoides'],s:[],ax:0.02,ecc:0.85,sys:0.22,kn:0.0,lb:0.02,sfr:0.90,hl:26,pat:'isolation',stimQ:0.85,lenMult:1.00,tags:['isolation','side-delt']},
-  'lateral raise':       {p:['Deltoides'],s:[],ax:0.02,ecc:0.85,sys:0.22,kn:0.0,lb:0.02,sfr:0.90,hl:26,pat:'isolation',stimQ:0.85,lenMult:1.00,tags:['isolation']},
-  'elevación frontal':   {p:['Deltoides'],s:[],ax:0.05,ecc:0.85,sys:0.25,kn:0.0,lb:0.05,sfr:0.82,hl:28,pat:'isolation',stimQ:0.78,lenMult:1.00,tags:['isolation','front-delt']},
+  'press de hombros':    {p:['Deltoide anterior','Deltoide lateral'],s:['Tríceps'],ax:0.42,ecc:1.0,sys:0.52,kn:0.0,lb:0.32,sfr:0.80,hl:48,pat:'push-v',stimQ:0.82,lenMult:1.00,tags:['bilateral','overhead','axial']},
+  'overhead press':      {p:['Deltoide anterior','Deltoide lateral'],s:['Tríceps'],ax:0.42,ecc:1.0,sys:0.52,kn:0.0,lb:0.32,sfr:0.80,hl:48,pat:'push-v',stimQ:0.82,lenMult:1.00,tags:['bilateral','overhead']},
+  'press militar':       {p:['Deltoide anterior','Deltoide lateral'],s:['Tríceps'],ax:0.45,ecc:1.0,sys:0.55,kn:0.0,lb:0.35,sfr:0.78,hl:50,pat:'push-v',stimQ:0.82,lenMult:1.00,tags:['bilateral','overhead','axial']},
+  'arnold':              {p:['Deltoide anterior','Deltoide lateral'],s:['Tríceps'],ax:0.35,ecc:1.0,sys:0.5,kn:0.0,lb:0.28,sfr:0.82,hl:46,pat:'push-v',stimQ:0.84,lenMult:1.00,tags:['unilateral','overhead']},
+  'elevación lateral':   {p:['Deltoide lateral'],s:[],ax:0.02,ecc:0.85,sys:0.22,kn:0.0,lb:0.02,sfr:0.90,hl:26,pat:'isolation',stimQ:0.85,lenMult:1.00,tags:['isolation','side-delt']},
+  'lateral raise':       {p:['Deltoide lateral'],s:[],ax:0.02,ecc:0.85,sys:0.22,kn:0.0,lb:0.02,sfr:0.90,hl:26,pat:'isolation',stimQ:0.85,lenMult:1.00,tags:['isolation']},
+  'elevación frontal':   {p:['Deltoide anterior'],s:[],ax:0.05,ecc:0.85,sys:0.25,kn:0.0,lb:0.05,sfr:0.82,hl:28,pat:'isolation',stimQ:0.78,lenMult:1.00,tags:['isolation','front-delt']},
   // ── UPPER — Pull ──
   'jalón':               {p:['Dorsal'],s:['Bíceps'],ax:0.12,ecc:1.1,sys:0.52,kn:0.0,lb:0.18,sfr:0.90,hl:44,pat:'pull-v',stimQ:0.88,lenMult:1.12,tags:['bilateral','compound','stretch-mediated']},
   'jalon':               {p:['Dorsal'],s:['Bíceps'],ax:0.12,ecc:1.1,sys:0.52,kn:0.0,lb:0.18,sfr:0.90,hl:44,pat:'pull-v',stimQ:0.88,lenMult:1.12,tags:['bilateral','stretch-mediated']},
@@ -1115,7 +1133,7 @@ const EXERCISE_INTELLIGENCE = {
   'pull over':           {p:['Dorsal'],s:['Pectoral'],ax:0.12,ecc:1.2,sys:0.42,kn:0.0,lb:0.18,sfr:0.92,hl:42,pat:'pull-v',stimQ:0.90,lenMult:1.15,tags:['stretch-mediated']}, // 6.3.3 alias: Hevy lo nombra "Pull Over" (con espacio) → no casaba con 'pullover'. Mismos priors. Captura, no fórmula.
   'remo':                {p:['Dorsal'],s:['Bíceps'],ax:0.32,ecc:1.05,sys:0.58,kn:0.0,lb:0.38,sfr:0.86,hl:46,pat:'pull-h',stimQ:0.88,lenMult:1.05,tags:['bilateral','compound']},
   'row':                 {p:['Dorsal'],s:['Bíceps'],ax:0.32,ecc:1.05,sys:0.58,kn:0.0,lb:0.38,sfr:0.86,hl:46,pat:'pull-h',stimQ:0.88,lenMult:1.05,tags:['bilateral']},
-  'face pull':           {p:['Deltoides'],s:[],ax:0.02,ecc:0.8,sys:0.2,kn:0.0,lb:0.02,sfr:0.96,hl:24,pat:'pull-h',stimQ:0.78,lenMult:1.00,tags:['rehab','rear-delt','low-sys']},
+  'face pull':           {p:['Deltoide posterior'],s:[],ax:0.02,ecc:0.8,sys:0.2,kn:0.0,lb:0.02,sfr:0.96,hl:24,pat:'pull-h',stimQ:0.78,lenMult:1.00,tags:['rehab','rear-delt','low-sys']},
   // ── UPPER — Arms ──
   'curl':                {p:['Bíceps'],s:[],ax:0.02,ecc:1.0,sys:0.22,kn:0.0,lb:0.02,sfr:0.90,hl:30,pat:'isolation',stimQ:0.85,lenMult:1.05,tags:['isolation','bicep']},
   'curl martillo':       {p:['Bíceps'],s:[],ax:0.02,ecc:1.0,sys:0.22,kn:0.0,lb:0.02,sfr:0.90,hl:30,pat:'isolation',stimQ:0.85,lenMult:1.05,tags:['isolation','brachialis']},
@@ -1306,8 +1324,8 @@ function FatigueEngine(metrics,logs,hevyRecent,domsUpper,domsLower,knee){
   //             score values (0-100) higher=better readiness
   // No cross-contamination between systems in systemic calculation
 
-  const UPPER_M=['Pectoral','Deltoides','Tríceps','Dorsal','Bíceps'];
-  const LOWER_M=['Cuádriceps','Isquiotibiales','Glúteo','Gemelos/Sóleo','Aductores'];
+  const UPPER_M=['Pectoral','Deltoide anterior','Deltoide lateral','Deltoide posterior','Tríceps','Dorsal','Bíceps'];
+  const LOWER_M=['Cuádriceps','Isquiotibiales','Glúteo','Gemelos/Sóleo','Aductores','Abductores'];
 
   function classifySession(sess){
     if(!sess.muscleSets)return{isUpper:false,isLower:false};
@@ -1463,9 +1481,11 @@ function MuscleFatigueEngine(logs, hevyRecent){
 
   // Session map for log-based estimation
   const sessMap = {
-    'D1':{'Pectoral':{sets:8,ex:'press banca mancuernas'},'Dorsal':{sets:4,ex:'remo mancuerna'},'Deltoides':{sets:4,ex:'elevación lateral'},'Bíceps':{sets:3,ex:'curl'},'Tríceps':{sets:3,ex:'extensión'},'Gemelos/Sóleo':{sets:4,ex:'gemelo'}},
+    'D1':{'Pectoral':{sets:8,ex:'press banca mancuernas'},'Dorsal':{sets:4,ex:'remo mancuerna'},'Deltoide lateral':{sets:4,ex:'elevación lateral'},'Bíceps':{sets:3,ex:'curl'},'Tríceps':{sets:3,ex:'extensión'},'Gemelos/Sóleo':{sets:4,ex:'gemelo'}},
     'D2':{'Cuádriceps':{sets:7,ex:'sentadilla frontal'},'Isquiotibiales':{sets:4,ex:'curl femoral'},'Glúteo':{sets:6,ex:'hip thrust'},'Gemelos/Sóleo':{sets:4,ex:'gemelo'},'Aductores':{sets:5,ex:'aductor'},'Core':{sets:3,ex:'crunch'}},
-    'D4':{'Dorsal':{sets:7,ex:'remo'},'Pectoral':{sets:4,ex:'press banca mancuernas'},'Deltoides':{sets:5,ex:'press de hombros'},'Bíceps':{sets:3,ex:'curl martillo'},'Tríceps':{sets:3,ex:'jm press'},'Gemelos/Sóleo':{sets:4,ex:'gemelo'}},
+    // Deltoides 5 sets 'press de hombros' repartido 3 anterior / 2 lateral (aproximación propia,
+    // press de hombros recluta anterior como motor primario y lateral como sinergista).
+    'D4':{'Dorsal':{sets:7,ex:'remo'},'Pectoral':{sets:4,ex:'press banca mancuernas'},'Deltoide anterior':{sets:3,ex:'press de hombros'},'Deltoide lateral':{sets:2,ex:'press de hombros'},'Bíceps':{sets:3,ex:'curl martillo'},'Tríceps':{sets:3,ex:'jm press'},'Gemelos/Sóleo':{sets:4,ex:'gemelo'}},
     'D5':{'Isquiotibiales':{sets:8,ex:'rdl'},'Cuádriceps':{sets:3,ex:'sentadilla frontal'},'Glúteo':{sets:7,ex:'hip thrust'},'Gemelos/Sóleo':{sets:4,ex:'gemelo'},'Aductores':{sets:3,ex:'aductor'},'Core':{sets:3,ex:'pallof'}},
   };
 
@@ -1499,7 +1519,7 @@ function MuscleFatigueEngine(logs, hevyRecent){
     const key = ['D1','D2','D4','D5'].find(k => l.sess && l.sess.includes(k));
     if(!key) return;
     Object.entries(sessMap[key]).forEach(([m, {sets, ex}]) => {
-      const isPrimary = ['Pectoral','Dorsal','Cuádriceps','Isquiotibiales','Glúteo','Deltoides'].includes(m);
+      const isPrimary = ['Pectoral','Dorsal','Cuádriceps','Isquiotibiales','Glúteo','Deltoide anterior','Deltoide lateral','Deltoide posterior'].includes(m);
       addFatigue(m, sets, rpe, ex, ageMs, isPrimary);
     });
   });
@@ -1805,7 +1825,7 @@ function MAVEngine(fatigue,metrics,knee){
   var minFactor=Math.min(mult.hrv,mult.sleep,mult.nutrition,mult.fatigue);
   var floor=(minFactor<=0.70)?0.70:0.85;
   const global=Math.round(Math.max(floor,rawGlobal)*100)/100;
-  const LOWER_M=['Cuádriceps','Isquiotibiales','Glúteo','Gemelos/Sóleo','Aductores'];
+  const LOWER_M=['Cuádriceps','Isquiotibiales','Glúteo','Gemelos/Sóleo','Aductores','Abductores'];
   const muscles={};
   for(const [muscle,{mev,mav,mrv}] of Object.entries(S.mavRanges)){
     const isLower=LOWER_M.includes(muscle);
@@ -1925,7 +1945,7 @@ function ConfidenceEngine(wellnessHistory, logs, hevyRecent, metrics){
   logs.slice(0,10).forEach(l=>{
     const d=parseDate(l.date); if(!d)return;
     const ageDays=(now-d)/864e5;
-    const sessMap={'D1':['Pectoral','Deltoides','Tríceps'],'D2':['Cuádriceps','Glúteo','Isquiotibiales'],'D4':['Dorsal','Bíceps'],'D5':['Isquiotibiales','Glúteo','Gemelos/Sóleo']};
+    const sessMap={'D1':['Pectoral','Deltoide anterior','Deltoide lateral','Tríceps'],'D2':['Cuádriceps','Glúteo','Isquiotibiales'],'D4':['Dorsal','Bíceps'],'D5':['Isquiotibiales','Glúteo','Gemelos/Sóleo']};
     const key=Object.keys(sessMap).find(k=>l.sess&&l.sess.includes(k));
     if(key)sessMap[key].forEach(m=>{
       if(!muscleSessions[m]) muscleSessions[m]={count:0,lastAgeDays:ageDays};
@@ -2375,7 +2395,7 @@ function ProgressionEngine(workouts, hevyRecent, muscleFatigue, fatigue, metrics
     'squat':   ['Cuádriceps','Glúteo'],
     'hinge':   ['Isquiotibiales','Glúteo'],
     'push-h':  ['Pectoral','Tríceps'],
-    'push-v':  ['Deltoides','Tríceps'],
+    'push-v':  ['Deltoide anterior','Deltoide lateral','Tríceps'],
     'pull-v':  ['Dorsal','Bíceps'],
     'pull-h':  ['Dorsal','Bíceps'],
     'hip-ext': ['Glúteo'],
@@ -4736,7 +4756,10 @@ function saveLog(){
     readiness:S._readiness?S._readiness.overall:null,fatigue:S._fatigue?Math.round(S._fatigue.systemic):null,
     muscleFatigue:Object.keys(sessMF).length?sessMF:null,
     recFollow:_recFollow||null,atlasRec:S._decision?S._decision.recommendation:null});
-  const sm={'D1':{'Pectoral':7,'Dorsal':4,'Deltoides':4,'Bíceps':4,'Tríceps':4},'D2':{'Cuádriceps':8,'Isquiotibiales':3,'Glúteo':3,'Gemelos/Sóleo':8,'Aductores':4,'Core':6},'D4':{'Dorsal':8,'Pectoral':4,'Deltoides':7,'Bíceps':4,'Tríceps':4},'D5':{'Isquiotibiales':8,'Cuádriceps':4,'Glúteo':7,'Gemelos/Sóleo':8,'Aductores':4,'Core':7}}; // 6.4.0: series DIRECTAS reales de Carlos (D1/D4 sin gemelos). Solo fallback de log manual; Hevy auto-log calcula de los ejercicios reales.
+  // Deltoides repartido 2026-10-04: D1=4 (todo elevación lateral)→lateral:4. D4=7 (press de
+  // hombros, anterior motor primario + lateral sinergista)→anterior:4,lateral:3 (aproximación
+  // propia, no medida).
+  const sm={'D1':{'Pectoral':7,'Dorsal':4,'Deltoide lateral':4,'Bíceps':4,'Tríceps':4},'D2':{'Cuádriceps':8,'Isquiotibiales':3,'Glúteo':3,'Gemelos/Sóleo':8,'Aductores':4,'Core':6},'D4':{'Dorsal':8,'Pectoral':4,'Deltoide anterior':4,'Deltoide lateral':3,'Bíceps':4,'Tríceps':4},'D5':{'Isquiotibiales':8,'Cuádriceps':4,'Glúteo':7,'Gemelos/Sóleo':8,'Aductores':4,'Core':7}}; // 6.4.0: series DIRECTAS reales de Carlos (D1/D4 sin gemelos). Solo fallback de log manual; Hevy auto-log calcula de los ejercicios reales.
   const k=['D1','D2','D4','D5'].find(k=>sess.includes(k));
   if(k)Object.entries(sm[k]).forEach(([m,s])=>{S.weeklyVol[m]=(S.weeklyVol[m]||0)+s;});
   S.weekDays.add(sess.split('—')[0].trim());
@@ -5420,8 +5443,8 @@ async function fetchHevy(){
     const data=await r.json();const workouts=data.workouts||data.data||data||[];
     const now=Date.now();const weekStart=getWeekBounds(0).start;
     S.weeklyVol={};S._unmatchedEx={};const recentHevySess=[];
-    const UPPER_M=['Pectoral','Deltoides','Tríceps','Dorsal','Bíceps'];
-    const LOWER_M=['Cuádriceps','Isquiotibiales','Glúteo','Gemelos/Sóleo','Aductores'];
+    const UPPER_M=['Pectoral','Deltoide anterior','Deltoide lateral','Deltoide posterior','Tríceps','Dorsal','Bíceps'];
+    const LOWER_M=['Cuádriceps','Isquiotibiales','Glúteo','Gemelos/Sóleo','Aductores','Abductores'];
 
     workouts.forEach(w=>{
       const wDate=new Date(w.start_time||w.created_at||0);
@@ -6175,10 +6198,10 @@ function getWeeklyBalance(){
     var g={upper:0,legQuad:0,legHam:0,legGeneral:0};
     Object.keys(ms).forEach(function(mu){var s=safeNum(ms[mu],0);tot+=s;
       // Upper/Lower split: all upper-body muscles count as one "upper" signal
-      if(['Pectoral','Dorsal','Deltoides','Bíceps','Tríceps'].indexOf(mu)>=0)g.upper+=s;
+      if(['Pectoral','Dorsal','Deltoide anterior','Deltoide lateral','Deltoide posterior','Bíceps','Tríceps'].indexOf(mu)>=0)g.upper+=s;
       if(mu==='Cuádriceps')g.legQuad+=s;
       if(mu==='Isquiotibiales')g.legHam+=s;
-      if(['Cuádriceps','Isquiotibiales','Glúteo','Gemelos/Sóleo','Aductores'].indexOf(mu)>=0)g.legGeneral+=s;
+      if(['Cuádriceps','Isquiotibiales','Glúteo','Gemelos/Sóleo','Aductores','Abductores'].indexOf(mu)>=0)g.legGeneral+=s;
     });
     if(tot===0)return null;
     // Upper session: upper-body muscles dominate
@@ -6257,10 +6280,10 @@ function getWeeklyBalance(){
   function musclesForDay(label){
     var L=(label||'').toLowerCase();var ms=[];
     // Upper days (A/B) both train the full upper body — it's Upper/Lower, not Push/Pull
-    if(/upper|torso|empuje|tiron|tirón|push|pull/.test(L)){ms=['Pectoral','Dorsal','Deltoides','Bíceps','Tríceps'];}
-    else if(/lower a|pierna a|cuad|cuád/.test(L)){ms=['Cuádriceps','Isquiotibiales','Glúteo','Gemelos/Sóleo','Aductores','Core'];}
-    else if(/lower b|pierna b|isquio/.test(L)){ms=['Isquiotibiales','Cuádriceps','Glúteo','Gemelos/Sóleo','Aductores','Core'];}
-    else if(/lower|pierna|leg/.test(L)){ms=['Cuádriceps','Isquiotibiales','Glúteo','Gemelos/Sóleo','Aductores','Core'];}
+    if(/upper|torso|empuje|tiron|tirón|push|pull/.test(L)){ms=['Pectoral','Dorsal','Deltoide anterior','Deltoide lateral','Deltoide posterior','Bíceps','Tríceps'];}
+    else if(/lower a|pierna a|cuad|cuád/.test(L)){ms=['Cuádriceps','Isquiotibiales','Glúteo','Gemelos/Sóleo','Aductores','Abductores','Core'];}
+    else if(/lower b|pierna b|isquio/.test(L)){ms=['Isquiotibiales','Cuádriceps','Glúteo','Gemelos/Sóleo','Aductores','Abductores','Core'];}
+    else if(/lower|pierna|leg/.test(L)){ms=['Cuádriceps','Isquiotibiales','Glúteo','Gemelos/Sóleo','Aductores','Abductores','Core'];}
     if(/core/.test(L)&&ms.indexOf('Core')<0)ms.push('Core');
     return ms;
   }
@@ -6579,10 +6602,10 @@ var PLAN_DAY_EXERCISES={
 };
 function planDayMuscles(label){
   var L=(label||'').toLowerCase();var ms=[];
-  if(/upper|torso|empuje|tiron|tirón|push|pull/.test(L))ms=['Pectoral','Dorsal','Deltoides','Bíceps','Tríceps'];
-  else if(/lower a|pierna a|cuad|cuád/.test(L))ms=['Cuádriceps','Isquiotibiales','Glúteo','Gemelos/Sóleo','Aductores','Core'];
-  else if(/lower b|pierna b|isquio/.test(L))ms=['Isquiotibiales','Cuádriceps','Glúteo','Gemelos/Sóleo','Aductores','Core'];
-  else if(/lower|pierna|leg/.test(L))ms=['Cuádriceps','Isquiotibiales','Glúteo','Gemelos/Sóleo','Aductores','Core'];
+  if(/upper|torso|empuje|tiron|tirón|push|pull/.test(L))ms=['Pectoral','Dorsal','Deltoide anterior','Deltoide lateral','Deltoide posterior','Bíceps','Tríceps'];
+  else if(/lower a|pierna a|cuad|cuád/.test(L))ms=['Cuádriceps','Isquiotibiales','Glúteo','Gemelos/Sóleo','Aductores','Abductores','Core'];
+  else if(/lower b|pierna b|isquio/.test(L))ms=['Isquiotibiales','Cuádriceps','Glúteo','Gemelos/Sóleo','Aductores','Abductores','Core'];
+  else if(/lower|pierna|leg/.test(L))ms=['Cuádriceps','Isquiotibiales','Glúteo','Gemelos/Sóleo','Aductores','Abductores','Core'];
   if(/core/.test(L)&&ms.indexOf('Core')<0)ms.push('Core');
   return ms;
 }
@@ -6796,7 +6819,7 @@ function ReadinessEngine(fatigue, hrv, metrics, muscleFatigue) {
   }
 
   // Muscular readiness — from local fatigue
-  var avgUpper = (['Pectoral','Deltoides','Tríceps','Dorsal','Bíceps']
+  var avgUpper = (['Pectoral','Deltoide anterior','Deltoide lateral','Deltoide posterior','Tríceps','Dorsal','Bíceps']
     .reduce(function(s,m){return s+getMF(m);},0))/5;
   var avgLower = (['Cuádriceps','Isquiotibiales','Glúteo','Gemelos/Sóleo']
     .reduce(function(s,m){return s+getMF(m);},0))/4;
@@ -6894,7 +6917,7 @@ function DecisionEngine(fatigue, hrv, muscleFatigue, interference, metrics, prog
   var hrvState = hrvPct < -15 ? 'suppressed' : hrvPct < -8 ? 'low' : hrvPct > 8 ? 'elevated' : 'normal';
 
   // ── Local muscle fatigue ──
-  var avgUpper = Math.round((['Pectoral','Deltoides','Tríceps','Dorsal','Bíceps']
+  var avgUpper = Math.round((['Pectoral','Deltoide anterior','Deltoide lateral','Deltoide posterior','Tríceps','Dorsal','Bíceps']
     .reduce(function(s,m){return s+getMF(m);},0))/5);
   var avgLower = Math.round((['Cuádriceps','Isquiotibiales','Glúteo','Gemelos/Sóleo']
     .reduce(function(s,m){return s+getMF(m);},0))/4);
@@ -7219,7 +7242,7 @@ function buildWeeklyAdaptationSnapshot(){
   if(_volTotal===0){
     try{var existing=localStorage.getItem('atlas_weekly_v1');if(existing){var arr=JSON.parse(existing);if(arr&&arr.length&&arr[0].weekKey===weekKey)return;}}catch(e){}
   }
-  var muscleList=['Cuádriceps','Isquiotibiales','Glúteo','Gemelos/Sóleo','Pectoral','Dorsal','Deltoides','Bíceps','Tríceps','Aductores','Core'];
+  var muscleList=['Cuádriceps','Isquiotibiales','Glúteo','Gemelos/Sóleo','Pectoral','Dorsal','Deltoide anterior','Deltoide lateral','Deltoide posterior','Bíceps','Tríceps','Aductores','Abductores','Core'];
   var mfData=S._muscleFatigue||{};var effData=S._effectiveSets?S._effectiveSets.muscles:null;
   var muscles={};
   muscleList.forEach(function(m){
@@ -7407,7 +7430,7 @@ function OpportunityValidationEngine(){
 function ObservedMAVEngine(){
   var snaps=[];try{snaps=JSON.parse(localStorage.getItem('atlas_weekly_v1')||'[]');}catch(e){}
   if(snaps.length<4)return{available:false,need:4-snaps.length,weeks:snaps.length};
-  var muscleList=['Cuádriceps','Isquiotibiales','Glúteo','Gemelos/Sóleo','Pectoral','Dorsal','Deltoides','Bíceps','Tríceps'];
+  var muscleList=['Cuádriceps','Isquiotibiales','Glúteo','Gemelos/Sóleo','Pectoral','Dorsal','Deltoide anterior','Deltoide lateral','Deltoide posterior','Bíceps','Tríceps'];
   var observed={};
   muscleList.forEach(function(m){
     var points=snaps.filter(function(s){return s.muscles&&s.muscles[m]&&s.muscles[m].directSets>0;}).map(function(s){return{sets:s.muscles[m].directSets,gain:safeNum(s.muscles[m].e1rmChange),fatigue:safeNum(s.muscles[m].fatigue)};});
@@ -7837,10 +7860,10 @@ function removeSessionFromDay(targetDay){
   function detectPat(l){
     var ms=l.muscleSets||{};var tot=0;var g={upper:0,legQuad:0,legHam:0,legGeneral:0};
     Object.keys(ms).forEach(function(mu){var s=safeNum(ms[mu],0);tot+=s;
-      if(['Pectoral','Dorsal','Deltoides','Bíceps','Tríceps'].indexOf(mu)>=0)g.upper+=s;
+      if(['Pectoral','Dorsal','Deltoide anterior','Deltoide lateral','Deltoide posterior','Bíceps','Tríceps'].indexOf(mu)>=0)g.upper+=s;
       if(mu==='Cuádriceps')g.legQuad+=s;
       if(mu==='Isquiotibiales')g.legHam+=s;
-      if(['Cuádriceps','Isquiotibiales','Glúteo','Gemelos/Sóleo','Aductores'].indexOf(mu)>=0)g.legGeneral+=s;
+      if(['Cuádriceps','Isquiotibiales','Glúteo','Gemelos/Sóleo','Aductores','Abductores'].indexOf(mu)>=0)g.legGeneral+=s;
     });
     if(tot===0)return null;
     if(g.upper/tot>=0.45&&g.upper>=g.legGeneral)return 'upper';
@@ -7901,10 +7924,10 @@ function showAssignmentDebug(){
   function detectPatternWhy(l){
     var ms=l.muscleSets||{};var tot=0;var g={upper:0,legQuad:0,legHam:0,legGeneral:0};
     Object.keys(ms).forEach(function(mu){var s=safeNum(ms[mu],0);tot+=s;
-      if(['Pectoral','Dorsal','Deltoides','Bíceps','Tríceps'].indexOf(mu)>=0)g.upper+=s;
+      if(['Pectoral','Dorsal','Deltoide anterior','Deltoide lateral','Deltoide posterior','Bíceps','Tríceps'].indexOf(mu)>=0)g.upper+=s;
       if(mu==='Cuádriceps')g.legQuad+=s;
       if(mu==='Isquiotibiales')g.legHam+=s;
-      if(['Cuádriceps','Isquiotibiales','Glúteo','Gemelos/Sóleo','Aductores'].indexOf(mu)>=0)g.legGeneral+=s;
+      if(['Cuádriceps','Isquiotibiales','Glúteo','Gemelos/Sóleo','Aductores','Abductores'].indexOf(mu)>=0)g.legGeneral+=s;
     });
     if(tot===0)return {re:null,why:'sin series'};
     if(g.upper/tot>=0.45&&g.upper>=g.legGeneral)return {re:/upper|torso|empuje|tiron|tirón|push|pull/,why:'upper '+Math.round(g.upper/tot*100)+'% del volumen'};
