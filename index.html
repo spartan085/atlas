@@ -174,7 +174,7 @@ textarea.field{resize:vertical;min-height:60px;}
 <header class="hdr">
   <div style="display:flex;align-items:center;gap:9px;">
     <svg width="26" height="26" viewBox="0 0 28 28" fill="none"><path d="M14 2l10.39 6v12L14 26 3.61 20V8L14 2z" fill="rgba(6,182,212,0.12)" stroke="var(--c)" stroke-width="1.2"/><path d="M14 8l5.2 3v6L14 20l-5.2-3V11L14 8z" fill="rgba(6,182,212,0.2)"/></svg>
-    <div class="wordmark">ATL<em>A</em>S <span style="font-family:'Geist Mono',monospace;font-size:10px;color:var(--fg3);letter-spacing:1px;">v6 · build 2026-10-04b</span></div>
+    <div class="wordmark">ATL<em>A</em>S <span style="font-family:'Geist Mono',monospace;font-size:10px;color:var(--fg3);letter-spacing:1px;">v6 · build 2026-10-04c</span></div>
   </div>
   <div class="hdr-right">
     <button class="sync-btn active" onclick="syncAll()"><span class="sdot" id="syncDot"></span> Sync</button>
@@ -1134,6 +1134,15 @@ const EXERCISE_INTELLIGENCE = {
   'remo':                {p:['Dorsal'],s:['Bíceps'],ax:0.32,ecc:1.05,sys:0.58,kn:0.0,lb:0.38,sfr:0.86,hl:46,pat:'pull-h',stimQ:0.88,lenMult:1.05,tags:['bilateral','compound']},
   'row':                 {p:['Dorsal'],s:['Bíceps'],ax:0.32,ecc:1.05,sys:0.58,kn:0.0,lb:0.38,sfr:0.86,hl:46,pat:'pull-h',stimQ:0.88,lenMult:1.05,tags:['bilateral']},
   'face pull':           {p:['Deltoide posterior'],s:[],ax:0.02,ecc:0.8,sys:0.2,kn:0.0,lb:0.02,sfr:0.96,hl:24,pat:'pull-h',stimQ:0.78,lenMult:1.00,tags:['rehab','rear-delt','low-sys']},
+  // Vuelos posteriores / pájaro invertido / reverse fly — isolation de deltoide posterior en máquina o mancuerna.
+  'vuelos posteriores':  {p:['Deltoide posterior'],s:[],ax:0.02,ecc:0.85,sys:0.2,kn:0.0,lb:0.02,sfr:0.92,hl:26,pat:'pull-h',stimQ:0.80,lenMult:1.00,tags:['isolation','rear-delt']},
+  'reverse fly':         {p:['Deltoide posterior'],s:[],ax:0.02,ecc:0.85,sys:0.2,kn:0.0,lb:0.02,sfr:0.92,hl:26,pat:'pull-h',stimQ:0.80,lenMult:1.00,tags:['isolation','rear-delt']},
+  'rear delt fly':       {p:['Deltoide posterior'],s:[],ax:0.02,ecc:0.85,sys:0.2,kn:0.0,lb:0.02,sfr:0.92,hl:26,pat:'pull-h',stimQ:0.80,lenMult:1.00,tags:['isolation','rear-delt']},
+  'pec deck reverse':    {p:['Deltoide posterior'],s:[],ax:0.02,ecc:0.85,sys:0.2,kn:0.0,lb:0.02,sfr:0.92,hl:26,pat:'pull-h',stimQ:0.80,lenMult:1.00,tags:['isolation','rear-delt']},
+  'peck deck reverse':   {p:['Deltoide posterior'],s:[],ax:0.02,ecc:0.85,sys:0.2,kn:0.0,lb:0.02,sfr:0.92,hl:26,pat:'pull-h',stimQ:0.80,lenMult:1.00,tags:['isolation','rear-delt']},
+  'pájaro':              {p:['Deltoide posterior'],s:[],ax:0.02,ecc:0.85,sys:0.2,kn:0.0,lb:0.02,sfr:0.92,hl:26,pat:'pull-h',stimQ:0.80,lenMult:1.00,tags:['isolation','rear-delt']},
+  'pajaro':              {p:['Deltoide posterior'],s:[],ax:0.02,ecc:0.85,sys:0.2,kn:0.0,lb:0.02,sfr:0.92,hl:26,pat:'pull-h',stimQ:0.80,lenMult:1.00,tags:['isolation','rear-delt']},
+  'aperturas posteriores':{p:['Deltoide posterior'],s:[],ax:0.02,ecc:0.85,sys:0.2,kn:0.0,lb:0.02,sfr:0.92,hl:26,pat:'pull-h',stimQ:0.80,lenMult:1.00,tags:['isolation','rear-delt']},
   // ── UPPER — Arms ──
   'curl':                {p:['Bíceps'],s:[],ax:0.02,ecc:1.0,sys:0.22,kn:0.0,lb:0.02,sfr:0.90,hl:30,pat:'isolation',stimQ:0.85,lenMult:1.05,tags:['isolation','bicep']},
   'curl martillo':       {p:['Bíceps'],s:[],ax:0.02,ecc:1.0,sys:0.22,kn:0.0,lb:0.02,sfr:0.90,hl:30,pat:'isolation',stimQ:0.85,lenMult:1.05,tags:['isolation','brachialis']},
