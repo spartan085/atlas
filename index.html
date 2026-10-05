@@ -174,7 +174,7 @@ textarea.field{resize:vertical;min-height:60px;}
 <header class="hdr">
   <div style="display:flex;align-items:center;gap:9px;">
     <svg width="26" height="26" viewBox="0 0 28 28" fill="none"><path d="M14 2l10.39 6v12L14 26 3.61 20V8L14 2z" fill="rgba(6,182,212,0.12)" stroke="var(--c)" stroke-width="1.2"/><path d="M14 8l5.2 3v6L14 20l-5.2-3V11L14 8z" fill="rgba(6,182,212,0.2)"/></svg>
-    <div class="wordmark">ATL<em>A</em>S <span style="font-family:'Geist Mono',monospace;font-size:10px;color:var(--fg3);letter-spacing:1px;">v6 · build 2026-10-04c</span></div>
+    <div class="wordmark">ATL<em>A</em>S <span style="font-family:'Geist Mono',monospace;font-size:10px;color:var(--fg3);letter-spacing:1px;">v6 · build 2026-10-05</span></div>
   </div>
   <div class="hdr-right">
     <button class="sync-btn active" onclick="syncAll()"><span class="sdot" id="syncDot"></span> Sync</button>
@@ -6774,7 +6774,15 @@ function validateStorage(raw) {
     out.claude = { key: typeof p.claude.key === 'string' ? p.claude.key : '' };
   }
   if (p.hevy && typeof p.hevy === 'object') {
-    out.hevy = { key: typeof p.hevy.key === 'string' ? p.hevy.key : '' };
+    // FIX 2026-10-05: esto solo dejaba pasar 'key' — totalWorkouts y workouts (el caché real de
+    // entrenos) se tiraban en cada carga, aunque save() sí los escribiera. No rompía nada visible
+    // porque fetchHevy() se vuelve a disparar en init(), pero perdía el caché sin necesidad y, si
+    // ese día el fetch fallaba, se quedaba sin datos de Hevy hasta el siguiente sync con éxito.
+    out.hevy = {
+      key: typeof p.hevy.key === 'string' ? p.hevy.key : '',
+      totalWorkouts: p.hevy.totalWorkouts != null ? safeInt(p.hevy.totalWorkouts, 0) : undefined,
+      workouts: Array.isArray(p.hevy.workouts) ? p.hevy.workouts : undefined
+    };
   }
 
   // Validate weekly data
@@ -6785,6 +6793,24 @@ function validateStorage(raw) {
   if (typeof p.volWindow === 'string') out.volWindow = p.volWindow; // 6.3.5
   if (p.logWeekOffset != null) out.logWeekOffset = safeInt(p.logWeekOffset, 0);
   if (p.currentMeso != null) out.currentMeso = validateNum(p.currentMeso, 1, 4, 1);
+
+  // FIX 2026-10-05 — CAUSA RAÍZ real de "histórico insuficiente, 1 día" persistente durante
+  // semanas: validateStorage() es la única puerta de entrada de loadPersisted() (lee localStorage
+  // → aquí → loadPersisted asigna S.*). save() SÍ escribía _fatigueHistory, residualHL y
+  // streamsCache correctamente cada día — pero esta función (añadida en un pase de saneado
+  // posterior, sin auditar contra todo lo que save()/loadPersisted() esperaban) nunca los dejaba
+  // pasar al objeto `out`. Resultado: en cada apertura de la app, p._fatigueHistory era
+  // `undefined` → loadPersisted() nunca restauraba el historial → se guardaba exactamente 1
+  // snapshot nuevo ese día → siguiente apertura, vuelta a empezar. Ninguno de los fixes
+  // anteriores (orden init(), timezone, cascada de save()) tocaba este archivo porque el bug no
+  // estaba en cómo se guardaba, sino en cómo se volvía a leer.
+  if (Array.isArray(p._fatigueHistory)) {
+    out._fatigueHistory = p._fatigueHistory.filter(function(h){
+      return h && typeof h === 'object' && typeof h.date === 'string';
+    });
+  }
+  if (p.residualHL && typeof p.residualHL === 'object') out.residualHL = p.residualHL;
+  if (p.streamsCache && typeof p.streamsCache === 'object') out.streamsCache = p.streamsCache;
 
   return out;
 }
