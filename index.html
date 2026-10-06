@@ -174,7 +174,7 @@ textarea.field{resize:vertical;min-height:60px;}
 <header class="hdr">
   <div style="display:flex;align-items:center;gap:9px;">
     <svg width="26" height="26" viewBox="0 0 28 28" fill="none"><path d="M14 2l10.39 6v12L14 26 3.61 20V8L14 2z" fill="rgba(6,182,212,0.12)" stroke="var(--c)" stroke-width="1.2"/><path d="M14 8l5.2 3v6L14 20l-5.2-3V11L14 8z" fill="rgba(6,182,212,0.2)"/></svg>
-    <div class="wordmark">ATL<em>A</em>S <span style="font-family:'Geist Mono',monospace;font-size:10px;color:var(--fg3);letter-spacing:1px;">v6 · build 2026-10-05b</span></div>
+    <div class="wordmark">ATL<em>A</em>S <span style="font-family:'Geist Mono',monospace;font-size:10px;color:var(--fg3);letter-spacing:1px;">v6 · build 2026-10-05c</span></div>
   </div>
   <div class="hdr-right">
     <button class="sync-btn active" onclick="syncAll()"><span class="sdot" id="syncDot"></span> Sync</button>
@@ -929,6 +929,7 @@ function save(){
     residualHL:S.residualHL, // 6.4.1: vidas media configurables (hipótesis)
     streamsCache:prunedStreamsCache, // 2026-07-16: caché permanente de streams bajo demanda
     _fatigueHistory:safeArr(S._fatigueHistory).slice(-90), // 2026-07-20: snapshot diario para gráficos de fatiga
+    exerciseAliases:S.exerciseAliases||{}, // 2026-10-05: ejercicios que Carlos clasificó a mano desde el aviso
     logWeekOffset:S.logWeekOffset,
     hevy:S.hevy?{key:S.hevy.key,totalWorkouts:S.hevy.totalWorkouts,workouts:S.hevy.workouts}:null,
     currentMeso:S.currentMeso||1,
@@ -957,6 +958,7 @@ function save(){
         try{
           var minimalData={metrics:S.metrics,weeklyVol:S.weeklyVol,weekStart:S.weekStart,
             currentMeso:S.currentMeso||1,_fatigueHistory:safeArr(S._fatigueHistory).slice(-90),
+            exerciseAliases:S.exerciseAliases||{},
             logs:prunedLogs.slice(-200),_saved:now,_degraded:true};
           localStorage.setItem('atlas6',JSON.stringify(minimalData));
           _saveOk=true;
@@ -1004,6 +1006,7 @@ function loadPersisted(){
       }
       if(p.streamsCache&&typeof p.streamsCache==='object')S.streamsCache=p.streamsCache; // 2026-07-16
       if(Array.isArray(p._fatigueHistory))S._fatigueHistory=p._fatigueHistory; // 2026-07-20
+      if(p.exerciseAliases&&typeof p.exerciseAliases==='object')S.exerciseAliases=p.exerciseAliases; // 2026-10-05
       if(p.logWeekOffset!=null)S.logWeekOffset=p.logWeekOffset;
       if(p.hevy)S.hevy=p.hevy;
       if(p.currentMeso)S.currentMeso=p.currentMeso;
@@ -1174,13 +1177,48 @@ const EXERCISE_INTELLIGENCE = {
 
 // ── EXERCISE INTELLIGENCE LOOKUP ──
 // Returns full exercise data with all physiological fields
+// FIX 2026-10-05 — regla estructural para que "ejercicio sin reconocer" deje de depender de que
+// Carlos venga al chat cada vez. Dos capas antes del catálogo estático:
+// 1) S.exerciseAliases: lo que Carlos clasifica él mismo desde el aviso en la propia app (ver
+//    classifyUnmatchedExercise) — match EXACTO por nombre completo, gana siempre.
+// 2) Normalización de sufijos de equipo/variante entre paréntesis — "Press de Pecho (Máquina)"
+//    y "Press de Pecho" son el mismo movimiento para efectos de qué músculo trabaja; si el
+//    nombre completo no matchea nada, se reintenta sin el "(...)" final antes de rendirse.
+// Esto no elimina la necesidad de añadir ejercicios nuevos de verdad (un movimiento que Carlos
+// nunca había hecho sigue sin tener entrada), pero cubre el patrón real que se repite: el mismo
+// ejercicio de siempre, con una etiqueta de máquina/asistencia/agarre distinta cada vez.
 function getExDB(name){
-  const lower=(name||'').toLowerCase();
+  const raw=name||'';
+  const lower=raw.toLowerCase();
+  if(S.exerciseAliases&&S.exerciseAliases[lower])return S.exerciseAliases[lower];
   let best=null,bestLen=0;
   for(const [k,d] of Object.entries(EXERCISE_INTELLIGENCE)){
     if(lower.includes(k)&&k.length>bestLen){best=d;bestLen=k.length;}
   }
+  if(best)return best;
+  const stripped=lower.replace(/\s*\([^)]*\)\s*$/,'').trim();
+  if(stripped&&stripped!==lower){
+    if(S.exerciseAliases&&S.exerciseAliases[stripped])return S.exerciseAliases[stripped];
+    for(const [k,d] of Object.entries(EXERCISE_INTELLIGENCE)){
+      if(stripped.includes(k)&&k.length>bestLen){best=d;bestLen=k.length;}
+    }
+  }
   return best;
+}
+// Carlos clasifica un ejercicio no reconocido desde el propio aviso en HOY/MEV-MAV — queda
+// guardado para siempre (persistido, exportado/importado), sin volver a tocar código ni chat.
+// Perfil físiológico genérico (isolation, carga/sfr medios) porque solo se le pide el músculo,
+// no los ~10 parámetros del catálogo — etiquetado 'user-classified' para distinguirlo de las
+// entradas con parámetros verificados a mano.
+function classifyUnmatchedExercise(name,muscle){
+  if(!name||!muscle)return;
+  if(!S.exerciseAliases)S.exerciseAliases={};
+  S.exerciseAliases[name.toLowerCase()]={p:[muscle],s:[],ax:0.1,ecc:1.0,sys:0.4,kn:0.1,lb:0.15,sfr:0.85,hl:36,pat:'isolation',stimQ:0.8,lenMult:1.0,tags:['user-classified']};
+  if(S._unmatchedEx)delete S._unmatchedEx[name];
+  save();
+  runEngines();
+  safe(renderMavMicroSummary,'rmms');safe(renderMAV,'rmav');safe(renderWeekState,'rwst');
+  if(typeof toast==='function')toast('Clasificado','"'+name+'" → '+muscle+'. Ya cuenta en el volumen semanal.','✓');
 }
 
 // Get SFR label for UI
@@ -5739,6 +5777,7 @@ function exportAllData(){
       streamsCache:S.streamsCache||{},
       residualHL:S.residualHL||{strength:60,cardio:36},
       _fatigueHistory:safeArr(S._fatigueHistory),
+      exerciseAliases:S.exerciseAliases||{}, // 2026-10-05: mismo olvido que streamsCache/residualHL en su día
       weekDays:S.weekDays?[...S.weekDays]:undefined,
       weekStart:S.weekStart,
       weekOffset:S.weekOffset,
@@ -5790,6 +5829,7 @@ function importAllData(){
         if(data.streamsCache&&typeof data.streamsCache==='object')S.streamsCache=data.streamsCache;
         if(data.residualHL&&typeof data.residualHL==='object')S.residualHL=data.residualHL;
         if(Array.isArray(data._fatigueHistory))S._fatigueHistory=data._fatigueHistory;
+        if(data.exerciseAliases&&typeof data.exerciseAliases==='object')S.exerciseAliases=data.exerciseAliases;
         if(Array.isArray(data.weekDays))S.weekDays=data.weekDays;
         if(data.weekStart!=null)S.weekStart=data.weekStart;
         if(data.weekOffset!=null)S.weekOffset=data.weekOffset;
@@ -5912,7 +5952,20 @@ function renderMavMicroSummary(){
   var unmatchedHtml='';
   var um=S._unmatchedEx||{};var umKeys=Object.keys(um);
   if(umKeys.length){
-    unmatchedHtml='<div style="margin-top:6px;padding:6px 8px;background:rgba(255,200,0,0.08);border-radius:6px;font-size:10px;color:var(--y);">⚠ Ejercicios sin reconocer (volumen no contado): '+umKeys.map(function(k){return k+' ('+um[k]+'s)';}).join(', ')+'. Renómbralos en Hevy o avísame para añadirlos.</div>';
+    // 2026-10-05: clasificación en 1 clic en vez de "avísame" — el <select> escribe directo en
+    // S.exerciseAliases (ver classifyUnmatchedExercise). Soluciona el caso real que se repite:
+    // mismo ejercicio de siempre, nombre de Hevy nuevo (máquina distinta, "(Asistida)", etc).
+    var muscleOpts=Object.keys(S.mavRanges||{}).map(function(m){return '<option value="'+m+'">'+m+'</option>';}).join('');
+    unmatchedHtml='<div style="margin-top:6px;padding:6px 8px;background:rgba(255,200,0,0.08);border-radius:6px;font-size:10px;color:var(--y);">'+
+      '⚠ Ejercicios sin reconocer (volumen no contado):<br>'+
+      umKeys.map(function(k){
+        var safeK=k.replace(/'/g,"\\'");
+        return '<div style="display:flex;align-items:center;gap:6px;margin-top:4px;">'+
+          '<span style="flex:1;">'+k+' ('+um[k]+'s)</span>'+
+          '<select onchange="if(this.value)classifyUnmatchedExercise(\''+safeK+'\',this.value)" style="font-size:10px;background:var(--bg3);color:var(--fg2);border:1px solid var(--line);border-radius:4px;padding:2px 4px;">'+
+          '<option value="">clasificar…</option>'+muscleOpts+'</select></div>';
+      }).join('')+
+      '</div>';
   }
   el.innerHTML='<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:5px;">'+
     '<span><b style="color:var(--c);">Fuerza '+b.strengthDone+'/'+b.strengthTotal+'</b> · Cardio '+b.cardioDone+'/'+b.cardioTotal+'</span>'+
@@ -6821,6 +6874,11 @@ function validateStorage(raw) {
   }
   if (p.residualHL && typeof p.residualHL === 'object') out.residualHL = p.residualHL;
   if (p.streamsCache && typeof p.streamsCache === 'object') out.streamsCache = p.streamsCache;
+  // 2026-10-05: exerciseAliases tiene que pasar esta lista blanca igual que los tres de arriba —
+  // es justo el campo nuevo que motivó auditar esta función la primera vez. Se queda aquí al
+  // lado para que la próxima vez que se añada un campo persistido, este bloque entero recuerde
+  // que hay que tocarlo también.
+  if (p.exerciseAliases && typeof p.exerciseAliases === 'object') out.exerciseAliases = p.exerciseAliases;
 
   return out;
 }
