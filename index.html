@@ -174,7 +174,7 @@ textarea.field{resize:vertical;min-height:60px;}
 <header class="hdr">
   <div style="display:flex;align-items:center;gap:9px;">
     <svg width="26" height="26" viewBox="0 0 28 28" fill="none"><path d="M14 2l10.39 6v12L14 26 3.61 20V8L14 2z" fill="rgba(6,182,212,0.12)" stroke="var(--c)" stroke-width="1.2"/><path d="M14 8l5.2 3v6L14 20l-5.2-3V11L14 8z" fill="rgba(6,182,212,0.2)"/></svg>
-    <div class="wordmark">ATL<em>A</em>S <span style="font-family:'Geist Mono',monospace;font-size:10px;color:var(--fg3);letter-spacing:1px;">v6 · build 2026-10-05c</span></div>
+    <div class="wordmark">ATL<em>A</em>S <span style="font-family:'Geist Mono',monospace;font-size:10px;color:var(--fg3);letter-spacing:1px;">v6 · build 2026-10-08b</span></div>
   </div>
   <div class="hdr-right">
     <button class="sync-btn active" onclick="syncAll()"><span class="sdot" id="syncDot"></span> Sync</button>
@@ -202,7 +202,7 @@ textarea.field{resize:vertical;min-height:60px;}
   <div id="hoyDetailWrap" style="display:none;">
   <div class="rsys-grid">
     <div class="rsys-card idle" id="rsys-cardio"><div class="rsys-name">Cardio · Autonómico</div><div class="rsys-val" id="rsys-cardio-val">—</div><div class="rsys-lbl" id="rsys-cardio-lbl">Sin datos</div><ul class="rsys-sigs" id="rsys-cardio-sigs"></ul></div>
-    <div class="rsys-card idle" id="rsys-neuro"><div class="rsys-name">Neuromuscular</div><div class="rsys-val" id="rsys-neuro-val">—</div><div class="rsys-lbl" id="rsys-neuro-lbl">Sin datos</div><ul class="rsys-sigs" id="rsys-neuro-sigs"></ul></div>
+    <div class="rsys-card idle" id="rsys-neuro"><div class="rsys-name">Neuromuscular</div><div class="rsys-val" id="rsys-neuro-val">—</div><div class="rsys-lbl" id="rsys-neuro-lbl">Sin datos</div><div style="font-size:9px;color:var(--fg4);margin-bottom:3px;">Carga de TODO el cuerpo sumada (torso+pierna) — no es el mismo dato que las dos de abajo, puede divergir</div><ul class="rsys-sigs" id="rsys-neuro-sigs"></ul></div>
     <div class="rsys-card idle" id="rsys-upper"><div class="rsys-name">Tren Superior</div><div class="rsys-val" id="rsys-upper-val">—</div><div class="rsys-lbl" id="rsys-upper-lbl">Sin datos</div><ul class="rsys-sigs" id="rsys-upper-sigs"></ul></div>
     <div class="rsys-card idle" id="rsys-lower"><div class="rsys-name">Tren Inferior</div><div class="rsys-val" id="rsys-lower-val">—</div><div class="rsys-lbl" id="rsys-lower-lbl">Sin datos</div><ul class="rsys-sigs" id="rsys-lower-sigs"></ul></div>
   </div>
@@ -1404,10 +1404,25 @@ function FatigueEngine(metrics,logs,hevyRecent,domsUpper,domsLower,knee){
   const mf=S._muscleFatigue||{};
   const getMFVal=m=>(mf[m]?.value??mf[m]??0);
   const getMFConf=m=>(mf[m]?.confidence??0.5);
+  const getMFSets=m=>(mf[m]?.sets??0);
   const upperMuscles=UPPER_M.filter(m=>getMFVal(m)>0);
   const lowerMuscles=LOWER_M.filter(m=>getMFVal(m)>0);
-  const avgUpperFat=upperMuscles.length?Math.round(upperMuscles.reduce((s,m)=>s+getMFVal(m),0)/upperMuscles.length):0;
-  const avgLowerFat=lowerMuscles.length?Math.round(lowerMuscles.reduce((s,m)=>s+getMFVal(m),0)/lowerMuscles.length):0;
+  // FIX 2026-10-08 — reportado por Carlos con caso real: entrenó torso hoy (pecho con 8 series
+  // directas) y "Tren Superior" seguía en verde/75 "Fatiga baja" el mismo día. Causa real: esto
+  // promediaba TODOS los músculos de UPPER_M con valor>0 a partes iguales — el motor primario de
+  // hoy (Pectoral, muy cargado) quedaba diluido por 2-3 músculos que solo recibieron crédito
+  // SECUNDARIO mínimo (deltoides/tríceps como sinergistas de un press, sets*0.35 en
+  // MuscleFatigueEngine). Una media simple de {pecho:alto, hombro:bajo, tríceps:bajo} da un
+  // número medio-bajo aunque el músculo que de verdad trabajaste esté muy fatigado. Pasa a media
+  // ponderada por series reales (mf[m].sets) — el músculo que recibió el volumen de hoy domina la
+  // cifra regional, en vez de diluirse entre los que solo rozaron el ejercicio.
+  function weightedFatigueAvg(muscles){
+    var wSum=0,vSum=0;
+    muscles.forEach(function(m){var w=Math.max(getMFSets(m),0.5);wSum+=w;vSum+=getMFVal(m)*w;});
+    return wSum>0?Math.round(vSum/wSum):0;
+  }
+  const avgUpperFat=weightedFatigueAvg(upperMuscles);
+  const avgLowerFat=weightedFatigueAvg(lowerMuscles);
   const avgUpperConf=upperMuscles.length?upperMuscles.reduce((s,m)=>s+getMFConf(m),0)/upperMuscles.length:0.5;
   const avgLowerConf=lowerMuscles.length?lowerMuscles.reduce((s,m)=>s+getMFConf(m),0)/lowerMuscles.length:0.5;
 
@@ -5150,8 +5165,12 @@ function renderCombinedStateSummary(){
     // por región (fatigue.upperScore/lowerScore, 0-100, mismo cálculo, misma fuente). Ahora esta
     // tarjeta lee EXACTAMENTE la misma señal para la sesión específica que toca — elimina la
     // contradicción de raíz, no solo el texto.
-    var sessIsUpper=/upper/i.test(wb.nextSession[2]);
-    var sessIsLower=/lower/i.test(wb.nextSession[2]);
+    // FIX 2026-10-08: mismo bug que el de las viñetas de arriba — solo reconocía 'upper'/'lower'
+    // en inglés (nombres del mesociclo 1). Desde el mesociclo 2 los nombres son 'Torso Empuje',
+    // 'Pierna A', etc — el regex nunca matcheaba, regionScore quedaba null, y esta tarjeta caía
+    // en la rama genérica sin usar el dato por región que el comentario de arriba dice que usa.
+    var sessIsUpper=/upper|torso|empuje|tiron|tirón/i.test(wb.nextSession[2]);
+    var sessIsLower=/lower|pierna/i.test(wb.nextSession[2]);
     var regionScore=sessIsUpper?f.upperScore:sessIsLower?f.lowerScore:null;
     var regionLabel=sessIsUpper?'tren superior (torso)':sessIsLower?'tren inferior (pierna)':null;
     if(regionScore!=null){
@@ -6606,9 +6625,14 @@ function renderTodaySummary(){
   // por DecisionEngine sin ese contexto) seguían diciendo "buen día para empuje o tirón" o
   // "pierna viable" para la MISMA región que acabas de entrenar — contradicción directa con la
   // caja de abajo. Se reescriben aquí, en el único sitio que sí conoce ambos datos a la vez.
+  // FIX 2026-10-08: este regex solo reconocía 'upper'/'lower' en INGLÉS — eso cubre los nombres
+  // de sesión del mesociclo 1 ('Upper A Pecho/Dorsal/Hombro'), pero a partir del mesociclo 2 los
+  // nombres reales son en español ('Torso Empuje', 'Pierna A' — ver MESO_DAYS). Con una sesión
+  // 'Torso A' el regex nunca matcheaba, así que esta reescritura jamás se disparaba y las viñetas
+  // de arriba seguían contradiciendo al bloque JORNADA de abajo — exactamente el bug reportado.
   var todayStatus2=todayStatus;
-  var sessIsUpper2=todayStatus2&&todayStatus2.strengthSessName?/upper/i.test(todayStatus2.strengthSessName):false;
-  var sessIsLower2=todayStatus2&&todayStatus2.strengthSessName?/lower/i.test(todayStatus2.strengthSessName):false;
+  var sessIsUpper2=todayStatus2&&todayStatus2.strengthSessName?/upper|torso|empuje|tiron|tirón/i.test(todayStatus2.strengthSessName):false;
+  var sessIsLower2=todayStatus2&&todayStatus2.strengthSessName?/lower|pierna/i.test(todayStatus2.strengthSessName):false;
   var itemsFixed=d.items.map(function(item){
     if(sessIsUpper2&&/tren superior/i.test(item.text)&&/buen día|RIR conservador/i.test(item.text)){
       return {icon:'✔',col:'var(--g)',text:'Torso ya entrenado hoy ('+todayStatus2.strengthSessName+') — esto es informativo, no una sugerencia para hoy'};
