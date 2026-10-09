@@ -174,7 +174,7 @@ textarea.field{resize:vertical;min-height:60px;}
 <header class="hdr">
   <div style="display:flex;align-items:center;gap:9px;">
     <svg width="26" height="26" viewBox="0 0 28 28" fill="none"><path d="M14 2l10.39 6v12L14 26 3.61 20V8L14 2z" fill="rgba(6,182,212,0.12)" stroke="var(--c)" stroke-width="1.2"/><path d="M14 8l5.2 3v6L14 20l-5.2-3V11L14 8z" fill="rgba(6,182,212,0.2)"/></svg>
-    <div class="wordmark">ATL<em>A</em>S <span style="font-family:'Geist Mono',monospace;font-size:10px;color:var(--fg3);letter-spacing:1px;">v6 · build 2026-10-08b</span></div>
+    <div class="wordmark">ATL<em>A</em>S <span style="font-family:'Geist Mono',monospace;font-size:10px;color:var(--fg3);letter-spacing:1px;">v6 · build 2026-10-09</span></div>
   </div>
   <div class="hdr-right">
     <button class="sync-btn active" onclick="syncAll()"><span class="sdot" id="syncDot"></span> Sync</button>
@@ -6633,12 +6633,31 @@ function renderTodaySummary(){
   var todayStatus2=todayStatus;
   var sessIsUpper2=todayStatus2&&todayStatus2.strengthSessName?/upper|torso|empuje|tiron|tirón/i.test(todayStatus2.strengthSessName):false;
   var sessIsLower2=todayStatus2&&todayStatus2.strengthSessName?/lower|pierna/i.test(todayStatus2.strengthSessName):false;
+  // FIX 2026-10-09 — reportado por Carlos: "Tren inferior fresco — pierna viable" seguía
+  // apareciendo tras entrenar torso hoy. No contradecía al bloque JORNADA en el sentido de
+  // "mentir sobre qué entrenaste" (pierna de verdad está fresca, eso es cierto) — pero "viable"
+  // sin más contexto se lee como "hazlo hoy", y el programa es UNA sesión de fuerza al día (ya
+  // usada). El bloque de arriba solo reescribía la viñeta de la MISMA región ya entrenada; la de
+  // la región OPUESTA (la que de verdad toca después) se quedaba con el texto ambiguo original.
+  // Se reescribe aquí también, dejando claro que es sobre la PRÓXIMA sesión de fuerza, no hoy —
+  // y, si getWeeklyBalance sabe cuál es esa próxima sesión y es justo la región opuesta, se
+  // nombra explícitamente en vez de quedarse en un "mañana" que no siempre es exacto (puede haber
+  // un día de cardio/descanso entre medias).
+  var wbNext=typeof getWeeklyBalance==='function'?getWeeklyBalance():null;
+  var nextSessLabel=(wbNext&&wbNext.nextSession)?(wbNext.nextSession[0]+' — '+wbNext.nextSession[2].split('+')[0].trim()):null;
   var itemsFixed=d.items.map(function(item){
     if(sessIsUpper2&&/tren superior/i.test(item.text)&&/buen día|RIR conservador/i.test(item.text)){
       return {icon:'✔',col:'var(--g)',text:'Torso ya entrenado hoy ('+todayStatus2.strengthSessName+') — esto es informativo, no una sugerencia para hoy'};
     }
     if(sessIsLower2&&/tren inferior/i.test(item.text)&&/viable|cuidado con densidad/i.test(item.text)){
       return {icon:'✔',col:'var(--g)',text:'Pierna ya entrenada hoy ('+todayStatus2.strengthSessName+') — esto es informativo, no una sugerencia para hoy'};
+    }
+    // Región OPUESTA a la entrenada hoy: "fresco/viable" es sobre la próxima sesión, no hoy.
+    if(todayStatus2&&todayStatus2.strengthDone&&sessIsUpper2&&/tren inferior/i.test(item.text)&&/viable/i.test(item.text)){
+      return {icon:'✓',col:'var(--g)',text:'Pierna fresca — buena base para tu próxima sesión de pierna'+(nextSessLabel&&/pierna/i.test(nextSessLabel)?' ('+nextSessLabel+')':'')+'. Hoy ya hiciste torso, no hace falta otra sesión.'};
+    }
+    if(todayStatus2&&todayStatus2.strengthDone&&sessIsLower2&&/tren superior/i.test(item.text)&&/buen día/i.test(item.text)){
+      return {icon:'✓',col:'var(--g)',text:'Torso fresco — buena base para tu próxima sesión de torso'+(nextSessLabel&&/torso/i.test(nextSessLabel)?' ('+nextSessLabel+')':'')+'. Hoy ya hiciste pierna, no hace falta otra sesión.'};
     }
     return item;
   });
