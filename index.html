@@ -174,7 +174,7 @@ textarea.field{resize:vertical;min-height:60px;}
 <header class="hdr">
   <div style="display:flex;align-items:center;gap:9px;">
     <svg width="26" height="26" viewBox="0 0 28 28" fill="none"><path d="M14 2l10.39 6v12L14 26 3.61 20V8L14 2z" fill="rgba(6,182,212,0.12)" stroke="var(--c)" stroke-width="1.2"/><path d="M14 8l5.2 3v6L14 20l-5.2-3V11L14 8z" fill="rgba(6,182,212,0.2)"/></svg>
-    <div class="wordmark">ATL<em>A</em>S <span style="font-family:'Geist Mono',monospace;font-size:10px;color:var(--fg3);letter-spacing:1px;">v6 · build 2026-10-09</span></div>
+    <div class="wordmark">ATL<em>A</em>S <span style="font-family:'Geist Mono',monospace;font-size:10px;color:var(--fg3);letter-spacing:1px;">v6 · build 2026-10-17</span></div>
   </div>
   <div class="hdr-right">
     <button class="sync-btn active" onclick="syncAll()"><span class="sdot" id="syncDot"></span> Sync</button>
@@ -6012,8 +6012,11 @@ function renderWeekSummary(){
     if(t.cardio)short=/(z2|z1|cardio)/i.test(t.label)?'Z2':short;
     return '<div style="display:flex;align-items:center;gap:8px;font-size:11px;padding:1px 0;color:'+col+';"><span style="width:14px;text-align:center;font-weight:600;">'+icon+'</span><span style="width:24px;color:var(--fg3);">'+t.day+'</span><span>'+short+'</span></div>';
   }).join('');
-  // Muscle volume with opportunities
-  var furthestHtml=b.allMuscles.map(function(m){
+  // Muscle volume with opportunities — orden fijo Torso → Pierna → Core (pedido Carlos, calcado de Hevy)
+  var TORSO_GROUP=['Pectoral','Dorsal','Deltoide lateral','Deltoide anterior','Deltoide posterior','Bíceps','Tríceps'];
+  var PIERNA_GROUP=['Cuádriceps','Isquiotibiales','Glúteo','Aductores','Abductores','Gemelos/Sóleo'];
+  var CORE_GROUP=['Core'];
+  function muscleRowHtml(m){
     var col=m.deficit<=0?'var(--g)':m.done===0?'var(--fg3)':'var(--y)';
     var txt=m.deficit<=0?(m.done+'/'+m.mav+' ✓'):(m.done+'/'+m.mav+' (-'+m.deficit+')');
     var oppTxt='';
@@ -6023,7 +6026,13 @@ function renderWeekSummary(){
       else oppTxt='<span style="color:var(--fg3);font-size:10px;"> · '+m.opp+' oport.</span>';
     }
     return '<div style="display:flex;justify-content:space-between;font-size:12px;padding:2px 0;"><span style="color:var(--fg2);">'+m.muscle+'</span><span class="mono" style="color:'+col+';">'+txt+oppTxt+'</span></div>';
-  }).join('');
+  }
+  function groupHtml(label,names){
+    var rows=names.map(function(n){return b.orderedMuscles.filter(function(m){return m.muscle===n;})[0];}).filter(Boolean);
+    if(!rows.length)return '';
+    return '<div style="font-size:9px;color:var(--fg4);text-transform:uppercase;letter-spacing:0.5px;margin:6px 0 2px;">'+label+'</div>'+rows.map(muscleRowHtml).join('');
+  }
+  var furthestHtml=groupHtml('Torso',TORSO_GROUP)+groupHtml('Pierna',PIERNA_GROUP)+groupHtml('Core',CORE_GROUP);
   el.innerHTML=
     '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">'+
       '<div><div style="font-size:22px;font-weight:600;color:var(--fg);">'+b.weekScore+'%</div><div style="font-size:10px;color:var(--fg3);text-transform:uppercase;letter-spacing:0.5px;">Semana completada</div></div>'+
@@ -6396,6 +6405,17 @@ function getWeeklyBalance(){
   // Top 3 furthest from MAV (largest deficit, only those still short)
   var furthest=muscleStatus.filter(function(m){return m.deficit>0;}).sort(function(a,b){return b.deficit-a.deficit;});
   var allMuscles=muscleStatus.slice().sort(function(a,b){return b.deficit-a.deficit;});
+  // Orden fijo "Torso → Pierna → Core" pedido por Carlos, calcado del orden de Hevy
+  // (Pecho, Espalda, Delt. lateral, Delt. posterior, Bíceps, Tríceps, Cuádriceps,
+  // Isquiosurales, Glúteo, Aductores, Abductores, Gemelos/Sóleo, Core). "Deltoide
+  // anterior" no existe como categoría separada en Hevy — insertado entre lateral y
+  // posterior porque Atlas sí la tiene como cabeza propia desde el split de 2026-10-04.
+  var MUSCLE_DISPLAY_ORDER=['Pectoral','Dorsal','Deltoide lateral','Deltoide anterior','Deltoide posterior','Bíceps','Tríceps','Cuádriceps','Isquiotibiales','Glúteo','Aductores','Abductores','Gemelos/Sóleo','Core'];
+  var orderedMuscles=muscleStatus.slice().sort(function(a,b){
+    var ia=MUSCLE_DISPLAY_ORDER.indexOf(a.muscle);if(ia<0)ia=999;
+    var ib=MUSCLE_DISPLAY_ORDER.indexOf(b.muscle);if(ib<0)ib=999;
+    return ia-ib;
+  });
   // Completion score: 50% sessions + 50% MAV
   var sessionPct=strengthDays.length>0?Math.min(100,Math.round(doneStrength.length/strengthDays.length*100)):0;
   var weekScore=Math.round(sessionPct*0.5+mavGlobalPct*0.5);
@@ -6404,7 +6424,7 @@ function getWeeklyBalance(){
     cardioDone:doneCardio.length,cardioTotal:cardioDays.length,
     nextSession:nextStrength,remainingSessions:remainingSessions,pendingCardio:pendingCardio,timeline:timeline,
     mavCovered:mavCovered,mavTotal:mavTotal,mavGlobalPct:mavGlobalPct,
-    furthest:furthest,allMuscles:allMuscles,remainingOpp:remainingOpp,sessionPct:sessionPct,weekScore:weekScore
+    furthest:furthest,allMuscles:allMuscles,orderedMuscles:orderedMuscles,remainingOpp:remainingOpp,sessionPct:sessionPct,weekScore:weekScore
   };
 }
 
