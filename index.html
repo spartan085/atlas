@@ -174,7 +174,7 @@ textarea.field{resize:vertical;min-height:60px;}
 <header class="hdr">
   <div style="display:flex;align-items:center;gap:9px;">
     <svg width="26" height="26" viewBox="0 0 28 28" fill="none"><path d="M14 2l10.39 6v12L14 26 3.61 20V8L14 2z" fill="rgba(6,182,212,0.12)" stroke="var(--c)" stroke-width="1.2"/><path d="M14 8l5.2 3v6L14 20l-5.2-3V11L14 8z" fill="rgba(6,182,212,0.2)"/></svg>
-    <div class="wordmark">ATL<em>A</em>S <span style="font-family:'Geist Mono',monospace;font-size:10px;color:var(--fg3);letter-spacing:1px;">v6 · build 2026-10-17</span></div>
+    <div class="wordmark">ATL<em>A</em>S <span style="font-family:'Geist Mono',monospace;font-size:10px;color:var(--fg3);letter-spacing:1px;">v6 · build 2026-10-17b</span></div>
   </div>
   <div class="hdr-right">
     <button class="sync-btn active" onclick="syncAll()"><span class="sdot" id="syncDot"></span> Sync</button>
@@ -6030,7 +6030,7 @@ function renderWeekSummary(){
   function groupHtml(label,names){
     var rows=names.map(function(n){return b.orderedMuscles.filter(function(m){return m.muscle===n;})[0];}).filter(Boolean);
     if(!rows.length)return '';
-    return '<div style="font-size:9px;color:var(--fg4);text-transform:uppercase;letter-spacing:0.5px;margin:6px 0 2px;">'+label+'</div>'+rows.map(muscleRowHtml).join('');
+    return '<div style="font-size:10px;color:var(--fg3);font-weight:600;text-transform:uppercase;letter-spacing:0.5px;margin:8px 0 3px;border-top:1px solid var(--line);padding-top:6px;">'+label+'</div>'+rows.map(muscleRowHtml).join('');
   }
   var furthestHtml=groupHtml('Torso',TORSO_GROUP)+groupHtml('Pierna',PIERNA_GROUP)+groupHtml('Core',CORE_GROUP);
   el.innerHTML=
