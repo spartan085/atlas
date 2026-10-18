@@ -174,7 +174,7 @@ textarea.field{resize:vertical;min-height:60px;}
 <header class="hdr">
   <div style="display:flex;align-items:center;gap:9px;">
     <svg width="26" height="26" viewBox="0 0 28 28" fill="none"><path d="M14 2l10.39 6v12L14 26 3.61 20V8L14 2z" fill="rgba(6,182,212,0.12)" stroke="var(--c)" stroke-width="1.2"/><path d="M14 8l5.2 3v6L14 20l-5.2-3V11L14 8z" fill="rgba(6,182,212,0.2)"/></svg>
-    <div class="wordmark">ATL<em>A</em>S <span style="font-family:'Geist Mono',monospace;font-size:10px;color:var(--fg3);letter-spacing:1px;">v6 · build 2026-10-17b</span></div>
+    <div class="wordmark">ATL<em>A</em>S <span style="font-family:'Geist Mono',monospace;font-size:10px;color:var(--fg3);letter-spacing:1px;">v6 · build 2026-10-17c</span></div>
   </div>
   <div class="hdr-right">
     <button class="sync-btn active" onclick="syncAll()"><span class="sdot" id="syncDot"></span> Sync</button>
@@ -2894,12 +2894,30 @@ function AdaptationEngine(snapshots){
     note:`${snapshots.length}/4 snapshots mínimos para análisis`
   };
 
-  const outcomes = snapshots.filter(s=>s.type==='outcome'&&s.outcome);
-  const predictions = snapshots.filter(s=>s.type==='prediction'&&s.prediction);
+  // ── 2026-10-17 — FIX DE MEDICIÓN (no cambia ninguna fórmula del modelo) ──
+  // (1) Pseudorreplicación: las sincronizaciones repetidas re-capturan el MISMO outcome (hasta 7
+  //     copias idénticas/día, ver outcomeSignature). Antes cada copia contaba como un "par" propio,
+  //     inflando n y los porcentajes de este panel. Ahora se deduplica con la misma firma que ya usa
+  //     EvidenceMaturityEngine (fecha + contenido) — una doble sesión AM/PM legítima se conserva.
+  // (2) Predicciones post_session (capturadas con la sesión de hoy ya registrada, ver buildSnapshot
+  //     §A4) están contaminadas por el propio resultado → se excluyen del emparejamiento.
+  const _seenOut = {};
+  const _outRaw = snapshots.filter(s=>s.type==='outcome'&&s.outcome);
+  const outcomes = _outRaw.filter(s=>{
+    const k=(s.date||'')+'§'+outcomeSignature(s);
+    if(_seenOut[k]) return false;
+    _seenOut[k]=1; return true;
+  });
+  const _predAll = snapshots.filter(s=>s.type==='prediction'&&s.prediction);
+  const predictions = _predAll.filter(s=>s.predictionTiming!=='post_session');
+  const dedupInfo = {
+    rawOutcomes:_outRaw.length, uniqueOutcomes:outcomes.length,
+    postSessionExcluded:_predAll.length-predictions.length
+  };
 
   if(outcomes.length < 3) return {
     calibrations:{}, signals:[], confidence:'insufficient_data',
-    note:`${outcomes.length}/3 resultados registrados`
+    note:`${outcomes.length}/3 resultados registrados`, dedupInfo
   };
 
   // Match prediction→outcome pairs (same day)
@@ -2954,31 +2972,97 @@ function AdaptationEngine(snapshots){
   signals.push({type:'calibration_rate', value:calRate,
     message:`${calRate}% predicciones dentro de rango (${calibrated} calibradas + ${withinBand} en banda normal)`});
 
-  // e1RM accuracy (only count deltas outside ±6% variability band)
-  const e1rmPairs = pairs.filter(p=>Object.keys(p.out.outcome?.e1rmDeltas||{}).length>0);
-  if(e1rmPairs.length >= 3){
-    const significantGains = e1rmPairs.filter(p=>{
-      const deltas = Object.values(p.out.outcome?.e1rmDeltas||{});
-      return deltas.some(d=>d.pctDelta && d.pctDelta > 6); // >6% = outside noise band
-    });
-    const predictedGood = e1rmPairs.filter(p=>{
-      const r = p.pred.prediction?.readiness;
-      return r && (r.upper > 75 || r.lower > 75);
-    });
-    if(predictedGood.length >= 2){
-      const hitRate = Math.round(predictedGood.filter(p=>
-        Object.values(p.out.outcome?.e1rmDeltas||{}).some(d=>d.pctDelta&&d.pctDelta>6)
-      ).length/predictedGood.length*100);
-      signals.push({type:'e1rm_accuracy', value:hitRate,
-        message:`Readiness alta → e1RM >6% sobre ruido: ${hitRate}% · informativo, NO validacion (${predictedGood.length} ses)`});
+  // ── e1RM vs readiness (2026-10-17: métrica reescrita) ──
+  // La versión anterior era "¿ALGÚN ejercicio con pctDelta>6%?" sobre ~15-20 ejercicios, y pctDelta es
+  // la tendencia de las últimas ≤5 sesiones de cada ejercicio (no un cambio de ESTA sesión). Con tantas
+  // comparaciones simultáneas en un bloque de sobrecarga progresiva, "alguno >6%" es casi seguro sin
+  // importar la readiness → 100% por construcción (problema de comparaciones múltiples), y además sin
+  // grupo de contraste (81/83 sesiones eran "readiness alta"). Ahora: mediana por sesión (robusta a
+  // ejercicios sueltos) y comparación alta vs baja; si no hay contraste, se dice que NO es evaluable.
+  const _median = a=>{ const s=a.slice().sort((x,y)=>x-y); const m=Math.floor(s.length/2); return s.length?(s.length%2?s[m]:(s[m-1]+s[m])/2):null; };
+  const e1rmSess = pairs.map(p=>{
+    const ds = Object.values(p.out.outcome?.e1rmDeltas||{}).map(d=>d&&d.pctDelta).filter(v=>typeof v==='number'&&isFinite(v));
+    const r = p.pred.prediction?.readiness;
+    return {med:_median(ds), n:ds.length, high:!!(r&&(r.upper>75||r.lower>75)), hasR:!!r};
+  }).filter(x=>x.med!=null&&x.hasR&&x.n>=3);
+  if(e1rmSess.length >= 5){
+    const hi = e1rmSess.filter(x=>x.high).map(x=>x.med);
+    const lo = e1rmSess.filter(x=>!x.high).map(x=>x.med);
+    const fmt = v=>(v>=0?'+':'')+(Math.round(v*10)/10)+'%';
+    if(hi.length>=5 && lo.length>=5){
+      signals.push({type:'e1rm_accuracy', value:Math.round((_median(hi)-_median(lo))*10)/10,
+        message:`Tendencia e1RM (mediana de ejercicios) · readiness alta ${fmt(_median(hi))} (n=${hi.length}) vs baja ${fmt(_median(lo))} (n=${lo.length}) · exploratorio, no validación`});
+    } else {
+      signals.push({type:'e1rm_accuracy', value:null,
+        message:`Readiness vs e1RM: NO evaluable — sin grupo de contraste (readiness alta n=${hi.length}, baja n=${lo.length}; hacen falta ≥5 en cada grupo)`});
     }
   }
+
+  // ── Diagnóstico exploratorio del modelo RPE esperado (SOLO LECTURA — no modifica computeMismatch) ──
+  // Pregunta: ¿el sesgo "fatiga subestimada" es (a) un desplazamiento (offset) de la fórmula heurística
+  // expectedRPE = 4 + 5·systemic/100, o (b) el score sistémico no predice el RPE? Se compara con
+  // validación cruzada dejando-uno-fuera (LOO) contra un modelo nulo (RPE medio constante).
+  // Un retoque de la fórmula con ESTOS mismos datos sería ajuste post-hoc sobre la muestra de validación
+  // → solo se reporta; cualquier cambio debe versionarse y probarse en datos NUEVOS (protocolo §8/§13).
+  const rpePoints = pairs.map(p=>({
+    x: p.pred.derived && typeof p.pred.derived.systemic==='number' ? p.pred.derived.systemic : null,
+    y: safeNum(p.out.outcome?.actualRPE)
+  })).filter(q=>q.x!=null&&isFinite(q.x)&&q.y>0);
+  const rpeDiag = rpeModelDiagnostics(rpePoints);
 
   return {
     calibrations, signals,
     confidence: pairs.length >= 8 ? 'moderada' : pairs.length >= 4 ? 'baja' : 'insuficiente',
     totalPairs:total, overPred, underPred, withinBand, calibrated,
-    note:`${total} pares analizados · ${withinBand} dentro de banda normal · Calibración ${calRate}%`
+    dedupInfo, rpeDiag,
+    note:`${total} pares únicos · ${withinBand} dentro de banda normal · Calibración ${calRate}%`
+  };
+}
+
+// ── OLS simple y diagnóstico LOO del modelo RPE esperado ──
+function _olsFit(xs, ys){
+  const n=xs.length; if(n<3) return null;
+  const mx=xs.reduce((s,v)=>s+v,0)/n, my=ys.reduce((s,v)=>s+v,0)/n;
+  let sxx=0,sxy=0,syy=0;
+  for(let i=0;i<n;i++){ sxx+=(xs[i]-mx)*(xs[i]-mx); sxy+=(xs[i]-mx)*(ys[i]-my); syy+=(ys[i]-my)*(ys[i]-my); }
+  if(sxx<1e-9) return {a:my,b:0,r2:0,n,sxx:0,sse:syy,degenerate:true};
+  const b=sxy/sxx, a=my-b*mx;
+  const sse=Math.max(0,syy-b*sxy);
+  return {a,b,r2:syy>1e-9?(sxy*sxy)/(sxx*syy):0,n,sxx,sse,degenerate:false};
+}
+function rpeModelDiagnostics(points){
+  const n=points.length;
+  if(n<8) return {n, insufficient:true};
+  const band=VARIABILITY_BANDS.rpe;
+  const mae=a=>a.reduce((s,v)=>s+Math.abs(v),0)/a.length;
+  const inb=a=>Math.round(a.filter(v=>Math.abs(v)<=band).length/a.length*100);
+  const eH=[], eN=[], eL=[];
+  points.forEach((p,i)=>{
+    const rest=points.filter((_,j)=>j!==i);
+    const my=rest.reduce((s,q)=>s+q.y,0)/rest.length;
+    eH.push(p.y-(4+(p.x/100)*5));          // heurística actual (0 parámetros ajustados)
+    eN.push(p.y-my);                        // nulo: RPE medio constante
+    const f=_olsFit(rest.map(q=>q.x),rest.map(q=>q.y));
+    eL.push(p.y-(f?f.a+f.b*p.x:my));        // lineal en systemic, ajustado sin la sesión evaluada
+  });
+  const full=_olsFit(points.map(p=>p.x),points.map(p=>p.y));
+  const df=n-2;
+  const se=(full&&!full.degenerate&&df>0)?Math.sqrt((full.sse/df)/full.sxx):null;
+  const t=1.96+2.5/Math.max(df,1); // aprox. t de Student 95%
+  const meanRPE=points.reduce((s,q)=>s+q.y,0)/n;
+  const meanSys=points.reduce((s,q)=>s+q.x,0)/n;
+  const sdSys=Math.sqrt(points.reduce((s,q)=>s+(q.x-meanSys)*(q.x-meanSys),0)/n);
+  const bias=eH.reduce((s,v)=>s+v,0)/n;
+  const slopeLo=se!=null?full.b-t*se:null, slopeHi=se!=null?full.b+t*se:null;
+  const maeH=mae(eH), maeN=mae(eN), maeL=mae(eL);
+  // Veredicto prudente: "aporta señal" solo si el IC95% de la pendiente excluye 0 (positiva)
+  // Y el modelo lineal vence al nulo en error LOO.
+  const hasSignal = slopeLo!=null && slopeLo>0 && maeL<maeN;
+  return {
+    n, bias, meanRPE, meanSys, sdSys,
+    fit: full?{a:full.a,b:full.b,r2:full.r2,slopeLo,slopeHi}:null,
+    maeH, maeN, maeL, inbH:inb(eH), inbN:inb(eN), inbL:inb(eL),
+    hasSignal
   };
 }
 
@@ -3593,11 +3677,43 @@ function renderValidationPanel(){
       <div style="font-size:9px;color:var(--fg3);">Fuera de banda</div>
     </div>
   </div>
-  <div style="font-size:10px;color:var(--fg4);margin-bottom:8px;">Banda variabilidad: RPE ±${VARIABILITY_BANDS.rpe} · e1RM ±${Math.round(VARIABILITY_BANDS.e1rmPct*100)}%</div>`;
+  <div style="font-size:10px;color:var(--fg3);margin-bottom:8px;">Banda variabilidad: RPE ±${VARIABILITY_BANDS.rpe} · e1RM ±${Math.round(VARIABILITY_BANDS.e1rmPct*100)}%</div>`;
   (adapt.signals||[]).forEach(s=>{
     const col=s.type==='calibration_rate'?(calRate>=75?'var(--g)':calRate>=55?'var(--y)':'var(--r)'):'var(--c)';
     html+=`<div style="font-size:11px;color:${col};padding:3px 0;border-bottom:1px solid var(--line);">${s.message}</div>`;
   });
+  // Transparencia del conteo: cuántas capturas eran copias duplicadas / predicciones contaminadas
+  const di=adapt.dedupInfo;
+  if(di){
+    const dup=di.rawOutcomes-di.uniqueOutcomes;
+    html+=`<div style="font-size:10px;color:var(--fg3);padding:5px 0;">Sesiones únicas: ${di.uniqueOutcomes} de ${di.rawOutcomes} capturas${dup>0?` (${dup} copias duplicadas descartadas)`:''}${di.postSessionExcluded>0?` · ${di.postSessionExcluded} predicciones post-sesión excluidas`:''}</div>`;
+  }
+  // Diagnóstico exploratorio del modelo RPE esperado (solo lectura)
+  const rd=adapt.rpeDiag;
+  if(rd){
+    if(rd.insufficient){
+      html+=`<div style="margin-top:6px;padding:8px;background:var(--bg3);border-radius:8px;font-size:10px;color:var(--fg3);">Diagnóstico RPE esperado: n=${rd.n} sesiones únicas con RPE y score sistémico — hacen falta ≥8 para comparar modelos.</div>`;
+    }else{
+      const f1=v=>(Math.round(v*10)/10).toFixed(1);
+      const sgn=v=>(v>=0?'+':'')+f1(v);
+      const verdCol=rd.hasSignal?'var(--g)':'var(--y)';
+      const verdTxt=rd.hasSignal
+        ?'El score sistémico SÍ aporta señal sobre el RPE (IC95% de la pendiente > 0 y vence al modelo nulo en validación cruzada). El sesgo es corregible calibrando la fórmula.'
+        :'El score sistémico NO ha demostrado predecir el RPE mejor que la media (IC95% de la pendiente incluye 0 o no vence al nulo). El sesgo es sobre todo un desplazamiento fijo de la fórmula, y el score sistémico sigue sin validarse contra RPE.';
+      html+=`<div style="margin-top:8px;padding:8px;background:var(--bg3);border-radius:8px;">
+        <div style="font-family:'Geist Mono',monospace;font-size:9px;color:var(--fg3);letter-spacing:1px;margin-bottom:5px;">DIAGNÓSTICO RPE ESPERADO · EXPLORATORIO · FÓRMULA NO MODIFICADA</div>
+        <div style="font-size:11px;color:var(--fg2);line-height:1.5;">
+          n=${rd.n} sesiones únicas · RPE medio real ${f1(rd.meanRPE)} · systemic medio ${Math.round(rd.meanSys)}% (DE ${Math.round(rd.sdSys)})<br>
+          Sesgo de la heurística actual (4+5·sys/100): <span style="color:var(--y);">${sgn(rd.bias)} RPE</span> (positivo = real más alto que lo esperado)<br>
+          Error absoluto medio (validación cruzada) · heurística ${f1(rd.maeH)} · media constante ${f1(rd.maeN)} · lineal ${f1(rd.maeL)}<br>
+          % dentro de ±${VARIABILITY_BANDS.rpe} · heurística ${rd.inbH}% · media ${rd.inbN}% · lineal ${rd.inbL}%
+          ${rd.fit?`<br>Ajuste lineal: RPE = ${f1(rd.fit.a)} ${rd.fit.b>=0?'+':'−'} ${Math.abs(Math.round(rd.fit.b*1000)/1000)}·sys · R²=${(Math.round(rd.fit.r2*100)/100).toFixed(2)}${rd.fit.slopeLo!=null?` · pendiente IC95% aprox. [${(Math.round(rd.fit.slopeLo*1000)/1000)}, ${(Math.round(rd.fit.slopeHi*1000)/1000)}]`:''}`:''}
+        </div>
+        <div style="font-size:10px;color:${verdCol};margin-top:5px;line-height:1.5;">${verdTxt}</div>
+        <div style="font-size:9px;color:var(--fg3);margin-top:4px;line-height:1.4;">Solo informativo: retocar la fórmula con estos mismos datos sería ajuste post-hoc. Si cambias el modelo, versiónalo y valídalo con sesiones nuevas.</div>
+      </div>`;
+    }
+  }
   if(Object.keys(adapt.calibrations||{}).length){
     html+=`<div style="margin-top:8px;padding:8px;background:var(--y-a);border-radius:8px;border:1px solid rgba(234,179,8,.2);">
       <div style="font-family:'Geist Mono',monospace;font-size:9px;color:var(--y);letter-spacing:1px;margin-bottom:4px;">RECALIBRACIÓN SUGERIDA (requiere confirmación)</div>`;
@@ -3672,7 +3788,8 @@ function renderValidationDashboard(){
   const contradictCount=recentSnaps.filter(s=>s.dataQuality?.contradiction&&s.dataQuality.contradiction!=='none').length;
 
   // ── Section 3: Prediction accuracy (30d rolling) ──
-  const pairs30d=snapshots.filter(s=>s.type==='outcome'&&Date.now()-s.timestamp<30*864e5&&s.outcome);
+  const _seen30={};
+  const pairs30d=snapshots.filter(s=>s.type==='outcome'&&Date.now()-s.timestamp<30*864e5&&s.outcome).filter(s=>{const k=(s.date||'')+'§'+outcomeSignature(s);if(_seen30[k])return false;_seen30[k]=1;return true;}); // 2026-10-17: dedup de re-capturas (misma firma que EvidenceMaturityEngine)
   const calibrated30=pairs30d.filter(s=>s.outcome?.mismatchSignal==='calibrated'||s.outcome?.mismatchSignal==='within_band').length;
   const overPred30=pairs30d.filter(s=>s.outcome?.mismatchSignal==='over_predicted_fatigue').length;
   const underPred30=pairs30d.filter(s=>s.outcome?.mismatchSignal==='under_predicted_fatigue').length;
