@@ -174,7 +174,7 @@ textarea.field{resize:vertical;min-height:60px;}
 <header class="hdr">
   <div style="display:flex;align-items:center;gap:9px;">
     <svg width="26" height="26" viewBox="0 0 28 28" fill="none"><path d="M14 2l10.39 6v12L14 26 3.61 20V8L14 2z" fill="rgba(6,182,212,0.12)" stroke="var(--c)" stroke-width="1.2"/><path d="M14 8l5.2 3v6L14 20l-5.2-3V11L14 8z" fill="rgba(6,182,212,0.2)"/></svg>
-    <div class="wordmark">ATL<em>A</em>S <span style="font-family:'Geist Mono',monospace;font-size:10px;color:var(--fg3);letter-spacing:1px;">v6 · build 2026-10-18b</span></div>
+    <div class="wordmark">ATL<em>A</em>S <span style="font-family:'Geist Mono',monospace;font-size:10px;color:var(--fg3);letter-spacing:1px;">v6 · build 2026-10-19</span></div>
   </div>
   <div class="hdr-right">
     <button class="sync-btn active" onclick="syncAll()"><span class="sdot" id="syncDot"></span> Sync</button>
@@ -2844,7 +2844,18 @@ function saveValidationSnapshot(type, data){
         var _prev = _same[_same.length-1];
         var _prevBlank = !_prev.dataQuality || _prev.dataQuality.hrv === 'no_data';
         var _nowData = snap.dataQuality && snap.dataQuality.hrv !== 'no_data';
-        if(_prevBlank && _nowData){
+        // 2026-10-19 — FIX DE CAPTURA: la predicción también quedaba "vacía de fuerza" si se guardaba
+        // en el arranque, antes de que el sync de Hevy cargara S._hevyRecent (no se persiste). Con
+        // _hevyRecent=[] el motor da carga residual=0 y fatiga muscular=0 → readiness = 100−0.2·autónomo
+        // (en 119 días reales: media 91, DE 4, rango 80–97, idéntico en sup. e inf.). Ese snapshot es
+        // de HRV "fresco" y quedaba bloqueado para todo el día. Ahora se sustituye también cuando el
+        // previo no tenía datos de fuerza y el nuevo sí Y sigue siendo pre-sesión (si ya entrenaste hoy
+        // no se sustituye: sería una predicción contaminada por el propio resultado). Solo cambia el
+        // INSTANTE de captura; ninguna fórmula.
+        var _prevNoStrength = !_prev.dataQuality || _prev.dataQuality.strength === 'no_data';
+        var _nowStrength = snap.dataQuality && snap.dataQuality.strength !== 'no_data';
+        var _replaceForStrength = _prevNoStrength && _nowStrength && snap.predictionTiming === 'pre_session';
+        if((_prevBlank && _nowData) || _replaceForStrength){
           var _cleaned = snapshots.filter(function(s){return !(s.type==='prediction' && s.date===_pdk);});
           _cleaned.push(snap);
           localStorage.setItem(RVL_STORAGE_KEY, JSON.stringify(_cleaned.slice(-RVL_MAX_SNAPSHOTS)));
@@ -2909,10 +2920,16 @@ function AdaptationEngine(snapshots){
     _seenOut[k]=1; return true;
   });
   const _predAll = snapshots.filter(s=>s.type==='prediction'&&s.prediction);
-  const predictions = _predAll.filter(s=>s.predictionTiming!=='post_session');
+  const _predPre = _predAll.filter(s=>s.predictionTiming!=='post_session');
+  // 2026-10-19: una predicción guardada con S._hevyRecent vacío (dataQuality.strength==='no_data')
+  // no contiene carga de fuerza ni fatiga muscular (ver saveValidationSnapshot) → no es una predicción
+  // válida de fatiga; se excluye del emparejamiento en vez de validar un modelo con la mitad de sus entradas a cero.
+  const predictions = _predPre.filter(s=>s.dataQuality&&s.dataQuality.strength&&s.dataQuality.strength!=='no_data');
   const dedupInfo = {
     rawOutcomes:_outRaw.length, uniqueOutcomes:outcomes.length,
-    postSessionExcluded:_predAll.length-predictions.length
+    postSessionExcluded:_predAll.length-_predPre.length,
+    noStrengthExcluded:_predPre.length-predictions.length,
+    validPredictions:predictions.length
   };
 
   if(outcomes.length < 3) return {
@@ -2929,7 +2946,7 @@ function AdaptationEngine(snapshots){
 
   if(pairs.length < 2) return {
     calibrations:{}, signals:[], confidence:'insufficient_data',
-    note:'Sin suficientes pares predicción-resultado del mismo día'
+    note:`Sin pares válidos: ${dedupInfo.validPredictions} predicciones con datos de fuerza (${dedupInfo.noStrengthExcluded} descartadas por Hevy sin cargar al guardarse)`, dedupInfo
   };
 
   // ── 2026-10-18 — FIX DE VALIDEZ DEL EMPAREJAMIENTO (misma fórmula, misma banda) ──
@@ -3079,11 +3096,19 @@ function predictorSensitivity(snapshots){
   const preds=snapshots.filter(s=>s.type==='prediction'&&s.derived&&typeof s.derived.systemic==='number'&&s.predictionTiming!=='post_session')
     .filter(s=>{if(seen[s.date])return false;seen[s.date]=1;return true;});
   if(preds.length<8)return{n:preds.length,insufficient:true};
-  const field=(k)=>preds.map(s=>s.derived[k]).filter(v=>typeof v==='number'&&isFinite(v));
-  const stat=(k,label)=>{const a=field(k);if(a.length<8)return null;return{label,n:a.length,mean:_pvMean(a),sd:_pvSD(a),min:Math.min.apply(null,a),max:Math.max.apply(null,a)};};
-  const rows=[stat('systemic','Sistémico (fatiga)'),stat('autonomic','Autonómico (HRV/sueño/TSB)'),stat('mechanical','Mecánico (carga residual)'),stat('upperScore','Readiness tren sup.'),stat('lowerScore','Readiness tren inf.')].filter(Boolean);
-  const hi=preds.filter(s=>{const r=s.prediction&&s.prediction.readiness;return r&&(r.upper>75||r.lower>75);}).length;
-  return{n:preds.length,rows,highReadinessPct:Math.round(hi/preds.length*100)};
+  // 2026-10-19: separa las predicciones guardadas SIN datos de fuerza (Hevy sin cargar → carga residual
+  // y fatiga muscular a 0 por construcción) de las válidas; así los datos reales muestran cuál es el caso.
+  const noStrength=preds.filter(s=>!(s.dataQuality&&s.dataQuality.strength&&s.dataQuality.strength!=='no_data'));
+  const valid=preds.filter(s=>s.dataQuality&&s.dataQuality.strength&&s.dataQuality.strength!=='no_data');
+  const mech0Valid=valid.filter(s=>s.derived.mechanical===0).length;
+  const build=(arr)=>{
+    const field=(k)=>arr.map(s=>s.derived[k]).filter(v=>typeof v==='number'&&isFinite(v));
+    const stat=(k,label)=>{const a=field(k);if(a.length<8)return null;return{label,n:a.length,mean:_pvMean(a),sd:_pvSD(a),min:Math.min.apply(null,a),max:Math.max.apply(null,a)};};
+    const rows=[stat('systemic','Sistémico (fatiga)'),stat('autonomic','Autonómico (HRV/sueño/TSB)'),stat('mechanical','Mecánico (carga residual)'),stat('upperScore','Readiness tren sup.'),stat('lowerScore','Readiness tren inf.')].filter(Boolean);
+    const hi=arr.filter(s=>{const r=s.prediction&&s.prediction.readiness;return r&&(r.upper>75||r.lower>75);}).length;
+    return{n:arr.length,rows,highReadinessPct:arr.length?Math.round(hi/arr.length*100):null};
+  };
+  return{n:preds.length,all:build(preds),valid:valid.length>=8?build(valid):null,nValid:valid.length,nNoStrength:noStrength.length,mech0Valid};
 }
 function performanceVsReadiness(snapshots, workouts){
   const ws=(Array.isArray(workouts)?workouts:[]).map(w=>({w,t:new Date(w.start_time||w.created_at||0).getTime()})).filter(x=>isFinite(x.t)&&x.t>0).sort((a,b)=>a.t-b.t);
@@ -3091,7 +3116,8 @@ function performanceVsReadiness(snapshots, workouts){
   const dkey=t=>{const d=new Date(t);return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');};
   // readiness previa por fecha (última predicción pre-sesión del día)
   const predByDate={};
-  snapshots.filter(s=>s.type==='prediction'&&s.predictionTiming!=='post_session'&&s.prediction&&s.prediction.readiness&&s.derived&&typeof s.derived.systemic==='number')
+  snapshots.filter(s=>s.type==='prediction'&&s.predictionTiming!=='post_session'&&s.prediction&&s.prediction.readiness&&s.derived&&typeof s.derived.systemic==='number'
+      &&s.dataQuality&&s.dataQuality.strength&&s.dataQuality.strength!=='no_data') // solo predicciones con datos de fuerza (ver saveValidationSnapshot)
     .forEach(s=>{predByDate[s.date]=s;});
   const hist={}; // ejercicio → [{t,e1rm}]
   const sessions=[];
@@ -3119,7 +3145,7 @@ function performanceVsReadiness(snapshots, workouts){
     }
   });
   const n=sessions.length;
-  if(n<15)return{insufficient:true,reason:`${n} sesiones con readiness pre-sesión y ≥3 ejercicios comparables (hacen falta ≥15)`};
+  if(n<15)return{insufficient:true,reason:`${n} sesiones con readiness pre-sesión VÁLIDA (con datos de fuerza) y ≥3 ejercicios comparables (hacen falta ≥15; ${Object.keys(predByDate).length} días con predicción válida)`};
   const perf=sessions.map(s=>s.perf);
   const mk=(vals,expectSign)=>{
     const rho=_pvSpearman(vals,perf);if(rho==null)return{constant:true,sd:_pvSD(vals)};
@@ -3762,6 +3788,55 @@ function renderEffectiveSets(){
   }
 }
 
+function validationExtraHtml(){
+  let html='';
+  try{
+    const snapsAll=getValidationSnapshots();
+    const ps=predictorSensitivity(snapsAll);
+    const f0=v=>Math.round(v);
+    if(ps&&!ps.insufficient){
+      const rowsHtml=(g)=>g.rows.map(r=>`${r.label}: media ${f0(r.mean)} · DE ${r.sd!=null?f0(r.sd):'—'} · rango ${f0(r.min)}–${f0(r.max)}`).join('<br>')+`<br>Días con readiness alta (&gt;75 en sup. o inf.): ${g.highReadinessPct}%`;
+      const badPct=Math.round(ps.nNoStrength/ps.n*100);
+      html+=`<div style="margin-top:8px;padding:8px;background:var(--bg3);border-radius:8px;">
+        <div style="font-family:'Geist Mono',monospace;font-size:9px;color:var(--fg3);letter-spacing:1px;margin-bottom:5px;">SENSIBILIDAD DEL PREDICTOR · ${ps.n} DÍAS (PRE-SESIÓN)</div>
+        <div style="font-size:11px;color:${ps.nNoStrength>0?'var(--y)':'var(--g)'};line-height:1.5;margin-bottom:4px;">Predicciones guardadas SIN datos de fuerza (Hevy aún sin cargar): ${ps.nNoStrength} de ${ps.n} (${badPct}%). En ellas la carga residual y la fatiga muscular valen 0 por construcción.${ps.nValid>0?` Con datos de fuerza: ${ps.nValid}${ps.mech0Valid>0?` (de ellas ${ps.mech0Valid} con mecánico = 0 igualmente)`:''}.`:''}</div>
+        <div style="font-size:11px;color:var(--fg2);line-height:1.6;">
+        ${ps.valid?`<span style="color:var(--fg3);">Solo predicciones con datos de fuerza (n=${ps.valid.n}):</span><br>${rowsHtml(ps.valid)}`:`<span style="color:var(--fg3);">Todas (n=${ps.all.n}) — aún no hay ≥8 con datos de fuerza:</span><br>${rowsHtml(ps.all)}`}
+        </div>
+        <div style="font-size:10px;color:var(--fg3);margin-top:4px;line-height:1.5;">Un predictor casi constante no se puede validar. Si todas las filas de mecánico y readiness salen planas, lo que falla es la captura, no el modelo. Desde esta versión la predicción del día se sustituye cuando Hevy termina de cargar (si aún no has entrenado).</div>
+      </div>`;
+    }
+    const pv=performanceVsReadiness(snapsAll,S.hevy&&S.hevy.workouts);
+    if(pv){
+      if(pv.insufficient){
+        html+=`<div style="margin-top:8px;padding:8px;background:var(--bg3);border-radius:8px;font-size:10px;color:var(--fg3);line-height:1.5;">Rendimiento vs readiness: ${pv.reason}.</div>`;
+      }else{
+        const fr=v=>(v>=0?'+':'')+(Math.round(v*100)/100).toFixed(2);
+        const line=(label,m,hint)=>{
+          if(m.constant)return`${label}: predictor constante (DE ${m.sd!=null?(Math.round(m.sd*10)/10):'—'}) — no calculable`;
+          const ci=m.ci?` · IC95% [${fr(m.ci[0])}, ${fr(m.ci[1])}]`:'';
+          let v='no concluyente';
+          if(m.ci){
+            if(m.ci[0]>0&&m.expectSign>0||m.ci[1]<0&&m.expectSign<0)v='dirección esperada';
+            else if(m.ci[0]>0&&m.expectSign<0||m.ci[1]<0&&m.expectSign>0)v='dirección contraria a lo esperado';
+          }
+          return`${label}: ρ ${fr(m.rho)}${ci} · DE ${(Math.round(m.sd*10)/10)} (rango ${f0(m.min)}–${f0(m.max)}) → <span style="color:${v==='no concluyente'?'var(--y)':v==='dirección esperada'?'var(--g)':'var(--r)'};">${v}</span> <span style="color:var(--fg3);">(${hint})</span>`;
+        };
+        html+=`<div style="margin-top:8px;padding:8px;background:var(--bg3);border-radius:8px;">
+          <div style="font-family:'Geist Mono',monospace;font-size:9px;color:var(--fg3);letter-spacing:1px;margin-bottom:5px;">RENDIMIENTO REAL VS READINESS PREVIA · EXPLORATORIO</div>
+          <div style="font-size:11px;color:var(--fg2);line-height:1.6;">
+            n=${pv.n} sesiones · residuo e1RM mediano ${(pv.perfMedian>=0?'+':'')+(Math.round(pv.perfMedian*10)/10)}% (DE ${(Math.round(pv.perfSD*10)/10)})<br>
+            ${line('Readiness (media sup./inf.)',pv.ready,'esperado ρ&gt;0')}<br>
+            ${line('Sistémico (fatiga)',pv.sys,'esperado ρ&lt;0')}
+          </div>
+          <div style="font-size:10px;color:var(--fg3);margin-top:4px;line-height:1.5;">Spearman con bootstrap (1000 remuestreos, determinista). Con n=${pv.n} solo sería detectable |ρ| ≥ ${(Math.round(pv.minDetectableRho*100)/100).toFixed(2)} (potencia 80%, α=0.05): un efecto menor no se distingue del ruido. Rendimiento = e1RM del día frente a la mediana de las ≤4 últimas apariciones del mismo ejercicio (Epley, 1–10 reps, sin calentamiento).</div>
+        </div>`;
+      }
+    }
+  }catch(e){ /* diagnóstico opcional: nunca debe romper el panel */ }
+  return html;
+}
+
 function renderValidationPanel(){
   const el=safeDOM('rvlPanel');
   const confEl=safeDOM('rvlConf');
@@ -3771,8 +3846,8 @@ function renderValidationPanel(){
   const confCol=adapt.confidence==='moderada'?'var(--y)':adapt.confidence==='baja'?'var(--o)':'var(--fg3)';
   if(confEl)confEl.innerHTML=`<span style="color:${confCol};">${adapt.note||'—'}</span>`;
   if(adapt.confidence==='insufficient_data'){
-    el.innerHTML=`<div style="font-size:12px;color:var(--fg3);">${adapt.note}</div>
-    <div style="margin-top:8px;font-size:10px;color:var(--fg4);">Bandas de variabilidad: RPE ±${VARIABILITY_BANDS.rpe} · e1RM ±${Math.round(VARIABILITY_BANDS.e1rmPct*100)}% · Readiness ±${VARIABILITY_BANDS.readiness}pts</div>`;
+    el.innerHTML=`<div style="font-size:12px;color:var(--fg2);line-height:1.5;">${adapt.note}</div>
+    <div style="margin-top:8px;font-size:10px;color:var(--fg3);">Bandas de variabilidad: RPE ±${VARIABILITY_BANDS.rpe} · e1RM ±${Math.round(VARIABILITY_BANDS.e1rmPct*100)}% · Readiness ±${VARIABILITY_BANDS.readiness}pts</div>`+validationExtraHtml();
     return;
   }
   const total=adapt.totalPairs||0;
@@ -3801,7 +3876,7 @@ function renderValidationPanel(){
   const di=adapt.dedupInfo;
   if(di){
     const dup=di.rawOutcomes-di.uniqueOutcomes;
-    html+=`<div style="font-size:10px;color:var(--fg3);padding:5px 0;">Sesiones únicas: ${di.uniqueOutcomes} de ${di.rawOutcomes} capturas${dup>0?` (${dup} copias duplicadas descartadas)`:''}${di.postSessionExcluded>0?` · ${di.postSessionExcluded} predicciones post-sesión excluidas`:''}</div>`;
+    html+=`<div style="font-size:10px;color:var(--fg3);padding:5px 0;">Sesiones únicas: ${di.uniqueOutcomes} de ${di.rawOutcomes} capturas${dup>0?` (${dup} copias duplicadas descartadas)`:''}${di.postSessionExcluded>0?` · ${di.postSessionExcluded} predicciones post-sesión excluidas`:''}${di.noStrengthExcluded>0?` · ${di.noStrengthExcluded} sin datos de fuerza excluidas`:''}</div>`;
   }
   const lc=adapt.labelCheck;
   if(lc&&lc.storedInBandPct!=null){
@@ -3833,49 +3908,7 @@ function renderValidationPanel(){
       </div>`;
     }
   }
-  // ── Sensibilidad del predictor + prueba de rendimiento (solo lectura, 2026-10-18) ──
-  try{
-    const snapsAll=getValidationSnapshots();
-    const ps=predictorSensitivity(snapsAll);
-    const f0=v=>Math.round(v);
-    if(ps&&!ps.insufficient){
-      html+=`<div style="margin-top:8px;padding:8px;background:var(--bg3);border-radius:8px;">
-        <div style="font-family:'Geist Mono',monospace;font-size:9px;color:var(--fg3);letter-spacing:1px;margin-bottom:5px;">SENSIBILIDAD DEL PREDICTOR · ${ps.n} DÍAS (PRE-SESIÓN)</div>
-        <div style="font-size:11px;color:var(--fg2);line-height:1.6;">
-        ${ps.rows.map(r=>`${r.label}: media ${f0(r.mean)} · DE ${r.sd!=null?f0(r.sd):'—'} · rango ${f0(r.min)}–${f0(r.max)}`).join('<br>')}
-        <br>Días con readiness alta (&gt;75 en sup. o inf.): ${ps.highReadinessPct}%
-        </div>
-        <div style="font-size:10px;color:var(--fg3);margin-top:4px;line-height:1.5;">Un predictor casi constante no se puede validar: con poca variación no hay contraste entre días buenos y malos.</div>
-      </div>`;
-    }
-    const pv=performanceVsReadiness(snapsAll,S.hevy&&S.hevy.workouts);
-    if(pv){
-      if(pv.insufficient){
-        html+=`<div style="margin-top:8px;padding:8px;background:var(--bg3);border-radius:8px;font-size:10px;color:var(--fg3);line-height:1.5;">Rendimiento vs readiness: ${pv.reason}.</div>`;
-      }else{
-        const fr=v=>(v>=0?'+':'')+(Math.round(v*100)/100).toFixed(2);
-        const line=(label,m,hint)=>{
-          if(m.constant)return`${label}: predictor constante (DE ${m.sd!=null?(Math.round(m.sd*10)/10):'—'}) — no calculable`;
-          const ci=m.ci?` · IC95% [${fr(m.ci[0])}, ${fr(m.ci[1])}]`:'';
-          let v='no concluyente';
-          if(m.ci){
-            if(m.ci[0]>0&&m.expectSign>0||m.ci[1]<0&&m.expectSign<0)v='dirección esperada';
-            else if(m.ci[0]>0&&m.expectSign<0||m.ci[1]<0&&m.expectSign>0)v='dirección contraria a lo esperado';
-          }
-          return`${label}: ρ ${fr(m.rho)}${ci} · DE ${(Math.round(m.sd*10)/10)} (rango ${f0(m.min)}–${f0(m.max)}) → <span style="color:${v==='no concluyente'?'var(--y)':v==='dirección esperada'?'var(--g)':'var(--r)'};">${v}</span> <span style="color:var(--fg3);">(${hint})</span>`;
-        };
-        html+=`<div style="margin-top:8px;padding:8px;background:var(--bg3);border-radius:8px;">
-          <div style="font-family:'Geist Mono',monospace;font-size:9px;color:var(--fg3);letter-spacing:1px;margin-bottom:5px;">RENDIMIENTO REAL VS READINESS PREVIA · EXPLORATORIO</div>
-          <div style="font-size:11px;color:var(--fg2);line-height:1.6;">
-            n=${pv.n} sesiones · residuo e1RM mediano ${(pv.perfMedian>=0?'+':'')+(Math.round(pv.perfMedian*10)/10)}% (DE ${(Math.round(pv.perfSD*10)/10)})<br>
-            ${line('Readiness (media sup./inf.)',pv.ready,'esperado ρ&gt;0')}<br>
-            ${line('Sistémico (fatiga)',pv.sys,'esperado ρ&lt;0')}
-          </div>
-          <div style="font-size:10px;color:var(--fg3);margin-top:4px;line-height:1.5;">Spearman con bootstrap (1000 remuestreos, determinista). Con n=${pv.n} solo sería detectable |ρ| ≥ ${(Math.round(pv.minDetectableRho*100)/100).toFixed(2)} (potencia 80%, α=0.05): un efecto menor no se distingue del ruido. Rendimiento = e1RM del día frente a la mediana de las ≤4 últimas apariciones del mismo ejercicio (Epley, 1–10 reps, sin calentamiento).</div>
-        </div>`;
-      }
-    }
-  }catch(e){ /* diagnóstico opcional: nunca debe romper el panel */ }
+  html+=validationExtraHtml();
   if(Object.keys(adapt.calibrations||{}).length){
     html+=`<div style="margin-top:8px;padding:8px;background:var(--y-a);border-radius:8px;border:1px solid rgba(234,179,8,.2);">
       <div style="font-family:'Geist Mono',monospace;font-size:9px;color:var(--y);letter-spacing:1px;margin-bottom:4px;">RECALIBRACIÓN SUGERIDA (requiere confirmación)</div>`;
