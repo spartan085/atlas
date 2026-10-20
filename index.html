@@ -174,7 +174,7 @@ textarea.field{resize:vertical;min-height:60px;}
 <header class="hdr">
   <div style="display:flex;align-items:center;gap:9px;">
     <svg width="26" height="26" viewBox="0 0 28 28" fill="none"><path d="M14 2l10.39 6v12L14 26 3.61 20V8L14 2z" fill="rgba(6,182,212,0.12)" stroke="var(--c)" stroke-width="1.2"/><path d="M14 8l5.2 3v6L14 20l-5.2-3V11L14 8z" fill="rgba(6,182,212,0.2)"/></svg>
-    <div class="wordmark">ATL<em>A</em>S <span style="font-family:'Geist Mono',monospace;font-size:10px;color:var(--fg3);letter-spacing:1px;">v6 · build 2026-10-19</span></div>
+    <div class="wordmark">ATL<em>A</em>S <span style="font-family:'Geist Mono',monospace;font-size:10px;color:var(--fg3);letter-spacing:1px;">v6 · build 2026-10-20</span></div>
   </div>
   <div class="hdr-right">
     <button class="sync-btn active" onclick="syncAll()"><span class="sdot" id="syncDot"></span> Sync</button>
@@ -806,12 +806,20 @@ const S = {
     // de Carlos) NO tiene categoría en Atlas hoy — fusionarlo con Aductores ocultaría el dato de
     // glúteo medio que es un punto débil declarado. Pendiente de respuesta de Carlos: ¿categoría
     // nueva o se deja fuera del objetivo semanal por ahora? Hasta entonces, fuera de mavRanges.
+    // ACTUALIZACIÓN 2026-10-19 — Carlos aportó la tabla "TP GYM actualizada NOV — resumen semanal
+    // correcto" (series directas/semana) y pidió actualizar los objetivos. Cambios respecto a la
+    // tabla anterior: Dorsal 13→14, Deltoide posterior 4→6, Aductores 6→8, Gemelos/Sóleo 16→18
+    // (gemelos de pie 10 + sentado/sóleo 8; Atlas no separa ambos). Sin cambio: Pectoral 14, Deltoide
+    // lateral 8, Bíceps 10, Tríceps 10, Cuádriceps 12, Isquiotibiales 12 (8 curl femoral + 4 RDL;
+    // confirmado por Carlos), Glúteo 8 (hip thrust; la tabla menciona además estímulo indirecto, que
+    // no suma al objetivo directo), Abductores 6, Core 9. Deltoide anterior NO aparece en la tabla →
+    // se mantiene el valor anterior (4, estimación propia no verificada). mev/mrv no se tocan.
     'Cuádriceps':    {mev:6, mav:12,mrv:16},
     'Isquiotibiales':{mev:6, mav:12,mrv:18},
     'Glúteo':        {mev:6, mav:8, mrv:16},
-    'Gemelos/Sóleo': {mev:8, mav:16,mrv:22},
+    'Gemelos/Sóleo': {mev:8, mav:18,mrv:22},
     'Pectoral':      {mev:6, mav:14,mrv:18},
-    'Dorsal':        {mev:6, mav:13,mrv:20},
+    'Dorsal':        {mev:6, mav:14,mrv:20},
     // Deltoides dividido en 3 cabezas (2026-10-04, a petición explícita de Carlos — antes
     // fusionado). mev/mrv por cabeza: estimación propia repartiendo el rango combinado anterior
     // (mev:6/mrv:20), NO literatura específica por cabeza — no existe una tabla RP por cabeza
@@ -821,11 +829,11 @@ const S = {
     // una estimación mía (la mitad del lateral), marcada explícitamente como no verificada.
     'Deltoide lateral':  {mev:3, mav:8, mrv:14},
     'Deltoide anterior': {mev:2, mav:4, mrv:10},
-    'Deltoide posterior':{mev:3, mav:4, mrv:12},
+    'Deltoide posterior':{mev:3, mav:6, mrv:12},
     'Bíceps':        {mev:5, mav:10,mrv:16},
     'Tríceps':       {mev:5, mav:10,mrv:16},
     'Core':          {mev:2, mav:9, mrv:14},
-    'Aductores':     {mev:4, mav:6, mrv:12},
+    'Aductores':     {mev:4, mav:8, mrv:12},
     // Abductores: mav=6 es de la tabla de Carlos. mev/mrv NO están en su tabla — no hay
     // literatura por separado para abductores de cadera. Uso los mismos que Aductores (mev:4,
     // mrv:12) como placeholder simétrico razonable, no verificado. Corregible si Carlos da
