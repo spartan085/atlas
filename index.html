@@ -174,7 +174,7 @@ textarea.field{resize:vertical;min-height:60px;}
 <header class="hdr">
   <div style="display:flex;align-items:center;gap:9px;">
     <svg width="26" height="26" viewBox="0 0 28 28" fill="none"><path d="M14 2l10.39 6v12L14 26 3.61 20V8L14 2z" fill="rgba(6,182,212,0.12)" stroke="var(--c)" stroke-width="1.2"/><path d="M14 8l5.2 3v6L14 20l-5.2-3V11L14 8z" fill="rgba(6,182,212,0.2)"/></svg>
-    <div class="wordmark">ATL<em>A</em>S <span style="font-family:'Geist Mono',monospace;font-size:10px;color:var(--fg3);letter-spacing:1px;">v6 · build 2026-10-20</span></div>
+    <div class="wordmark">ATL<em>A</em>S <span style="font-family:'Geist Mono',monospace;font-size:10px;color:var(--fg3);letter-spacing:1px;">v6 · build 2026-10-27a</span></div>
   </div>
   <div class="hdr-right">
     <button class="sync-btn active" onclick="syncAll()"><span class="sdot" id="syncDot"></span> Sync</button>
@@ -938,6 +938,7 @@ function save(){
     streamsCache:prunedStreamsCache, // 2026-07-16: caché permanente de streams bajo demanda
     _fatigueHistory:safeArr(S._fatigueHistory).slice(-90), // 2026-07-20: snapshot diario para gráficos de fatiga
     exerciseAliases:S.exerciseAliases||{}, // 2026-10-05: ejercicios que Carlos clasificó a mano desde el aviso
+    sideConventions:S.sideConventions||{}, // Fase C: convención por lado declarada
     logWeekOffset:S.logWeekOffset,
     hevy:S.hevy?{key:S.hevy.key,totalWorkouts:S.hevy.totalWorkouts,workouts:S.hevy.workouts}:null,
     currentMeso:S.currentMeso||1,
@@ -1015,6 +1016,7 @@ function loadPersisted(){
       if(p.streamsCache&&typeof p.streamsCache==='object')S.streamsCache=p.streamsCache; // 2026-07-16
       if(Array.isArray(p._fatigueHistory))S._fatigueHistory=p._fatigueHistory; // 2026-07-20
       if(p.exerciseAliases&&typeof p.exerciseAliases==='object')S.exerciseAliases=p.exerciseAliases; // 2026-10-05
+      if(p.sideConventions&&typeof p.sideConventions==='object')S.sideConventions=p.sideConventions; // Fase C
       if(p.logWeekOffset!=null)S.logWeekOffset=p.logWeekOffset;
       if(p.hevy)S.hevy=p.hevy;
       if(p.currentMeso)S.currentMeso=p.currentMeso;
@@ -1150,6 +1152,12 @@ const EXERCISE_INTELLIGENCE = {
   // el motor primario sigue siendo Dorsal/Bíceps; sys/ax algo más bajos que la dominada libre
   // porque la máquina/banda quita parte del componente axial-sistémico.
   'dominada':            {p:['Dorsal'],s:['Bíceps'],ax:0.07,ecc:1.1,sys:0.5,kn:0.0,lb:0.15,sfr:0.90,hl:42,pat:'pull-v',stimQ:0.85,lenMult:1.05,tags:['assisted','compound']},
+  // 6.4.3: «Press de Piernas» es el nombre en español de Hevy del leg press (no casaba con 'leg press'/'prensa'):
+  // mismos priors que 'leg press', sin parámetros nuevos.
+  'press de piernas':    {p:['Cuádriceps'],s:['Glúteo'],ax:0.2,ecc:1.1,sys:0.5,kn:0.5,lb:0.1,sfr:0.78,hl:44,pat:'squat',stimQ:0.82,lenMult:1.05,tags:['bilateral','machine']},
+  // 6.4.3: jalón con brazos rectos = extensión de hombro con codos fijos: el bíceps NO es sinergista relevante
+  // (antes casaba con 'jalón' y heredaba Bíceps). Mismos priors que 'pullover' (aislamiento dorsal, estiramiento), sin pectoral. Hipótesis de mapeo, no medición.
+  'brazos rectos':       {p:['Dorsal'],s:[],ax:0.12,ecc:1.2,sys:0.42,kn:0.0,lb:0.18,sfr:0.92,hl:42,pat:'pull-v',stimQ:0.90,lenMult:1.15,tags:['stretch-mediated','isolation']},
   'pullover':            {p:['Dorsal'],s:['Pectoral'],ax:0.12,ecc:1.2,sys:0.42,kn:0.0,lb:0.18,sfr:0.92,hl:42,pat:'pull-v',stimQ:0.90,lenMult:1.15,tags:['stretch-mediated']},
   'pull over':           {p:['Dorsal'],s:['Pectoral'],ax:0.12,ecc:1.2,sys:0.42,kn:0.0,lb:0.18,sfr:0.92,hl:42,pat:'pull-v',stimQ:0.90,lenMult:1.15,tags:['stretch-mediated']}, // 6.3.3 alias: Hevy lo nombra "Pull Over" (con espacio) → no casaba con 'pullover'. Mismos priors. Captura, no fórmula.
   'remo':                {p:['Dorsal'],s:['Bíceps'],ax:0.32,ecc:1.05,sys:0.58,kn:0.0,lb:0.38,sfr:0.86,hl:46,pat:'pull-h',stimQ:0.88,lenMult:1.05,tags:['bilateral','compound']},
@@ -1195,23 +1203,150 @@ const EXERCISE_INTELLIGENCE = {
 // Esto no elimina la necesidad de añadir ejercicios nuevos de verdad (un movimiento que Carlos
 // nunca había hecho sigue sin tener entrada), pero cubre el patrón real que se repite: el mismo
 // ejercicio de siempre, con una etiqueta de máquina/asistencia/agarre distinta cada vez.
+// ══ FASE C (core) — guarda de coincidencia parcial y unidad pendiente ══
+// getExDB casa por «la clave más larga contenida en el título». Eso hacía que «Plancha Lateral» heredase el perfil de «plancha».
+// EXERCISE_MATCH_EXCLUSIONS: si el título contiene un calificador excluido para la clave que casó, esa clave NO es candidata. Tabla mínima (no es el catálogo; el catálogo no se modifica).
+// El mapeo manual (S.exerciseAliases, nombre exacto) se consulta ANTES y sigue ganando siempre.
+const EXERCISE_MATCH_EXCLUSIONS = {'plancha':['lateral','side'],'plank':['lateral','side']};
+function _matchExcluded(k,text){var q=EXERCISE_MATCH_EXCLUSIONS[k];if(!q)return false;for(var i=0;i<q.length;i++){if(text.indexOf(q[i])>=0)return true;}return false;}
+// Ejercicios cuya UNIDAD (segundos o repeticiones) no está confirmada: se dejan SIN clasificar y con aviso hasta que Carlos lo resuelva.
+const UNIT_PENDING = {'hollow rock':'segundos o repeticiones (unidad sin confirmar)'};
+function unitPendingOf(name){return UNIT_PENDING[String(name||'').toLowerCase().trim()]||null;}
 function getExDB(name){
   const raw=name||'';
   const lower=raw.toLowerCase();
   if(S.exerciseAliases&&S.exerciseAliases[lower])return S.exerciseAliases[lower];
   let best=null,bestLen=0;
   for(const [k,d] of Object.entries(EXERCISE_INTELLIGENCE)){
-    if(lower.includes(k)&&k.length>bestLen){best=d;bestLen=k.length;}
+    if(lower.includes(k)&&k.length>bestLen&&!_matchExcluded(k,lower)){best=d;bestLen=k.length;}
   }
   if(best)return best;
   const stripped=lower.replace(/\s*\([^)]*\)\s*$/,'').trim();
   if(stripped&&stripped!==lower){
     if(S.exerciseAliases&&S.exerciseAliases[stripped])return S.exerciseAliases[stripped];
     for(const [k,d] of Object.entries(EXERCISE_INTELLIGENCE)){
-      if(stripped.includes(k)&&k.length>bestLen){best=d;bestLen=k.length;}
+      if(stripped.includes(k)&&k.length>bestLen&&!_matchExcluded(k,stripped)){best=d;bestLen=k.length;}
     }
   }
   return best;
+}
+// Series por músculo de UNA sesión — FUENTE ÚNICA (la usan el sync de Hevy y los tests).
+// muscleSets: directas (exData.p) a peso 1 + indirectas (exData.s) a peso 0.4.
+// primaryMuscleSets: SOLO series directas. Cuenta series con reps>0 (criterio previo, sin cambios).
+// Contribución indirecta (sinergista) a las series de un músculo EN ESTE MODELO DE FATIGA Y DE
+// CLASIFICACIÓN DE SESIÓN. Valor PROVISIONAL de consistencia (0.4), NO una equivalencia fisiológica validada.
+// SEPARACIÓN: el volumen hipertrófico semanal (S.weeklyVol / MEV-MAV) cuenta SOLO series directas y NO usa
+// este coeficiente (el indirecto se lista aparte, "no cuenta para MAV"). Si la fatiga local y el estímulo
+// hipertrófico necesitaran coeficientes distintos, se definirían constantes distintas y justificadas.
+const INDIRECT_SET_WEIGHT = 0.4;
+// ══ 6.4.7-alpha (CANDIDATO, no desplegado) — criterio compartido de series ══
+// Categorías (orden de decisión): invalid → warmup → working → timed. Ver propuesta_6.4.7_criterio_series.md.
+//  · warmup  : type==='warmup' (con reps o con duración). Se conserva; no cuenta como trabajo.
+//  · working : reps>=1, sin duración, type distinto de warmup (normal/failure/dropset/sin type).
+//  · timed   : sin reps, duración>0, sin distancia, type distinto de warmup. Se conserva y se informa aparte; NO entra en series, F ni volumen.
+//  · invalid : se conserva con su motivo. Incluye el caso AMBIGUO reps>=1 Y duración>0 (no se asume qué representa → no cuenta hasta que se compruebe),
+//              sin reps ni duración, solo distancia, y lo que no es un objeto.
+// Logs históricos SIN type ni _setCriterion: se leen como working si tienen reps>=1. Es una SUPOSICIÓN DE COMPATIBILIDAD, no un dato verificado:
+// un calentamiento antiguo no es distinguible.
+const SET_CRITERION_VERSION='set-criterion-1';
+function classifySetDetailed(s){
+  if(!s||typeof s!=='object')return {cat:'invalid',reason:'no_es_objeto'};
+  var hasReps=safeInt(s.reps||0)>0;
+  var dv=(s.duration_seconds!=null?s.duration_seconds:s.sec),dn=Number(dv),hasDur=isFinite(dn)&&dn>0;
+  var dsv=(s.distance_meters!=null?s.distance_meters:s.dist),dsn=Number(dsv),hasDist=isFinite(dsn)&&dsn>0;
+  var isWarm=(typeof s.type==='string'&&s.type.toLowerCase()==='warmup');
+  if(!hasReps&&!hasDur)return isWarm&&hasDist?{cat:'warmup',reason:null}:{cat:'invalid',reason:hasDist?'solo_distancia':'sin_reps_ni_duracion'};
+  if(isWarm)return {cat:'warmup',reason:null};
+  if(hasReps&&hasDur)return {cat:'invalid',reason:'reps_y_duracion_ambiguo'};
+  if(hasReps)return {cat:'working',reason:null};
+  return hasDist?{cat:'invalid',reason:'duracion_con_distancia'}:{cat:'timed',reason:null};
+}
+function classifySet(s){return classifySetDetailed(s).cat;}
+function isWorkingSet(s){return classifySetDetailed(s).cat==='working';}
+function workingSetsOf(sets){return (Array.isArray(sets)?sets:[]).filter(isWorkingSet);}
+function partitionSets(sets){
+  var o={warmup:[],working:[],timed:[],invalid:[]};
+  (Array.isArray(sets)?sets:[]).forEach(function(s){o[classifySetDetailed(s).cat].push(s);});
+  return o;
+}
+function _rawSetCopy(s){var o={};if(s&&typeof s==='object')Object.keys(s).forEach(function(k){var v=s[k];if(v===null||['string','number','boolean'].indexOf(typeof v)>=0)o[k]=v;});return o;}
+// Campos de ejercicio/serie que se persisten en el log (función pura, probada). Opción B:
+//  _exDetail = SOLO series de trabajo, misma forma que antes ({kg,reps,rpe}); si la serie no es 'normal' se añade type (antes se perdía).
+//  _exAux    = TODO lo demás, íntegro (copia de los campos originales + motivo en las inválidas): warmup / timed / invalid.
+// Convención por lado DECLARADA por Carlos (S.sideConventions[nombre exacto en minúsculas]={modo:'serie_por_lado',orden:['izq','der'],desde:'AAAA-MM-DD'}).
+// Solo se aplica a registros con fecha >= desde. Sin declaración (o antes de `desde`) NO se escribe ningún lado: no se infiere nunca. Las series por tiempo NO se convierten en series de hipertrofia.
+function sideConventionFor(name,dateISO){
+  var c=(S.sideConventions||{})[String(name||'').toLowerCase().trim()];
+  if(!c||c.modo!=='serie_por_lado'||!Array.isArray(c.orden)||!c.orden.length||!c.desde||!dateISO||String(dateISO)<c.desde)return null;
+  return c;
+}
+function declareSideConvention(name,desde){
+  if(!name||!/^\d{4}-\d{2}-\d{2}$/.test(String(desde||'')))return false;
+  if(!S.sideConventions)S.sideConventions={};
+  S.sideConventions[String(name).toLowerCase().trim()]={modo:'serie_por_lado',orden:['izq','der'],desde:String(desde),declarado:new Date().toISOString()};
+  save();
+  if(typeof toast==='function')toast('Convención por lado',String(name)+': cada serie = un lado (izq, der) desde '+desde+'. Solo registros nuevos.','✓');
+  return true;
+}
+function buildLogExerciseFields(exercises,opts){
+  var exNames=[],exDetail=[],exAux=[];
+  (exercises||[]).forEach(function(ex){
+    var nameN=ex.title||'',nameD=ex.title||ex.exercise_template_title||ex.name||'';
+    var p=partitionSets(ex.sets);
+    var nW=p.working.length;
+    if(nameN&&nW>0)exNames.push({name:nameN,sets:nW});
+    var det=p.working.map(function(s){
+      var kg=safeNum((s&&(s.weight_kg!=null?s.weight_kg:s.weight))||0),reps=safeInt((s&&s.reps)||0),rpe=safeNum((s&&(s.rpe!=null?s.rpe:s.rpe_rating))||0);
+      var o={kg:(kg>0?kg:null),reps:reps,rpe:(rpe>0?rpe:null)};
+      if(typeof s.type==='string'&&s.type&&s.type.toLowerCase()!=='normal')o.type=s.type;
+      return o;
+    });
+    if(nameD&&det.length>0)exDetail.push({name:nameD,sets:det});
+    if(nameD&&(p.warmup.length||p.timed.length||p.invalid.length)){
+      var a={name:nameD};
+      if(p.warmup.length)a.warmup=p.warmup.map(_rawSetCopy);
+      if(p.timed.length)a.timed=p.timed.map(function(s,j){
+        var c=_rawSetCopy(s),conv=sideConventionFor(nameD,opts&&opts.dateISO);
+        if(conv){c.side=conv.orden[j%conv.orden.length];c.side_source='convencion_declarada';c.side_convention_desde=conv.desde;if(p.timed.length%conv.orden.length!==0)c.side_flag='numero_de_series_no_multiplo_de_lados_revisar';}
+        return c;
+      });
+      if(p.invalid.length)a.invalid=p.invalid.map(function(s){var c=_rawSetCopy(s);c.reason=classifySetDetailed(s).reason;return c;});
+      exAux.push(a);
+    }
+  });
+  return {_exNames:exNames,_exDetail:exDetail,_exAux:exAux.length?exAux:null};
+}
+// Criterio de contabilización de un log: 'marcado' (6.4.7+) o 'legado_supuesto_working' (compatibilidad asumida).
+function logSetCriterionOf(l){return l&&l._setCriterion?'marcado':'legado_supuesto_working';}
+// Duraciones atípicas de series por tiempo: SOLO MARCA para revisión; el valor original NUNCA se corrige ni se descarta.
+// Disparadores PROVISIONALES (no calibrados): R1 la serie ocupa más de la mitad de la duración del entreno; R2 supera 5× la mediana de las demás series del mismo ejercicio (≥5 series).
+function flagTimedForReview(workouts){
+  var R1=0.5,R2=5,MINN=5,byEx={},med=function(a){var s=a.slice().sort(function(x,y){return x-y;}),m=s.length>>1;return s.length%2?s[m]:(s[m-1]+s[m])/2;};
+  var dur=function(st){return Number(st.duration_seconds!=null?st.duration_seconds:st.sec);};
+  safeArr(workouts).forEach(function(w){safeArr(w&&w.exercises).forEach(function(ex){safeArr(ex.sets).forEach(function(st){if(classifySet(st)==='timed'){var k=String(ex.title||ex.name||'').toLowerCase().trim();(byEx[k]=byEx[k]||[]).push(dur(st));}});});});
+  var flags=[];
+  safeArr(workouts).forEach(function(w){
+    var t0=Date.parse(w&&w.start_time),t1=Date.parse(w&&w.end_time),wd=(isFinite(t0)&&isFinite(t1)&&t1>t0)?(t1-t0)/1000:0;
+    safeArr(w&&w.exercises).forEach(function(ex){safeArr(ex.sets).forEach(function(st,i){
+      if(classifySet(st)!=='timed')return;
+      var d=dur(st),why=[],k=String(ex.title||ex.name||'').toLowerCase().trim(),others=(byEx[k]||[]).slice();others.splice(others.indexOf(d),1);
+      if(wd>0&&d>R1*wd)why.push('ocupa '+Math.round(100*d/wd)+' % de la duración del entreno ('+Math.round(wd)+' s)');
+      if(others.length>=MINN&&d>R2*med(others))why.push((d/med(others)).toFixed(1)+'× la mediana de las demás series del ejercicio ('+med(others)+' s)');
+      if(why.length)flags.push({date:String(w.start_time||'').slice(0,10),title:w.title||w.name||'',exercise:ex.title||ex.name||'',set_index:i,seconds_original:d,estado:'revisar',motivos:why,valor_corregido:null});
+    });});
+  });
+  return flags;
+}
+function sessionMuscleSets(exercises){
+  const muscleSets={},primaryMuscleSets={};
+  (exercises||[]).forEach(ex=>{
+    const exData=getExDB(ex.title||ex.exercise_template_title||ex.name||'');
+    const nSets=workingSetsOf(ex.sets).length;
+    if(!nSets||!exData)return;
+    exData.p.forEach(m=>{muscleSets[m]=(muscleSets[m]||0)+nSets;primaryMuscleSets[m]=(primaryMuscleSets[m]||0)+nSets;});
+    exData.s.forEach(m=>{muscleSets[m]=(muscleSets[m]||0)+nSets*INDIRECT_SET_WEIGHT;});
+  });
+  return {muscleSets,primaryMuscleSets};
 }
 // Carlos clasifica un ejercicio no reconocido desde el propio aviso en HOY/MEV-MAV — queda
 // guardado para siempre (persistido, exportado/importado), sin volver a tocar código ni chat.
@@ -1223,6 +1358,7 @@ function classifyUnmatchedExercise(name,muscle){
   if(!S.exerciseAliases)S.exerciseAliases={};
   S.exerciseAliases[name.toLowerCase()]={p:[muscle],s:[],ax:0.1,ecc:1.0,sys:0.4,kn:0.1,lb:0.15,sfr:0.85,hl:36,pat:'isolation',stimQ:0.8,lenMult:1.0,tags:['user-classified']};
   if(S._unmatchedEx)delete S._unmatchedEx[name];
+  if(S._unmatchedTimedEx)delete S._unmatchedTimedEx[name];
   save();
   runEngines();
   safe(renderMavMicroSummary,'rmms');safe(renderMAV,'rmav');safe(renderWeekState,'rwst');
@@ -1528,6 +1664,20 @@ function FatigueEngine(metrics,logs,hevyRecent,domsUpper,domsLower,knee){
 // Half-life is MODULAR, not fixed: baseHL × volumeMod × intensityMod × recoveryMod
 // Separates: local fatigue / mechanical damage / neural cost
 // Each output has confidence score
+// 6.4.4 — modificador de vida media por intensidad (RPE): RAMPAS LINEALES centradas en los umbrales 5, 7 y 8
+// (antes: escalones 0.8/1.0/1.2/1.4 → saltos de ×1.25 en 5→5.1, ×1.2 en 7→7.1 y ×1.167 en 8→8.1).
+// Anclas (RPE→factor): 4.5→0.8 · 5.5→1.0 · 6.5→1.0 · 7.5→1.2 · 8.5→1.4. Continua y no decreciente; ≤4.5 → 0.8; ≥8.5 → 1.4.
+// Los factores (0.8/1.0/1.2/1.4) y los umbrales son HIPÓTESIS NO VALIDADAS y NO se han modificado: solo se elimina la discontinuidad.
+// Entradas inválidas (no deberían llegar: la sincronización Hevy solo promedia series con RPE>0 y addFatigue recibe `hevyRPE||rpe||7`):
+// se conserva EXACTAMENTE la semántica anterior → negativos y ≤4.5 → 0.8; >10 y NaN → 1.4. No se sanean silenciosamente.
+function intensityHalfLifeMod(rpe){
+  if(!(rpe <= 8.5)) return 1.4;                       // >8.5, >10 y NaN (misma salida que el escalón anterior)
+  if(rpe <= 4.5) return 0.8;                          // incluye 0 y negativos (misma salida que antes)
+  if(rpe <= 5.5) return 0.8 + 0.2 * (rpe - 4.5);      // umbral 5:  0.8 → 1.0
+  if(rpe <= 6.5) return 1.0;                          // meseta 5.5–6.5
+  if(rpe <= 7.5) return 1.0 + 0.2 * (rpe - 6.5);      // umbral 7:  1.0 → 1.2
+  return 1.2 + 0.2 * (rpe - 7.5);                     // umbral 8:  1.2 → 1.4 (7.5–8.5)
+}
 function MuscleFatigueEngine(logs, hevyRecent){
   const now = Date.now();
 
@@ -1536,7 +1686,7 @@ function MuscleFatigueEngine(logs, hevyRecent){
     // Volume modifier: more sets = slower recovery (Colquhoun 2018)
     const volMod = nSets <= 4 ? 0.85 : nSets <= 8 ? 1.0 : nSets <= 12 ? 1.2 : 1.4;
     // Intensity modifier: higher RPE = slower recovery (Morton 2016)
-    const intMod = rpe <= 5 ? 0.8 : rpe <= 7 ? 1.0 : rpe <= 8 ? 1.2 : 1.4;
+    const intMod = intensityHalfLifeMod(rpe); // 6.4.4: rampas continuas (antes escalones)
     // Recovery context (HRV, sleep) — if suppressed, slower recovery
     const recMod = recoveryContext || 1.0;
     return baseHL * volMod * intMod * recMod;
@@ -1569,7 +1719,12 @@ function MuscleFatigueEngine(logs, hevyRecent){
     'D5':{'Isquiotibiales':{sets:8,ex:'rdl'},'Cuádriceps':{sets:3,ex:'sentadilla frontal'},'Glúteo':{sets:7,ex:'hip thrust'},'Gemelos/Sóleo':{sets:4,ex:'gemelo'},'Aductores':{sets:3,ex:'aductor'},'Core':{sets:3,ex:'pallof'}},
   };
 
-  function addFatigue(muscle, sets, rpe, exName, ageMs, isPrimary){
+  // 6.4.3 — `sets` YA llega ponderado por contribución: directas ×1, indirectas ×INDIRECT_SET_WEIGHT
+  // (sessionMuscleSets). Se elimina el multiplicador ×0.35 por "no primario" (6.4.2 y anteriores):
+  // volvía a descontar la misma contribución indirecta, y lo hacía solo si el músculo no tenía
+  // series directas ese día (peso 0.14 vs 0.40 para la misma serie indirecta). Ahora toda serie
+  // indirecta pesa lo mismo con o sin trabajo directo. NO se tocan 4.2, 3.5 ni los factores de intensidad.
+  function addFatigue(muscle, sets, rpe, exName, ageMs){
     const exData = getExDB(exName);
     const baseHL = exData ? exData.hl : 44;
     const ax = exData ? exData.ax : 0.5;
@@ -1577,16 +1732,15 @@ function MuscleFatigueEngine(logs, hevyRecent){
     const hl = effectiveHalfLife(baseHL, sets, rpe, recovMod);
     const d = decay(ageMs, hl);
     const rpeM = rpe / 7;
-    const primaryMult = isPrimary ? 1.0 : 0.35;
     // Local fatigue: volume × exercise type × decay
     // Calibration: 8 sets RPE7 squat (ax=0.85,ecc=1.2) → ~42% residual at t=0
-    const local = sets * rpeM * ecc * primaryMult * d * 4.2;
+    const local = sets * rpeM * ecc * d * 4.2;
     // Neural cost: axial load matters more here (Kraemer 2004)
-    const neural = sets * rpeM * ax * primaryMult * d * 3.5;
+    const neural = sets * rpeM * ax * d * 3.5;
     if(!rawFatigue[muscle]) rawFatigue[muscle] = {local:0, neural:0, sets:0, exHL:[]};
     rawFatigue[muscle].local += local;
     rawFatigue[muscle].neural += neural;
-    rawFatigue[muscle].sets += sets * primaryMult;
+    rawFatigue[muscle].sets += sets;
     rawFatigue[muscle].exHL.push(hl);
   }
 
@@ -1599,8 +1753,7 @@ function MuscleFatigueEngine(logs, hevyRecent){
     const key = ['D1','D2','D4','D5'].find(k => l.sess && l.sess.includes(k));
     if(!key) return;
     Object.entries(sessMap[key]).forEach(([m, {sets, ex}]) => {
-      const isPrimary = ['Pectoral','Dorsal','Cuádriceps','Isquiotibiales','Glúteo','Deltoide anterior','Deltoide lateral','Deltoide posterior'].includes(m);
-      addFatigue(m, sets, rpe, ex, ageMs, isPrimary);
+      addFatigue(m, sets, rpe, ex, ageMs); // 6.4.3: sin ×0.35 (también en ruta manual: sessMap son series directas)
     });
   });
 
@@ -1612,14 +1765,13 @@ function MuscleFatigueEngine(logs, hevyRecent){
     const localRPE = sess.hevyRPE || sess.rpe || 7;
     const muscleSets = sess.muscleSets || {};
     if(!Object.keys(muscleSets).length) return;
-    const totalSets = Object.values(muscleSets).reduce((a,b) => a+b, 0) || 1;
 
     // Get best exercise name for each muscle from exercises list
     const muscleExName = {};
     (sess.exercises || []).forEach(ex => {
       const exData = getExDB(ex.title || '');
       if(!exData) return;
-      const nSets = (ex.sets||[]).filter(s=>safeInt(s.reps||0)>0).length;
+      const nSets = workingSetsOf(ex.sets).length;
       exData.p.forEach(m => {
         // Keep the highest-fatigue exercise per muscle
         if(!muscleExName[m] || nSets > (muscleExName[m].sets||0)){
@@ -1629,9 +1781,8 @@ function MuscleFatigueEngine(logs, hevyRecent){
     });
 
     Object.entries(muscleSets).forEach(([m, sets]) => {
-      const isPrimary = sets/totalSets > 0.15;
       const exName = muscleExName[m]?.name || '';
-      addFatigue(m, sets, localRPE, exName, ageMs, isPrimary);
+      addFatigue(m, sets, localRPE, exName, ageMs);
     });
   });
 
@@ -2188,7 +2339,7 @@ function EffectiveSetsEngine(hevyWorkouts, weekOffset){
       const exData = getExDB(exName);
       if(!exData) return;
 
-      const workingSets = (ex.sets||[]).filter(s => safeInt(s.reps||0) > 0);
+      const workingSets = workingSetsOf(ex.sets);
       if(!workingSets.length) return;
 
       // Per-set calculation
@@ -2320,7 +2471,7 @@ function ProgressionEngine(workouts, hevyRecent, muscleFatigue, fatigue, metrics
       var _rpeVals = [];
       // Progression mechanisms: avgReps, avgRIR, topSet (heaviest), volumeLoad
       var _repsVals=[];var _volLoad=0;var _topKg=0;var _topSet=null;var _workCount=0;
-      (ex.sets||[]).forEach(s => {
+      workingSetsOf(ex.sets).forEach(s => {
         const kg = safeNum(s.weight_kg||s.weight||0);
         const reps = safeInt(s.reps||0);
         var _rpe = safeNum(s.rpe||s.rpe_rating||0);
@@ -2560,7 +2711,7 @@ function ProgressionEngine(workouts, hevyRecent, muscleFatigue, fatigue, metrics
 
 const RVL_SCHEMA_VERSION = 3; // 6.3.3: +predictionTiming. Lectura retrocompatible (getValidationSnapshots filtra solo por timestamp).
 const VALIDATION_FREEZE_NO_AUTOCAL = true; // 6.3.1: autocalibracion del AdaptationEngine desactivada durante la validacion
-const ENGINE_VERSION = '6.4.1-alpha'; // 6.4.1 = vidas media de la carga residual CONFIGURABLES y etiquetadas como HIPÓTESIS (no verdad fisiológica): editables en FATIGA→Parámetros, persistidas, a validar/recalibrar con datos de Carlos. Pestaña Endurance DIFERIDA (esperar 8-10 carreras + streams FC). SECUENCIA acordada: (1) validar este motor unas semanas → (2) revisar modelo de series MEV/MAV/MRV → (3) desarrollar Endurance. // 6.4.0 = modelo de CARGA RESIDUAL continua: elimina corte 48/72h; fuerza (HL config) y cardio (HL config) separadas (Strength/Cardio Load), nunca sumadas; trainingState interpreta ambas. VALIDACIÓN: H1/H2/H6 reinician reloj (snapshots <6.4.0 = histórico); H3/H4 (Nivel A) no afectadas. Ver PROTOCOLO v2.
+const ENGINE_VERSION = '6.4.7-alpha'; // 6.4.7 = CRITERIO COMPARTIDO DE SERIES (invalid/warmup/working/timed): calentamientos y series por tiempo dejan de contar como series de trabajo en series por músculo, volumen MAV, fatiga F (series y RPE medio de sesión), series efectivas y progresión (reps medias, volumeLoad, RIR); e1RM y serie top no cambian. Cambia la fatiga muscular de sesiones con calentamiento y el volumen semanal ⇒ snapshots/predicciones <6.4.7 NO comparables: estrato propio del predictor (snapVersion). Los datos históricos NO se reescriben ni cambian su versión; los logs nuevos llevan _setCriterion y _engineVer. Incluye (sin tocar fórmulas): semanas ISO en «¿mejor que hace un mes?», guarda de coincidencia parcial (Plancha Lateral), desconocidos por duración, esquema por lado, marca de duraciones atípicas. // 6.4.5 = SOLO divisor del readiness muscular superior (ReadinessEngine): /5 → /7 (7 músculos; el deltoides se dividió en 3 cabezas el 2026-10-04). Sube el readiness muscular/global/PerformancePotential en estados con fatiga superior; NO toca FatigueEngine/MuscleFatigueEngine ni el predictor de Validación (usa upperScore/lowerScore/systemic). Pendiente: DecisionEngine conserva su propio /5 (texto de estado) y core/aductores/abductores siguen fuera del promedio. // 6.4.4 = SOLO continuidad del RPE: intMod pasa de escalones a rampas lineales centradas en 5/7/8 (intensityHalfLifeMod); mismos coeficientes (0.8/1.0/1.2/1.4, 4.2, 3.5); cambia la fatiga muscular de sesiones antiguas (hasta ~+23% a 72 h en RPE 8.0→8.1) ⇒ snapshots <6.4.4 NO comparables en el predictor. // 6.4.3 = SOLO series indirectas: se elimina el 2º descuento ×0.35 de MuscleFatigueEngine (peso indirecto único 0.4, continuo con/sin series directas); mapeo: +'press de piernas' (leg press), +'brazos rectos' (sin bíceps). NO se tocan 4.2/3.5/factores de intensidad. Predictor de Validación ahora ESTRATIFICA por versión. // 6.4.2 = FIX MuscleFatigueEngine: 'primario' = series directas (antes cuota >15% del total de la sesión → isquios/glúteo/aductores/abductores infravalorados ×0.35). Cambia la fatiga muscular y por tanto systemic/readiness: snapshots RVL <6.4.2 no comparables en este predictor. // 6.4.1 = vidas media de la carga residual CONFIGURABLES y etiquetadas como HIPÓTESIS (no verdad fisiológica): editables en FATIGA→Parámetros, persistidas, a validar/recalibrar con datos de Carlos. Pestaña Endurance DIFERIDA (esperar 8-10 carreras + streams FC). SECUENCIA acordada: (1) validar este motor unas semanas → (2) revisar modelo de series MEV/MAV/MRV → (3) desarrollar Endurance. // 6.4.0 = modelo de CARGA RESIDUAL continua: elimina corte 48/72h; fuerza (HL config) y cardio (HL config) separadas (Strength/Cardio Load), nunca sumadas; trainingState interpreta ambas. VALIDACIÓN: H1/H2/H6 reinician reloj (snapshots <6.4.0 = histórico); H3/H4 (Nivel A) no afectadas. Ver PROTOCOLO v2.
 // -- Histórico congelado 6.3.x: 6.3.6 defaults mavRanges · 6.3.5 ventana series rolling + fix validateLog · 6.3.3 _exDetail crudo · 6.3.1 autocal off --
 
 /* ═══════════════════════════════════════════════════════════════════════════
@@ -2727,6 +2878,110 @@ function isOutsideVariabilityBand(actual, predicted, type){
 }
 
 // ── Normalized snapshot builder ──
+// ══ 6.4.6 — MODO SOMBRA: disponibilidad por sesión prevista (SOLO REGISTRO; no se muestra ni decide nada) ══
+// Calcula, para la sesión prevista, qué músculos serían «relevantes» según TRES reglas y qué categoría saldría con DOS
+// parametrizaciones, y lo guarda como campo ADITIVO `shadow` en snapshots de predicción NUEVOS. No toca MuscleFatigueEngine,
+// FatigueEngine, ReadinessEngine, PerformancePotentialEngine, DecisionEngine, la interfaz ni el predictor de Validación
+// (AdaptationEngine/predictorSensitivity/performanceVsReadiness nunca leen `shadow`). Funciones PURAS: no escriben en S ni en storage.
+// NINGUNA de las reglas/umbrales está validada fisiológicamente (ver preregistro). La cuota de volumen decide PERTENENCIA al conjunto
+// de músculos relevantes; NO reduce ni pondera la fatiga F que calcula el motor.
+// ENGINE_VERSION NO cambia (las salidas del motor son idénticas a 6.4.5): así el predictor no parte en dos estratos datos comparables.
+const SHADOW_BUILD = '6.4.6-shadow-1';
+const SHADOW_FORMULA_VERSION = 'shadow-1';
+const SHADOW_TAU = 1/14;               // R3: mitad de la cuota uniforme de 7 músculos de torso (criterio estructural, no calibrado)
+const SHADOW_TAU_SENS = [0.05, 0.10];  // solo sensibilidad informada
+const SHADOW_PARAMS = {actual:[35,55], ancla:[13,27]}; // F por músculo; fresco <lo, fatigado >hi (mismos operadores que DecisionEngine)
+function shadowSlotOf(dayId){ var m=/^D([1-7])$/i.exec(String(dayId||'').trim()); return m?('D'+m[1]):null; }
+function shadowRegionOf(label){ var L=String(label||'').toLowerCase(); if(/upper|torso|empuje|tiron|tirón|push|pull/.test(L))return 'torso'; if(/lower|pierna|leg/.test(L))return 'pierna'; return null; }
+// Plantilla 1: ÚLTIMA sesión de fuerza realmente hecha en el mismo slot Dn (sin «bonus»). Ejercicios y series reales; nada inventado.
+function shadowTemplateFromLogs(slot, logs){
+  if(!slot) return null;
+  var re=new RegExp('\\b'+slot+'\\b','i'), best=null, bd=-Infinity, bt=-Infinity;
+  safeArr(logs).forEach(function(l){
+    if(!l||l._cardio) return;
+    var s=String(l.sess||''); if(!re.test(s)||/bonus/i.test(s)) return;
+    var ex=safeArr(l._exDetail); if(!ex.length) return;
+    var d=parseDate(l.date), dt=d?d.getTime():0, tt=l._ts?Date.parse(l._ts)||0:0;
+    if(dt>bd||(dt===bd&&tt>bt)){best=l;bd=dt;bt=tt;}
+  });
+  if(!best) return null;
+  return {source:'ultima_sesion_mismo_slot', ref:{date:best.date||null, id:best._hevyId||best._stableId||null, sess:String(best.sess||'').slice(0,40)},
+    exercises:safeArr(best._exDetail).map(function(e){return {title:e.name,sets:safeArr(e.sets)};})};
+}
+// Plantilla 2: lista de referencia del código (PLAN_DAY_EXERCISES) SOLO para etiquetas M1. M2/M3 no tienen lista en el código → null (limitación registrada, no se inventa).
+function shadowTemplateFromCode(label){
+  var L=String(label||'').toLowerCase(), key=null;
+  if(/upper a/.test(L))key='upper a'; else if(/upper b/.test(L))key='upper b'; else if(/lower a/.test(L))key='lower a'; else if(/lower b/.test(L))key='lower b';
+  if(!key||typeof PLAN_DAY_EXERCISES==='undefined'||!PLAN_DAY_EXERCISES[key]) return null;
+  var ex=[]; PLAN_DAY_EXERCISES[key].forEach(function(s){
+    var m=/^(?:CORE:\s*)?(.+?)\s+—\s+(\d+)×/.exec(s); if(!m) return;
+    var n=parseInt(m[2],10), sets=[]; for(var i=0;i<n;i++)sets.push({reps:1}); ex.push({title:m[1],sets:sets});
+  });
+  return ex.length?{source:'codigo', ref:{key:key}, exercises:ex}:null;
+}
+// Relevancia: D = series directas, W = directas + 0.4·indirectas (sessionMuscleSets, sin cambios), cuota = W/ΣW.
+function shadowRelevance(exercises){
+  var r=sessionMuscleSets(exercises), D=r.primaryMuscleSets, W=r.muscleSets, ms=Object.keys(W), tot=0, share={};
+  ms.forEach(function(m){tot+=W[m];});
+  ms.forEach(function(m){share[m]=tot>0?W[m]/tot:0;});
+  function pick(f){return ms.filter(f).sort();}
+  var rel={R1:pick(function(m){return (D[m]||0)>=3;}), R2:pick(function(m){return (D[m]||0)>=1;}), R3:pick(function(m){return share[m]+1e-12>=SHADOW_TAU;})};
+  var sens={}; SHADOW_TAU_SENS.forEach(function(t){sens[String(t)]=pick(function(m){return share[m]+1e-12>=t;});});
+  var unmapped=safeArr(exercises).filter(function(e){return !getExDB(e.title||e.exercise_template_title||e.name||'');}).map(function(e){return String(e.title||e.name||'').slice(0,40);});
+  return {D:D,W:W,share:share,total:tot,rel:rel,relTauSens:sens,unmapped:unmapped};
+}
+// Disponibilidad = peor F entre los músculos relevantes (F del motor, SIN modificar). Empates: orden alfabético; si F máx = 0 no se nombra limitante.
+function shadowAvailability(mf, muscles){
+  var best=null, bv=-1;
+  safeArr(muscles).forEach(function(m){var x=mf&&mf[m]; var v=x&&typeof x==='object'?safeNum(x.value,0):safeNum(x,0); if(v>bv){bv=v;best=m;}});
+  return best===null?{limiting:null,F:null}:{limiting:bv>0?best:null,F:bv}; // sin fatiga (F=0 en todos) no hay músculo limitante: evita un «limitante» arbitrario por empate
+}
+function shadowCategoryFor(F, p){ return F==null?null:(F<p[0]?'fresco':(F>p[1]?'fatigado':'tolerable')); }
+function shadowEvaluateTemplate(tpl, mf){
+  var rr=shadowRelevance(tpl.exercises), rd=function(x){return Math.round(x*1000)/1000;};
+  var out={source:tpl.source, ref:tpl.ref, nEx:tpl.exercises.length, unmapped:rr.unmapped, totalW:rd(rr.total), D:rr.D, share:{}, rules:{}, R3tauSens:{}};
+  Object.keys(rr.share).forEach(function(m){if(rr.share[m]>=0.03)out.share[m]=rd(rr.share[m]);}); // compacto: cuotas <3% omitidas (almacenamiento acotado)
+  function entry(rel){ var av=shadowAvailability(mf,rel); return {relevant:rel, limiting:av.limiting, F:av.F, cat:{actual:shadowCategoryFor(av.F,SHADOW_PARAMS.actual), ancla:shadowCategoryFor(av.F,SHADOW_PARAMS.ancla)}}; }
+  ['R1','R2','R3'].forEach(function(k){out.rules[k]=entry(rr.rel[k]);});
+  // diagnóstico (NO usado para categoría): F media ponderada por cuota entre los relevantes de R3
+  var sw=0, sf=0; rr.rel.R3.forEach(function(m){var x=mf&&mf[m]; var v=x&&typeof x==='object'?safeNum(x.value,0):safeNum(x,0); sw+=rr.share[m]; sf+=rr.share[m]*v;});
+  out.rules.R3.Fw=sw>0?Math.round(sf/sw*10)/10:null;
+  Object.keys(rr.relTauSens).forEach(function(t){out.R3tauSens[t]=rr.relTauSens[t];}); // solo conjuntos (F/categoría se derivan de prediction.muscleFatigue)
+  return out;
+}
+// Categoría ACTUAL del DecisionEngine, LEÍDA del resultado ya calculado (no se recalcula ni se modifica).
+function shadowCurrentCategory(decision, region){
+  if(!decision||!region) return null;
+  var re=region==='torso'?/^Tren superior/:/^Tren inferior|^Fatiga pierna/;
+  var it=safeArr(decision.allItems).filter(function(i){return i&&re.test(String(i.text||''));})[0];
+  if(!it) return null;
+  var cat=it.icon==='✓'?'fresco':(it.icon==='⚠'?'fatigado':'tolerable');
+  return {category:cat, text:String(it.text||'').slice(0,90)};
+}
+function computeShadowAvailability(ctx){
+  try{
+    ctx=ctx||{}; var mf=ctx.muscleFatigue||{}, ns=ctx.nextSession, label=(ns&&ns[2])?String(ns[2]):null;
+    var slot=shadowSlotOf(ns&&ns[0]), region=shadowRegionOf(label), meso=ctx.meso||null;
+    var res={build:SHADOW_BUILD, formulaVersion:SHADOW_FORMULA_VERSION, engineVersion:ENGINE_VERSION, // τ y umbrales quedan definidos por formulaVersion (shadow-1): no se repiten en cada snapshot
+      
+      plan:{dayId:ns&&ns[0]||null, slot:slot, label:label?label.slice(0,60):null, meso:meso, region:region},
+      limitations:[], templates:{}, primary:null, current:shadowCurrentCategory(ctx.decision,region)};
+    if(!label){res.limitations.push('sin_sesion_prevista'); return res;}
+    var t1=shadowTemplateFromLogs(slot,ctx.logs), t2=shadowTemplateFromCode(label);
+    if(t1) res.templates.ultima_sesion=shadowEvaluateTemplate(t1,mf); else res.limitations.push('sin_plantilla_ultima_sesion');
+    // plantilla del código: solo conjuntos relevantes (recomputable; acota el tamaño del snapshot)
+    if(t2){var c2=shadowEvaluateTemplate(t2,mf); res.templates.codigo={source:c2.source,ref:c2.ref,nEx:c2.nEx,unmapped:c2.unmapped,rel:{R1:c2.rules.R1.relevant,R2:c2.rules.R2.relevant,R3:c2.rules.R3.relevant}};} else res.limitations.push('sin_lista_en_codigo_para_esta_etiqueta'+(meso>=2?'_M'+meso:''));
+    res.primary=t1?'ultima_sesion':(t2?'codigo':null);
+    return res;
+  }catch(e){ return {build:SHADOW_BUILD, formulaVersion:SHADOW_FORMULA_VERSION, error:String(e&&e.message||e).slice(0,120)}; }
+}
+function buildShadowField(){
+  try{
+    var wb=null; try{wb=getWeeklyBalance();}catch(e){}
+    return computeShadowAvailability({muscleFatigue:S._muscleFatigue, logs:S.logs, nextSession:wb&&wb.nextSession, meso:S.currentMeso, decision:S._decision});
+  }catch(e){ return null; }
+}
+
 function buildSnapshot(type, data){
   const m = S.metrics; const f = S._fatigue; const conf = S._confidence; const hrv = S._hrv;
   // ── Data quality assessment ──
@@ -2776,6 +3031,7 @@ function buildSnapshot(type, data){
     type,
     predictionTiming: _predTiming, // 6.3.3 (A4): 'pre_session' | 'post_session' | null(outcome)
     dataQuality,
+    shadow: type === 'prediction' ? buildShadowField() : null, // 6.4.6: SOLO registro aditivo (nunca leído por motores, predictor ni UI)
     raw: {
       hrv: m.hrv, rhr: m.restingHR, sleep: m.sleep ? safeNum(m.sleep) : null,
       sleepScore: m.sleepScore, bb: m.bb, steps: m.steps,
@@ -2904,13 +3160,41 @@ function storePerformanceOutcome(sessionData){
   saveValidationSnapshot('outcome', sessionData);
 }
 
+// ══ 6.4.3 — ESTRATIFICACIÓN POR VERSIÓN DEL MOTOR (solo lectura: NO borra ni reescribe snapshots) ══
+// Una predicción solo es comparable con otras generadas por el MISMO motor de fatiga: si el motor cambia
+// (p. ej. 6.4.2 → 6.4.3) sus salidas (systemic, upper/lower, muscleFatigue) dejan de ser la misma variable.
+// Las PREDICCIONES se estratifican por engineVersion (por defecto, la del motor actual); los histórico de otras
+// versiones se conserva intacto y se cuenta aparte. Los OUTCOMES (RPE real, e1RM, observados) no dependen del
+// motor y pasan; solo sus campos derivados del modelo (mismatchSignal, derived) se filtran donde se usan.
+// Separabilidad: ENGINE_VERSION = cambios del motor (se guarda en cada snapshot). ANALYSIS_VERSION = cambios
+// de la capa de análisis (re-etiquetado, bandas, filtros): NO se guarda, se re-evalúa sobre lo almacenado, así
+// que un cambio de análisis nunca contamina los datos y un cambio de motor nunca se mezcla con otro.
+const ANALYSIS_VERSION = 'rvl-a2';
+const MIN_PAIRS_FOR_RATES = 8; // por debajo: cifras descriptivas, sin conclusión estadística
+function snapVersion(s){ return (s&&s.engineVersion)||'sin_versión'; }
+function stratifyByEngineVersion(snapshots, version){
+  var v=version||ENGINE_VERSION, kept=[], excl=0, byVer={};
+  safeArr(snapshots).forEach(function(s){
+    if(!s) return;
+    if(s.type!=='prediction'){ kept.push(s); return; }
+    var k=snapVersion(s); byVer[k]=(byVer[k]||0)+1;
+    if(k===v) kept.push(s); else excl++;
+  });
+  return {version:v, snapshots:kept, excludedPredictions:excl, predictionsByVersion:byVer};
+}
+
 // ══ ADAPTATION ENGINE v2 ══
 // Conservative analysis with variability band filtering
 // Requires 4+ within-band-filtered signals before flagging calibration
-function AdaptationEngine(snapshots){
+function AdaptationEngine(snapshots, version){
+  // 6.4.3: solo se evalúan predicciones del motor `version` (por defecto el actual); el resto se cuenta aparte.
+  const _strat = stratifyByEngineVersion(snapshots, version);
+  snapshots = _strat.snapshots;
+  const versionInfo = {version:_strat.version, excludedPredictions:_strat.excludedPredictions,
+    predictionsByVersion:_strat.predictionsByVersion, analysisVersion:ANALYSIS_VERSION};
   if(!snapshots||snapshots.length < 4) return {
-    calibrations:{}, signals:[], confidence:'insufficient_data',
-    note:`${snapshots.length}/4 snapshots mínimos para análisis`
+    calibrations:{}, signals:[], confidence:'insufficient_data', versionInfo,
+    note:`${snapshots.length}/4 snapshots mínimos para análisis (motor ${versionInfo.version})`
   };
 
   // ── 2026-10-17 — FIX DE MEDICIÓN (no cambia ninguna fórmula del modelo) ──
@@ -2942,7 +3226,7 @@ function AdaptationEngine(snapshots){
 
   if(outcomes.length < 3) return {
     calibrations:{}, signals:[], confidence:'insufficient_data',
-    note:`${outcomes.length}/3 resultados registrados`, dedupInfo
+    note:`${outcomes.length}/3 resultados registrados`, dedupInfo, versionInfo
   };
 
   // Match prediction→outcome pairs (same day)
@@ -2954,7 +3238,7 @@ function AdaptationEngine(snapshots){
 
   if(pairs.length < 2) return {
     calibrations:{}, signals:[], confidence:'insufficient_data',
-    note:`Sin pares válidos: ${dedupInfo.validPredictions} predicciones con datos de fuerza (${dedupInfo.noStrengthExcluded} descartadas por Hevy sin cargar al guardarse)`, dedupInfo
+    note:`Sin pares válidos para el motor ${versionInfo.version}: ${dedupInfo.validPredictions} predicciones con datos de fuerza (${dedupInfo.noStrengthExcluded} descartadas por Hevy sin cargar al guardarse; ${versionInfo.excludedPredictions} de otras versiones, excluidas)`, dedupInfo, versionInfo
   };
 
   // ── 2026-10-18 — FIX DE VALIDEZ DEL EMPAREJAMIENTO (misma fórmula, misma banda) ──
@@ -2981,18 +3265,19 @@ function AdaptationEngine(snapshots){
   const calibrated = 0; // computeMismatch nunca emite 'calibrated' (rama inalcanzable); se conserva el campo
   const total = labelled.length;
   // Comparación de transparencia: etiqueta guardada (sistémico post-sesión) vs re-evaluada (pre-sesión)
-  const _stored = pairs.filter(p=>['within_band','over_predicted_fatigue','under_predicted_fatigue'].indexOf(p.out.outcome?.mismatchSignal)>=0);
+  const _stored = pairs.filter(p=>snapVersion(p.out)===versionInfo.version).filter(p=>['within_band','over_predicted_fatigue','under_predicted_fatigue'].indexOf(p.out.outcome?.mismatchSignal)>=0);
   const _mean = a=>a.length?a.reduce((s,v)=>s+v,0)/a.length:null;
   const labelCheck = {
     nStored:_stored.length,
     storedInBandPct:_stored.length?Math.round(_stored.filter(p=>p.out.outcome.mismatchSignal==='within_band').length/_stored.length*100):null,
     preSysMean:_mean(pairs.map(p=>p.pred.derived&&p.pred.derived.systemic).filter(v=>typeof v==='number'&&isFinite(v))),
-    postSysMean:_mean(pairs.map(p=>p.out.derived&&p.out.derived.systemic).filter(v=>typeof v==='number'&&isFinite(v))),
-    excludedNoSystemic:pairs.length-labelled.length
+    postSysMean:_mean(pairs.filter(p=>snapVersion(p.out)===versionInfo.version).map(p=>p.out.derived&&p.out.derived.systemic).filter(v=>typeof v==='number'&&isFinite(v))),
+    excludedNoSystemic:pairs.length-labelled.length,
+    outcomesOtherVersion:pairs.filter(p=>snapVersion(p.out)!==versionInfo.version).length
   };
   if(total < 2) return {
     calibrations:{}, signals:[], confidence:'insufficient_data',
-    note:'Sin suficientes pares con sistémico pre-sesión y RPE real', dedupInfo, labelCheck
+    note:'Sin suficientes pares con sistémico pre-sesión y RPE real', dedupInfo, labelCheck, versionInfo
   };
 
   const signals = [];
@@ -3067,7 +3352,8 @@ function AdaptationEngine(snapshots){
     calibrations, signals,
     confidence: pairs.length >= 8 ? 'moderada' : pairs.length >= 4 ? 'baja' : 'insuficiente',
     totalPairs:total, overPred, underPred, withinBand, calibrated,
-    dedupInfo, rpeDiag, labelCheck,
+    dedupInfo, rpeDiag, labelCheck, versionInfo,
+    sampleStatus: total >= MIN_PAIRS_FOR_RATES ? 'ok' : 'insuficiente',
     note:`${total} pares únicos · ${withinBand} dentro de banda normal · Calibración ${calRate}%`
   };
 }
@@ -3099,7 +3385,8 @@ function _pvSpearmanBoot(x,y,B){
   if(out.length<B*0.8)return null;
   out.sort((a,b)=>a-b);return[out[Math.floor(0.025*out.length)],out[Math.min(out.length-1,Math.floor(0.975*out.length))]];
 }
-function predictorSensitivity(snapshots){
+function predictorSensitivity(snapshots, version){
+  snapshots=stratifyByEngineVersion(snapshots, version).snapshots; // 6.4.3
   const seen={};
   const preds=snapshots.filter(s=>s.type==='prediction'&&s.derived&&typeof s.derived.systemic==='number'&&s.predictionTiming!=='post_session')
     .filter(s=>{if(seen[s.date])return false;seen[s.date]=1;return true;});
@@ -3118,7 +3405,8 @@ function predictorSensitivity(snapshots){
   };
   return{n:preds.length,all:build(preds),valid:valid.length>=8?build(valid):null,nValid:valid.length,nNoStrength:noStrength.length,mech0Valid};
 }
-function performanceVsReadiness(snapshots, workouts){
+function performanceVsReadiness(snapshots, workouts, version){
+  snapshots=stratifyByEngineVersion(snapshots, version).snapshots; // 6.4.3
   const ws=(Array.isArray(workouts)?workouts:[]).map(w=>({w,t:new Date(w.start_time||w.created_at||0).getTime()})).filter(x=>isFinite(x.t)&&x.t>0).sort((a,b)=>a.t-b.t);
   if(ws.length<8)return{insufficient:true,reason:`${ws.length} entrenos de Hevy disponibles`};
   const dkey=t=>{const d=new Date(t);return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');};
@@ -3135,8 +3423,7 @@ function performanceVsReadiness(snapshots, workouts){
     (w.exercises||[]).forEach(ex=>{
       const name=(ex.title||ex.exercise_template_title||ex.name||'').trim().toLowerCase();if(!name)return;
       let best=null;
-      (ex.sets||[]).forEach(s=>{
-        if(s.type==='warmup')return;
+      workingSetsOf(ex.sets).forEach(s=>{
         const kg=safeNum(s.weight_kg||s.weight||0),reps=safeInt(s.reps||0);
         if(!(kg>0)||reps<1||reps>10)return;
         const e=reps===1?kg:kg*(1+reps/30);
@@ -3153,7 +3440,7 @@ function performanceVsReadiness(snapshots, workouts){
     }
   });
   const n=sessions.length;
-  if(n<15)return{insufficient:true,reason:`${n} sesiones con readiness pre-sesión VÁLIDA (con datos de fuerza) y ≥3 ejercicios comparables (hacen falta ≥15; ${Object.keys(predByDate).length} días con predicción válida)`};
+  if(n<15)return{insufficient:true,reason:`${n} sesiones con readiness pre-sesión VÁLIDA (con datos de fuerza) y ≥3 ejercicios comparables (hacen falta ≥15; ${Object.keys(predByDate).length} días con predicción válida; solo motor ${(version||ENGINE_VERSION)})`};
   const perf=sessions.map(s=>s.perf);
   const mk=(vals,expectSign)=>{
     const rho=_pvSpearman(vals,perf);if(rho==null)return{constant:true,sd:_pvSD(vals)};
@@ -3845,6 +4132,15 @@ function validationExtraHtml(){
   return html;
 }
 
+// 6.4.3 — qué versión del motor se está evaluando y qué se excluyó (transparencia; nunca borra datos)
+function versionBannerHtml(adapt){
+  const vi=adapt&&adapt.versionInfo; if(!vi) return '';
+  const mine=vi.predictionsByVersion[vi.version]||0;
+  const other=Object.keys(vi.predictionsByVersion).filter(k=>k!==vi.version).map(k=>`${k}: ${vi.predictionsByVersion[k]}`).join(' · ');
+  const weak=adapt.sampleStatus==='insuficiente';
+  return `<div style="margin-bottom:8px;padding:7px 8px;background:var(--bg3);border-radius:8px;font-size:10px;color:var(--fg3);line-height:1.5;">Motor evaluado: <b style="color:var(--fg2);">${vi.version}</b> · predicciones de esta versión: ${mine}${other?` · <span style="color:var(--fg2);">otras versiones EXCLUIDAS del análisis (conservadas en el histórico): ${other}</span>`:''} · análisis ${vi.analysisVersion}${weak?`<br><span style="color:var(--y);">Muestra de esta versión insuficiente (${adapt.totalPairs} pares &lt; ${MIN_PAIRS_FOR_RATES}): cifras descriptivas, sin conclusión estadística.</span>`:''}</div>`;
+}
+
 function renderValidationPanel(){
   const el=safeDOM('rvlPanel');
   const confEl=safeDOM('rvlConf');
@@ -3854,14 +4150,14 @@ function renderValidationPanel(){
   const confCol=adapt.confidence==='moderada'?'var(--y)':adapt.confidence==='baja'?'var(--o)':'var(--fg3)';
   if(confEl)confEl.innerHTML=`<span style="color:${confCol};">${adapt.note||'—'}</span>`;
   if(adapt.confidence==='insufficient_data'){
-    el.innerHTML=`<div style="font-size:12px;color:var(--fg2);line-height:1.5;">${adapt.note}</div>
+    el.innerHTML=versionBannerHtml(adapt)+`<div style="font-size:12px;color:var(--fg2);line-height:1.5;">${adapt.note}</div>
     <div style="margin-top:8px;font-size:10px;color:var(--fg3);">Bandas de variabilidad: RPE ±${VARIABILITY_BANDS.rpe} · e1RM ±${Math.round(VARIABILITY_BANDS.e1rmPct*100)}% · Readiness ±${VARIABILITY_BANDS.readiness}pts</div>`+validationExtraHtml();
     return;
   }
   const total=adapt.totalPairs||0;
   const calRate=total>0?Math.round((adapt.calibrated+(adapt.withinBand||0))/total*100):0;
   const calCol=calRate>=75?'var(--g)':calRate>=55?'var(--y)':'var(--r)';
-  let html=`<div style="display:flex;gap:8px;margin-bottom:10px;">
+  let html=versionBannerHtml(adapt)+`<div style="display:flex;gap:8px;margin-bottom:10px;">
     <div style="flex:1;text-align:center;padding:8px;background:var(--bg3);border-radius:8px;">
       <div style="font-family:'Instrument Serif',serif;font-size:22px;color:${calCol};">${calRate}%</div>
       <div style="font-size:9px;color:var(--fg3);">En rango</div>
@@ -3960,7 +4256,7 @@ function EvidenceMaturityEngine(){
   return {
     weeks:weeks, weeksTarget:WEEKS_TARGET, spanDays:spanDays,
     uniqueOutcomes:uniqOut, rawOutcomes:outs.length, outcomeDays:Object.keys(outDays).length,
-    predictions:preds.length, strengthSessions:strengthLogs.length, weeklySnapshots:wk,
+    predictions:preds.length, predictionsThisVersion:preds.filter(function(s){return snapVersion(s)===ENGINE_VERSION;}).length, strengthSessions:strengthLogs.length, weeklySnapshots:wk,
     rpeCoverage:rpeCov, engineVersions:verList, gatePass:gatePass
   };
 }
@@ -3992,7 +4288,8 @@ function renderValidationDashboard(){
 
   // ── Section 3: Prediction accuracy (30d rolling) ──
   const _seen30={};
-  const pairs30d=snapshots.filter(s=>s.type==='outcome'&&Date.now()-s.timestamp<30*864e5&&s.outcome).filter(s=>{const k=(s.date||'')+'§'+outcomeSignature(s);if(_seen30[k])return false;_seen30[k]=1;return true;}); // 2026-10-17: dedup de re-capturas (misma firma que EvidenceMaturityEngine)
+  const _out30All=snapshots.filter(s=>s.type==='outcome'&&Date.now()-s.timestamp<30*864e5&&s.outcome);
+  const pairs30d=_out30All.filter(s=>snapVersion(s)===ENGINE_VERSION).filter(s=>{const k=(s.date||'')+'§'+outcomeSignature(s);if(_seen30[k])return false;_seen30[k]=1;return true;}); // 2026-10-17: dedup de re-capturas (misma firma que EvidenceMaturityEngine)
   const calibrated30=pairs30d.filter(s=>s.outcome?.mismatchSignal==='calibrated'||s.outcome?.mismatchSignal==='within_band').length;
   const overPred30=pairs30d.filter(s=>s.outcome?.mismatchSignal==='over_predicted_fatigue').length;
   const underPred30=pairs30d.filter(s=>s.outcome?.mismatchSignal==='under_predicted_fatigue').length;
@@ -4041,6 +4338,7 @@ function renderValidationDashboard(){
       ${row('Outcomes únicos / brutos',`${mat.uniqueOutcomes} / ${mat.rawOutcomes}`,mat.rawOutcomes>mat.uniqueOutcomes?'warn':'ok')}
       ${row('Snapshots semanales',`${mat.weeklySnapshots}`,mat.weeklySnapshots>=mat.weeksTarget?'ok':'warn')}
       ${row('Cobertura RPE / serie',mat.rpeCoverage!=null?`${mat.rpeCoverage}%`:'—',mat.rpeCoverage!=null&&mat.rpeCoverage>=80?'ok':'warn')}
+      ${row('Predicciones con el motor actual',`${mat.predictionsThisVersion} de ${mat.predictions}`,mat.predictionsThisVersion>=mat.predictions?'ok':'warn')}
       ${row('Versiones de motor en datos',mat.engineVersions.join(', ')||'—',mat.engineVersions.length<=1?'ok':'warn')}
       <div style="font-size:9px;color:var(--fg4);margin-top:8px;line-height:1.45;">Estos números son <b style="color:var(--fg3);">captura, no evidencia</b>. Ninguna hipótesis (H1-H7) se valida dentro de la app: requiere modelo nulo + fuera-de-muestra + split-half, que corren <b style="color:var(--fg3);">offline</b> sobre el export (§2, §13). Hasta ≥${mat.weeksTarget} semanas el veredicto honesto es "insuficiente", nunca "débil a favor" (§11).</div>
     </div>`;
@@ -4061,7 +4359,8 @@ function renderValidationDashboard(){
     row('Tasa calibración',calRate30!=null?`${calRate30}%`:'Sin datos',calRate30>=75?'ok':calRate30>=55?'warn':'bad'),
     row('Sobreestimación fatiga',`${overPred30} sesiones`,overPred30<=1?'ok':overPred30<=3?'warn':'bad'),
     row('Infraestimación fatiga',`${underPred30} sesiones`,underPred30<=1?'ok':underPred30<=3?'warn':'bad'),
-    row('Sesiones evaluadas',`${pairs30d.length} (últimos 30d)`,pairs30d.length>=5?'ok':pairs30d.length>=2?'warn':'bad'),
+    row('Sesiones evaluadas',`${pairs30d.length} (últimos 30d, motor ${ENGINE_VERSION})`,pairs30d.length>=5?'ok':pairs30d.length>=2?'warn':'bad'),
+    row('Etiquetas de otras versiones (excluidas)',`${_out30All.length-_out30All.filter(s=>snapVersion(s)===ENGINE_VERSION).length}`,'ok'),
   ])+section('Estabilidad confianza (14d)',[
     row('Confianza media',confMean!=null?`${confMean}%`:'—',confMean>=65?'ok':confMean>=45?'warn':'bad'),
     row('Desviación estándar',confSD!=null?`±${confSD}%`:'—',confSD!=null&&confSD<=8?'ok':confSD<=15?'warn':'bad'),
@@ -4372,6 +4671,7 @@ function renderMAV(){
   var _oppMap=_bal?_bal.remainingOpp:{};
   var _secCtxMav={};try{if(!isRolling&&offset===0)_secCtxMav=getSecondaryStimulusContext();}catch(e){}
   var _contribMav={};try{if(!isRolling&&offset===0)_contribMav=getMuscleContributions();}catch(e){}
+  var _secDetailMav={};try{if(!isRolling&&offset===0)_secDetailMav=getSecondaryContributions();}catch(e){}
   container.innerHTML=Object.entries(S.mavRanges).map(([muscle,_r])=>{
     const _wk=isRolling?(parseInt(volWindow,10)/7):1; // 6.3.5: MEV/MAV/MRV son semanales → escala por nº de semanas de la ventana para comparar honestamente
     const mev=Math.round(_r.mev*_wk), mavBase=Math.round(_r.mav*_wk), mrv=Math.round(_r.mrv*_wk);
@@ -4425,10 +4725,17 @@ function renderMAV(){
       return (showOpp?'<div style="font-size:10px;color:var(--fg3);margin-top:2px;">'+oppTxt+'</div>':'')+_secNote;
     })()}${(function(){
       // Per-exercise breakdown (verification: which exercises feed this muscle)
+      // 2026-10-20: ahora también lista el estímulo INDIRECTO (ejercicios donde el músculo es sinergista),
+      // para poder comprobar de dónde sale el "+ estímulo indirecto (Ns)" del titular. No suma al MAV.
       var contribs=_contribMav[muscle]||[];
-      if(!contribs.length)return '';
-      var items=contribs.map(function(x){return '<div style="display:flex;justify-content:space-between;font-size:10px;color:var(--fg4);padding:1px 0;"><span>'+x.name+'</span><span class="mono">'+x.sets+'s</span></div>';}).join('');
-      return '<details style="margin-top:4px;"><summary style="font-size:10px;color:var(--fg3);cursor:pointer;list-style:none;">▸ Ver desglose ('+contribs.length+' ejercicios)</summary><div style="margin-top:3px;padding-left:6px;border-left:2px solid var(--line);">'+items+'</div></details>';
+      var indirect=_secDetailMav[muscle]||[];
+      if(!contribs.length&&!indirect.length)return '';
+      var row=function(x,col){return '<div style="display:flex;justify-content:space-between;font-size:11px;color:'+col+';padding:1px 0;"><span>'+x.name+'</span><span class="mono">'+x.sets+'s</span></div>';};
+      var items=contribs.map(function(x){return row(x,'var(--fg2)');}).join('');
+      var indTotal=indirect.reduce(function(t,x){return t+x.sets;},0);
+      var indHtml=indirect.length?'<div style="font-size:9px;color:var(--b);text-transform:uppercase;letter-spacing:0.5px;margin:'+(contribs.length?'5px':'0')+' 0 1px;">Indirecto · no cuenta para MAV · '+indTotal+'s</div>'+indirect.map(function(x){return row(x,'var(--b)');}).join(''):'';
+      var summ='▸ Ver desglose ('+contribs.length+' directo'+(contribs.length===1?'':'s')+(indirect.length?' + '+indirect.length+' indirecto'+(indirect.length===1?'':'s'):'')+')';
+      return '<details style="margin-top:4px;"><summary style="font-size:10px;color:var(--fg3);cursor:pointer;list-style:none;">'+summ+'</summary><div style="margin-top:3px;padding-left:6px;border-left:2px solid var(--line);">'+items+indHtml+'</div></details>';
     })()}</div>`;
   }).join('');
   if(mav&&mav.reasons.length&&multCard&&multList){multCard.style.display='block';multList.innerHTML=mav.reasons.map(r=>`<div style="font-size:12px;color:var(--fg2);padding:4px 0;border-bottom:1px solid var(--line);">${r}</div>`).join('')+`<div style="font-family:'Geist Mono',monospace;font-size:11px;color:var(--c);padding:6px 0 0;">Global ×${mav.global}</div>`;}
@@ -4545,6 +4852,19 @@ async function analyzeRunStreams(activityId,btnEl){
 // "¿Estoy mejor que hace un mes?" — no reinventa cálculos: reutiliza tonelaje real de Hevy (_exDetail),
 // el mismo EF que ya usa Endurance, y el histórico de báscula que ya se sincroniza. Ninguna
 // proyección: si no hay ~4 semanas de dato para una sección, lo dice explícitamente y no rellena.
+// ── FASE A (2026-10-26) · semanas ISO del informe «¿mejor que hace un mes?» ──
+// Semana ISO 8601 (lunes→domingo; la semana 1 contiene el primer jueves del año). Clave ordenable como texto 'AAAA-Www' con AÑO ISO y 2 dígitos:
+// el orden alfabético == cronológico, también en el cambio de año (2027-01-01 → 2026-W53). Usa componentes locales (sin horas): no depende del huso ni del cambio de hora.
+// Antes: año natural + número sin relleno ('2027-W10' < '2027-W9') y semanas de domingo a sábado, distintas de getWeekBounds (lunes).
+function isoWeekKey(d){
+  var t=new Date(Date.UTC(d.getFullYear(),d.getMonth(),d.getDate()));
+  var dow=t.getUTCDay()||7; t.setUTCDate(t.getUTCDate()+4-dow);
+  var y=t.getUTCFullYear(), w=Math.ceil((((t-Date.UTC(y,0,1))/86400000)+1)/7);
+  return y+'-W'+(w<10?'0':'')+w;
+}
+// Lunes (00:00 local) de la semana de d, y formato corto dd/mm/aa para mostrar periodos.
+function isoMonday(d){ return new Date(d.getFullYear(),d.getMonth(),d.getDate()-((d.getDay()+6)%7)); }
+function fmtDMY(d){ var z=function(n){return (n<10?'0':'')+n;}; return z(d.getDate())+'/'+z(d.getMonth()+1)+'/'+String(d.getFullYear()).slice(2); }
 function renderEvolucion(){
   var el=safeDOM('evoBody'); if(!el)return;
   var html='';
@@ -4552,43 +4872,72 @@ function renderEvolucion(){
 
   // ── FUERZA: tonelaje semanal real (Σ kg×reps de todas las series con _exDetail) ──
   var strengthLogs=safeArr(S.logs).filter(function(l){return l&&!l._cardio&&l._exDetail;});
-  var tonByWeek={};
+  // FASE A: semanas ISO lunes→domingo. La semana EN CURSO se muestra aparte, marcada incompleta, y NO entra en la comparación.
+  // Se compara con las 4 últimas semanas COMPLETAS y consecutivas del calendario (2 últimas vs 2 anteriores). Una semana de descanso (sin entrenos de fuerza)
+  // NO se salta en silencio: «datos insuficientes» con las fechas que faltan. Cada periodo muestra fechas y nº de entrenos.
+  // ENTRENOS SIN TONELAJE (sin inferir): una serie con repeticiones pero sin kg NO suma, y NO se cuenta como «0 kg de trabajo»: puede ser peso corporal o una carga no anotada,
+  // y ATLAS no lo distingue ni lo imputa. Por log: «con carga» (alguna serie con kg), «sin carga registrada» (series con reps pero ninguna con kg: entreno real) o
+  // «registro incompleto» (sin ninguna serie con repeticiones: no cuenta como entreno). Una semana sin ninguna serie con kg tiene tonelaje NO calculable (≠ 0).
+  var W={}, firstDate=null, weekCrit={};
+  var _now=new Date(), todayMid=new Date(_now.getFullYear(),_now.getMonth(),_now.getDate());
+  var curMon=isoMonday(todayMid), curKey=isoWeekKey(todayMid);
   strengthLogs.forEach(function(l){
     var p=String(l.date||'').split('/');
     var d=p.length===3?new Date(p[2],p[1]-1,p[0]):new Date(l.date);
     if(isNaN(d.getTime()))return;
-    var onejan=new Date(d.getFullYear(),0,1);
-    var wk=Math.ceil((((d-onejan)/86400000)+onejan.getDay()+1)/7);
-    var key=d.getFullYear()+'-W'+wk;
-    var tonnage=0;
+    var key=isoWeekKey(d), w=W[key]||(W[key]={n:0,noLoad:0,incomplete:0,ton:0,sLoad:0,sNo:0});
+    var tonnage=0,sLoad=0,sNo=0;
     safeArr(l._exDetail).forEach(function(ex){safeArr(ex.sets).forEach(function(st){
       var kg=safeNum(st.kg||st.weight,0), reps=safeNum(st.reps,0);
-      if(kg>0&&reps>0)tonnage+=kg*reps;
+      if(!(reps>0))return;
+      if(kg>0){tonnage+=kg*reps;sLoad++;} else sNo++;
     });});
-    tonByWeek[key]=(tonByWeek[key]||0)+tonnage;
+    if(sLoad===0&&sNo===0){w.incomplete++;} else {w.n++; if(sLoad===0)w.noLoad++; w.ton+=tonnage; w.sLoad+=sLoad; w.sNo+=sNo;}
+    if(!firstDate||d<firstDate)firstDate=d;
+    var _c=logSetCriterionOf(l);weekCrit[key]=(weekCrit[key]&&weekCrit[key]!==_c)?'mixto':_c;
   });
-  var weekKeys=Object.keys(tonByWeek).sort();
-  completeness.fuerza=Math.min(1,weekKeys.length/4);
+  var weekInfo=function(offset){
+    var mon=new Date(curMon.getFullYear(),curMon.getMonth(),curMon.getDate()+7*offset), sun=new Date(mon.getFullYear(),mon.getMonth(),mon.getDate()+6), k=isoWeekKey(mon), w=W[k]||{n:0,noLoad:0,incomplete:0,ton:0,sLoad:0,sNo:0};
+    return {key:k,mon:mon,sun:sun,n:w.n,noLoad:w.noLoad,incomplete:w.incomplete,ton:w.ton,sLoad:w.sLoad,sNo:w.sNo,startPartial:!!(firstDate&&isoWeekKey(firstDate)===k&&firstDate>mon)};
+  };
+  var wkText=function(w){
+    var t=w.n?(w.n+(w.n===1?' entreno':' entrenos')+(w.noLoad?' ('+w.noLoad+' sin carga registrada)':'')):'';
+    if(w.incomplete)t+=(t?' · ':'')+w.incomplete+(w.incomplete===1?' registro incompleto':' registros incompletos')+' (sin series con repeticiones, no cuentan)';
+    t+=(t?' · ':'')+(w.sLoad?Math.round(w.ton).toLocaleString('es-ES')+' kg':(w.n||w.incomplete?'tonelaje no calculable'+(w.n?' (ninguna serie con kg)':''):'sin entrenos de fuerza'));
+    if(w.sLoad&&w.sNo)t+=' · '+w.sNo+(w.sNo===1?' serie sin kg no suma':' series sin kg no suman');
+    return t;
+  };
+  var wkLine=function(w,label){
+    return '<div style="font-size:11px;color:var(--fg3);">'+(label?label+' · ':'')+w.key+' · '+fmtDMY(w.mon)+'–'+fmtDMY(w.sun)+' · '+wkText(w)+(w.startPartial?' · <span style="color:var(--y);">inicio del registro: puede ser parcial</span>':'')+'</div>';
+  };
+  var wkL=[weekInfo(-1),weekInfo(-2)], wkP=[weekInfo(-3),weekInfo(-4)], wkCur=weekInfo(0);
+  var completeWithData=Object.keys(W).filter(function(k){return k<curKey&&W[k].sLoad>0;}).length;
+  completeness.fuerza=Math.min(1,completeWithData/4);
   html+='<div class="card" style="margin-bottom:12px;"><div class="card-hdr"><span class="t-md">💪 Fuerza</span></div><div class="card-body">';
-  if(weekKeys.length<3){
-    html+='<div style="font-size:12px;color:var(--y);">🟡 Construyendo línea base</div>';
-    html+=baselineProgress(weekKeys.length,4,'semanas con series completas (kg+reps)');
-    html+='<div style="font-size:10px;color:var(--fg4);margin-top:4px;">Sigue registrando kg+reps en Hevy y esto se activa solo.</div>';
+  html+='<div style="font-size:11px;color:var(--fg3);margin-bottom:4px;">Tonelaje semanal (Σ kg × reps de las series con kg; las series sin kg no suman) · semanas ISO de lunes a domingo</div>';
+  var barKeys=[]; for(var bi=8;bi>=1;bi--){barKeys.push(weekInfo(-bi));}
+  if(completeWithData>0)html+=miniBars(barKeys.map(function(w){return w.ton;}),{color:'var(--c)'});
+  var cmp=wkL.concat(wkP), notOk=cmp.filter(function(w){return !(w.sLoad>0);});
+  var avgL=(wkL[0].ton+wkL[1].ton)/2, avgP=(wkP[0].ton+wkP[1].ton)/2;
+  if(!notOk.length&&avgP>0){
+    var pctTon=Math.round((avgL-avgP)/avgP*1000)/10;
+    var col=pctTon>3?'var(--g)':pctTon<-3?'var(--r)':'var(--fg3)';
+    html+='<div style="margin-top:8px;padding:8px;background:var(--bg4);border-radius:6px;font-size:13px;color:'+col+';font-weight:600;">'+(pctTon>0?'📈 +':pctTon<0?'📉 ':'➡ ')+pctTon+'% de tonelaje (últimas 2 semanas completas vs 2 anteriores)</div>';
+    if(cmp.some(function(w){return w.sNo>0;}))html+='<div style="font-size:10px;color:var(--fg4);margin-top:4px;">Las series sin kg registrado no suman al tonelaje: pueden ser peso corporal o una carga no anotada, y ATLAS no lo distingue ni lo imputa.</div>';
   } else {
-    var lastW=weekKeys.slice(-2), prevW=weekKeys.slice(-4,-2);
-    var avgLast=lastW.reduce(function(s,k){return s+tonByWeek[k];},0)/lastW.length;
-    var avgPrev=prevW.length?prevW.reduce(function(s,k){return s+tonByWeek[k];},0)/prevW.length:null;
-    html+='<div style="font-size:11px;color:var(--fg3);margin-bottom:4px;">Tonelaje semanal (Σ kg × reps, todas las series registradas)</div>';
-    html+=miniBars(weekKeys.slice(-8).map(function(k){return tonByWeek[k];}),{color:'var(--c)'});
-    if(avgPrev){
-      var pctTon=Math.round((avgLast-avgPrev)/avgPrev*1000)/10;
-      var col=pctTon>3?'var(--g)':pctTon<-3?'var(--r)':'var(--fg3)';
-      html+='<div style="margin-top:8px;padding:8px;background:var(--bg4);border-radius:6px;font-size:13px;color:'+col+';font-weight:600;">'+(pctTon>0?'📈 +':pctTon<0?'📉 ':'➡ ')+pctTon+'% de tonelaje (últimas 2 semanas vs 2 anteriores)</div>';
-      html+='<div style="font-size:10px;color:var(--fg4);margin-top:4px;">Tonelaje total, no fuerza máxima — puede subir por más series sin que subas de peso en la barra. Para eso, mira e1RM por ejercicio en LOG.</div>';
-    } else {
-      html+='<div style="margin-top:6px;font-size:11px;color:var(--y);">Solo hay 2 semanas comparables — la tendencia es orientativa, no fiable todavía.</div>';
-    }
+    html+='<div style="margin-top:8px;font-size:12px;color:var(--y);">🟡 Datos insuficientes para comparar: '+(notOk.length?notOk.map(function(w){return fmtDMY(w.mon)+'–'+fmtDMY(w.sun)+(w.n+w.incomplete===0?' (sin entrenos de fuerza)':' (sin tonelaje calculable: ninguna serie con kg)');}).join(', ')+'. No se saltan semanas de descanso ni se usa la semana en curso.':'el tonelaje de las 2 semanas anteriores es 0, no hay base de comparación.')+'</div>';
+    if(completeWithData<4)html+=baselineProgress(completeWithData,4,'semanas completas con tonelaje calculable (series con kg y reps)');
   }
+  var _crit={};cmp.forEach(function(w){if(weekCrit[w.key])_crit[weekCrit[w.key]]=1;});
+  var _critKeys=Object.keys(_crit), _mixed=_critKeys.length>1||!!_crit['mixto'];
+  if(_mixed){
+    html+='<div style="font-size:11px;color:var(--y);margin-top:4px;">⚠ Datos incompatibles entre periodos: unas semanas usan el criterio nuevo (calentamientos excluidos) y otras el antiguo (pueden incluir calentamientos). El % no es una comparación homogénea.</div>';
+  } else if(_critKeys[0]==='legado_supuesto_working'){
+    html+='<div style="font-size:10px;color:var(--fg4);margin-top:4px;">Registros anteriores a 6.4.7: se asume que todas las series guardadas son de trabajo (suposición de compatibilidad; pueden incluir calentamientos).</div>';
+  }
+  html+='<div style="margin-top:6px;">'+wkLine(wkL[0],'Últimas 2')+wkLine(wkL[1],'Últimas 2')+wkLine(wkP[0],'2 anteriores')+wkLine(wkP[1],'2 anteriores')+'</div>';
+  html+='<div style="margin-top:4px;font-size:11px;color:var(--fg3);">Semana en curso (INCOMPLETA, no entra en la comparación) · '+wkCur.key+' · '+fmtDMY(wkCur.mon)+'–'+fmtDMY(wkCur.sun)+' · '+wkText(wkCur)+'</div>';
+  html+='<div style="font-size:10px;color:var(--fg4);margin-top:4px;">Tonelaje total, no fuerza máxima — puede subir por más series sin que subas de peso en la barra. Para eso, mira e1RM por ejercicio en LOG.</div>';
   html+='</div></div>';
 
   // ── CARDIO: mismo EF que ya calcula Endurance, reutilizado, no recalculado con otra fórmula ──
@@ -5838,7 +6187,7 @@ async function fetchHevy(){
     if(!r.ok)throw new Error('Hevy error '+r.status);
     const data=await r.json();const workouts=data.workouts||data.data||data||[];
     const now=Date.now();const weekStart=getWeekBounds(0).start;
-    S.weeklyVol={};S._unmatchedEx={};const recentHevySess=[];
+    S.weeklyVol={};S._unmatchedEx={};S._unmatchedTimedEx={};S._timedReview=[];S._setIncidents=[];const recentHevySess=[];
     const UPPER_M=['Pectoral','Deltoide anterior','Deltoide lateral','Deltoide posterior','Tríceps','Dorsal','Bíceps'];
     const LOWER_M=['Cuádriceps','Isquiotibiales','Glúteo','Gemelos/Sóleo','Aductores','Abductores'];
 
@@ -5847,21 +6196,21 @@ async function fetchHevy(){
       const isThisWeek=wDate>=weekStart;
       const age=now-wDate;
       const isRecent=age<7*24*3600000; // 7 days for F2 weekly counting (was 72h)
-      const muscleSets={};const primaryMuscleSets={};// key: muscle, value: set count
+      const {muscleSets,primaryMuscleSets}=sessionMuscleSets(w.exercises||[]);// key: muscle, value: set count (fuente única)
+      // 6.4.7-alpha: incidencia visible (no se excluye nada en silencio). Series con reps Y duración, solo distancia o duración con distancia.
+      (w.exercises||[]).forEach(ex=>{partitionSets(ex.sets).invalid.forEach(s=>{const r=classifySetDetailed(s).reason;if(r==='reps_y_duracion_ambiguo'||r==='solo_distancia'||r==='duracion_con_distancia'){S._setIncidents.push({date:String(w.start_time||w.created_at||'').slice(0,10),name:(ex.title||ex.exercise_template_title||ex.name||'').trim(),reason:r,reps:safeInt(s.reps||0),sec:safeNum(s.duration_seconds!=null?s.duration_seconds:s.sec,0)});}});});
 
       (w.exercises||[]).forEach(ex=>{
         const exName=ex.title||ex.exercise_template_title||ex.name||'';
         const exData=getExDB(exName);
-        const sets=(ex.sets||[]).filter(s=>safeInt(s.reps||0)>0);
+        // Fase C: ejercicio sin perfil registrado SOLO por duración (antes el diagnóstico solo miraba series con reps y no lo veía). No entra en series, fatiga ni volumen; se avisa.
+        if(isThisWeek&&!exData){const tm=partitionSets(ex.sets).timed;if(tm.length){const tn=exName.trim();if(tn){if(!S._unmatchedTimedEx)S._unmatchedTimedEx={};const r0=S._unmatchedTimedEx[tn]||(S._unmatchedTimedEx[tn]={sets:0,sec:0});r0.sets+=tm.length;tm.forEach(st=>{r0.sec+=safeNum(st.duration_seconds!=null?st.duration_seconds:st.sec,0);});}}}
+        const sets=workingSetsOf(ex.sets);
         const nSets=sets.length;
         if(!nSets)return;
-        if(exData){
-          exData.p.forEach(m=>{muscleSets[m]=(muscleSets[m]||0)+nSets;primaryMuscleSets[m]=(primaryMuscleSets[m]||0)+nSets;});
-          exData.s.forEach(m=>{muscleSets[m]=(muscleSets[m]||0)+nSets*0.4;});
-        }
         // Volume tracking — primary muscles only (Israetel/Schoenfeld standard)
         if(isThisWeek){
-          const workingSets3=(ex.sets||[]).filter(s=>safeInt(s.reps||0)>0).length;
+          const workingSets3=workingSetsOf(ex.sets).length;
           if(workingSets3>0){
             if(exData){
               exData.p.forEach(m=>{S.weeklyVol[m]=(S.weeklyVol[m]||0)+workingSets3;});
@@ -5919,7 +6268,7 @@ async function fetchHevy(){
         // Different from Garmin RPE — measures mechanical proximity to failure
         const hevySetRPEs = [];
         (w.exercises||[]).forEach(ex => {
-          (ex.sets||[]).forEach(s => {
+          workingSetsOf(ex.sets).forEach(s => {
             const r = safeNum(s.rpe||s.rpe_rating||0);
             if(r > 0) hevySetRPEs.push(r);
           });
@@ -5966,6 +6315,7 @@ async function fetchHevy(){
       }
     });
 
+    S._timedReview=flagTimedForReview(workouts);
     S._hevyRecent=recentHevySess;safe(populateLogSessions,'pls');safe(autoLogHevySessions,'alh');
     S.hevy={workouts,totalWorkouts:data.workout_count||workouts.length,key};
     save();
@@ -6117,6 +6467,7 @@ function exportAllData(){
       residualHL:S.residualHL||{strength:60,cardio:36},
       _fatigueHistory:safeArr(S._fatigueHistory),
       exerciseAliases:S.exerciseAliases||{}, // 2026-10-05: mismo olvido que streamsCache/residualHL en su día
+      sideConventions:S.sideConventions||{}, // Fase C
       weekDays:S.weekDays?[...S.weekDays]:undefined,
       weekStart:S.weekStart,
       weekOffset:S.weekOffset,
@@ -6169,6 +6520,7 @@ function importAllData(){
         if(data.residualHL&&typeof data.residualHL==='object')S.residualHL=data.residualHL;
         if(Array.isArray(data._fatigueHistory))S._fatigueHistory=data._fatigueHistory;
         if(data.exerciseAliases&&typeof data.exerciseAliases==='object')S.exerciseAliases=data.exerciseAliases;
+        if(data.sideConventions&&typeof data.sideConventions==='object')S.sideConventions=data.sideConventions; // Fase C
         if(Array.isArray(data.weekDays))S.weekDays=data.weekDays;
         if(data.weekStart!=null)S.weekStart=data.weekStart;
         if(data.weekOffset!=null)S.weekOffset=data.weekOffset;
@@ -6211,7 +6563,7 @@ function getWeeklyVolForOffset(offset){
       const exData=getExDB(ex.title||ex.exercise_template_title||ex.name||'');
       if(!exData)return;
       // Count working sets only (primary muscles only — Israetel/Schoenfeld standard)
-      const workingSets=(ex.sets||[]).filter(s=>safeInt(s.reps||0)>0);
+      const workingSets=workingSetsOf(ex.sets);
       if(!workingSets.length)return;
       // Primary muscles only for volume counting
       exData.p.forEach(m=>{vol[m]=(vol[m]||0)+workingSets.length;});
@@ -6234,7 +6586,7 @@ function getRollingVolForDays(n){
     (w.exercises||[]).forEach(function(ex){
       const exData=getExDB(ex.title||ex.exercise_template_title||ex.name||'');
       if(!exData)return;
-      const workingSets=(ex.sets||[]).filter(function(s){return safeInt(s.reps||0)>0;});
+      const workingSets=workingSetsOf(ex.sets);
       if(!workingSets.length)return;
       exData.p.forEach(function(m){vol[m]=(vol[m]||0)+workingSets.length;});
     });
@@ -6305,6 +6657,34 @@ function renderMavMicroSummary(){
           '<option value="">clasificar…</option>'+muscleOpts+'</select></div>';
       }).join('')+
       '</div>';
+  }
+  // Fase C: ejercicios sin reconocer registrados por DURACIÓN; «unidad pendiente» (Hollow Rock) queda SIN clasificar y sin selector.
+  var umt=S._unmatchedTimedEx||{},umtKeys=Object.keys(umt);
+  if(umtKeys.length){
+    var muscleOpts2=Object.keys(S.mavRanges||{}).map(function(m){return '<option value="'+m+'">'+m+'</option>';}).join('');
+    unmatchedHtml+='<div style="margin-top:6px;padding:6px 8px;background:rgba(255,200,0,0.08);border-radius:6px;font-size:10px;color:var(--y);">'+
+      '⚠ Ejercicios por duración sin reconocer (no entran en series, fatiga ni volumen):'+
+      umtKeys.map(function(k){
+        var pend=unitPendingOf(k),safeK=k.replace(/'/g,"\\'");
+        return '<div style="display:flex;align-items:center;gap:6px;margin-top:4px;"><span style="flex:1;">'+k+' ('+umt[k].sets+' series, '+Math.round(umt[k].sec)+' s)'+(pend?' — sin clasificar: '+pend:'')+'</span>'+
+          (pend?'':'<select onchange="if(this.value)classifyUnmatchedExercise(\''+safeK+'\',this.value)" style="font-size:10px;background:var(--bg3);color:var(--fg2);border:1px solid var(--line);border-radius:4px;padding:2px 4px;"><option value="">clasificar…</option>'+muscleOpts2+'</select>')+'</div>';
+      }).join('')+'</div>';
+  }
+  var rev=safeArr(S._timedReview);
+  if(rev.length){
+    unmatchedHtml+='<div style="margin-top:6px;padding:6px 8px;background:rgba(255,200,0,0.08);border-radius:6px;font-size:10px;color:var(--y);">'+
+      '⚠ Duración atípica para revisar ('+rev.length+'): se conserva el valor registrado, ATLAS no lo corrige. Regla provisional, no calibrada.'+
+      rev.slice(0,6).map(function(x){return '<div style="margin-top:3px;">· '+x.date+' · '+x.exercise+' — '+x.seconds_original+' s: '+x.motivos.join('; ')+'</div>';}).join('')+
+      (rev.length>6?'<div style="margin-top:3px;">… y '+(rev.length-6)+' más</div>':'')+'</div>';
+  }
+  // 6.4.7-alpha: incidencia visible de series ambiguas. Regla PROVISIONAL de validación de datos: no afirma que la serie sea inválida en Hevy.
+  var incs=safeArr(S._setIncidents);
+  if(incs.length){
+    var RMAP={reps_y_duracion_ambiguo:'repeticiones Y duración a la vez',solo_distancia:'solo distancia',duracion_con_distancia:'duración con distancia'};
+    unmatchedHtml+='<div style="margin-top:6px;padding:6px 8px;background:rgba(255,200,0,0.08);border-radius:6px;font-size:10px;color:var(--y);">'+
+      '⚠ Series sin clasificar ('+incs.length+'): no cuentan en series, fatiga ni volumen hasta revisarlas; se conservan íntegras en el registro. Es una regla provisional de validación de datos, no un juicio sobre Hevy.'+
+      incs.slice(0,6).map(function(x){return '<div style="margin-top:3px;">· '+x.date+' · '+x.name+' — '+(RMAP[x.reason]||x.reason)+(x.reps?' ('+x.reps+' reps':' (')+(x.sec?(x.reps?', ':'')+x.sec+' s':'')+')</div>';}).join('')+
+      (incs.length>6?'<div style="margin-top:3px;">… y '+(incs.length-6)+' más</div>':'')+'</div>';
   }
   el.innerHTML='<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:5px;">'+
     '<span><b style="color:var(--c);">Fuerza '+b.strengthDone+'/'+b.strengthTotal+'</b> · Cardio '+b.cardioDone+'/'+b.cardioTotal+'</span>'+
@@ -6551,22 +6931,43 @@ function getMuscleContributions(){
   return byMuscle;
 }
 
-function getSecondaryStimulusContext(){
+// 2026-10-20 — desglose del estímulo indirecto: ejercicio a ejercicio y series que aportan a cada
+// músculo como SINERGISTA (d.s en el catálogo), sin contarlas para MEV/MAV. Misma iteración y mismo
+// criterio de series que el total de antes, así el número del titular ("+ estímulo indirecto (6s)")
+// coincide exactamente con la suma de la lista que se muestra debajo.
+function getSecondaryContributions(){
   var weekStart=getWeekBounds(0).start;
   var logs=safeArr(S.logs).filter(function(l){var d=parseDate(l.date);return d&&d>=weekStart&&!l._cardio;});
-  var sec={}; // muscle → count of secondary-stimulus sets this week
+  var by={}; // muscle → {exerciseKey → {name,sets}}
   logs.forEach(function(l){
     var exList=l._exNames||l.exercises||null;
     if(!exList)return;
     exList.forEach(function(e){
       var name=(typeof e==='string')?e:(e.name||e.title||'');
+      if(!name)return;
       var sets=(typeof e==='object'&&e.sets)?safeNum(e.sets,1):1;
       var d=getExDB(name);
       if(d&&d.s&&d.s.length){
-        d.s.forEach(function(m){sec[m]=(sec[m]||0)+sets;});
+        d.s.forEach(function(m){
+          if(!by[m])by[m]={};
+          var k=name.toLowerCase();
+          if(!by[m][k])by[m][k]={name:name,sets:0};
+          by[m][k].sets+=sets;
+        });
       }
     });
   });
+  var out={};
+  Object.keys(by).forEach(function(m){
+    out[m]=Object.keys(by[m]).map(function(k){return by[m][k];}).sort(function(a,b){return b.sets-a.sets;});
+  });
+  return out;
+}
+
+function getSecondaryStimulusContext(){
+  var c=getSecondaryContributions();
+  var sec={}; // muscle → count of secondary-stimulus sets this week
+  Object.keys(c).forEach(function(m){sec[m]=c[m].reduce(function(t,x){return t+x.sets;},0);});
   return sec;
 }
 
@@ -7262,6 +7663,7 @@ function validateStorage(raw) {
   // lado para que la próxima vez que se añada un campo persistido, este bloque entero recuerde
   // que hay que tocarlo también.
   if (p.exerciseAliases && typeof p.exerciseAliases === 'object') out.exerciseAliases = p.exerciseAliases;
+  if (p.sideConventions && typeof p.sideConventions === 'object') out.sideConventions = p.sideConventions; // Fase C: convención por lado declarada
 
   return out;
 }
@@ -7305,8 +7707,11 @@ function ReadinessEngine(fatigue, hrv, metrics, muscleFatigue) {
   }
 
   // Muscular readiness — from local fatigue
+  // 6.4.5: divisor 5 → 7. La lista tiene 7 músculos desde que el deltoides se dividió en 3 cabezas (2026-10-04; antes eran 5
+  // términos y /5 era la media correcta); el divisor no se actualizó y avgUpper salía inflado ×1.4. Media aritmética de los 7.
+  // NO se tocan: pesos 0.4/0.6 y 0.6, Core/aductores/abductores (siguen fuera: decisión de diseño pendiente de auditoría) ni avgLower (/4 correcto).
   var avgUpper = (['Pectoral','Deltoide anterior','Deltoide lateral','Deltoide posterior','Tríceps','Dorsal','Bíceps']
-    .reduce(function(s,m){return s+getMF(m);},0))/5;
+    .reduce(function(s,m){return s+getMF(m);},0))/7;
   var avgLower = (['Cuádriceps','Isquiotibiales','Glúteo','Gemelos/Sóleo']
     .reduce(function(s,m){return s+getMF(m);},0))/4;
   var muscularR = Math.round(100 - (avgUpper*0.4 + avgLower*0.6)*0.6);
@@ -7742,7 +8147,7 @@ function buildWeeklyAdaptationSnapshot(){
     safeArr(S._hevyRecent).filter(function(s){return s.isThisWeek&&s.primaryMuscleSets&&safeNum(s.primaryMuscleSets[m])>=2;}).forEach(function(sess){
       safeArr(sess.exercises).forEach(function(ex){
         var ed=getExDB(ex.title||'');if(!ed||ed.p.indexOf(m)<0)return;
-        safeArr(ex.sets).forEach(function(st){var rpe=safeNum(st.rpe||st.rpe_rating||0);if(rpe>0)rirVals.push(Math.max(0,10-rpe));});
+        workingSetsOf(ex.sets).forEach(function(st){var rpe=safeNum(st.rpe||st.rpe_rating||0);if(rpe>0)rirVals.push(Math.max(0,10-rpe));});
       });
     });
     var avgRIR=rirVals.length?Math.round(rirVals.reduce(function(a,b){return a+b;},0)/rirVals.length*10)/10:null;
@@ -8042,6 +8447,7 @@ function autoLogHevySessions(){
     // Build muscle snapshots
     var sessMF={};if(S._muscleFatigue){Object.keys(S._muscleFatigue).forEach(function(m){var v=S._muscleFatigue[m];sessMF[m]=typeof v==='object'?Math.round(safeNum(v.value)):Math.round(safeNum(v));});}
     var sessEff={};if(S._effectiveSets&&S._effectiveSets.muscles){Object.keys(S._effectiveSets.muscles).forEach(function(m){var v=S._effectiveSets.muscles[m];sessEff[m]=Math.round(safeNum(v.effective)*10)/10;});}
+    var _lf=buildLogExerciseFields(hs.exercises,{dateISO:hsDate.getFullYear()+'-'+String(hsDate.getMonth()+1).padStart(2,'0')+'-'+String(hsDate.getDate()).padStart(2,'0')});
     S.logs.unshift({
       _hevyId:logId,
       _stableId:hs._stableId||null,
@@ -8056,19 +8462,14 @@ function autoLogHevySessions(){
       hevyRPE:hs.hevyRPE||null,
       garminRPE:hs.rpe||null,
       muscleSets:hs.muscleSets||null,
-      _exNames:(hs.exercises||[]).map(function(ex){return {name:ex.title||'',sets:(ex.sets||[]).filter(function(s){return safeInt((s&&s.reps)||0)>0;}).length};}).filter(function(e){return e.name&&e.sets>0;}),
+      _exNames:_lf._exNames,
       // 6.3.3 (A2): MATERIA PRIMA cruda por ejercicio/serie para el detrend offline (§7 del protocolo).
       // Solo observables BRUTOS (kg, reps, rpe). NADA cocinado: ni e1RM, ni avgRIR, ni topSet —
       // el script offline los re-deriva con datos pasados (leave-future-out). No toca ninguna fórmula.
-      _exDetail:(hs.exercises||[]).map(function(ex){
-        var _sets=(ex.sets||[]).filter(function(s){return safeInt((s&&s.reps)||0)>0;}).map(function(s){
-          var _kg=safeNum((s&&(s.weight_kg!=null?s.weight_kg:s.weight))||0);
-          var _reps=safeInt((s&&s.reps)||0);
-          var _rpe=safeNum((s&&(s.rpe!=null?s.rpe:s.rpe_rating))||0);
-          return {kg:(_kg>0?_kg:null), reps:_reps, rpe:(_rpe>0?_rpe:null)};
-        });
-        return {name:ex.title||ex.exercise_template_title||ex.name||'', sets:_sets};
-      }).filter(function(e){return e.name&&e.sets.length>0;}),
+      // 6.4.7-alpha: opción B. _exDetail = solo series de trabajo (misma forma); _exAux = warmup/timed/invalid íntegras; _setCriterion marca el criterio.
+      _exDetail:_lf._exDetail,
+      _exAux:_lf._exAux,
+      _setCriterion:SET_CRITERION_VERSION,
       effectiveSets:Object.keys(sessEff).length?sessEff:null,
       muscleFatigue:Object.keys(sessMF).length?sessMF:null,
       hrv:S.metrics.hrv||null,sleep:S.metrics.sleep||null,
