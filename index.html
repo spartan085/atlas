@@ -174,7 +174,7 @@ textarea.field{resize:vertical;min-height:60px;}
 <header class="hdr">
   <div style="display:flex;align-items:center;gap:9px;">
     <svg width="26" height="26" viewBox="0 0 28 28" fill="none"><path d="M14 2l10.39 6v12L14 26 3.61 20V8L14 2z" fill="rgba(6,182,212,0.12)" stroke="var(--c)" stroke-width="1.2"/><path d="M14 8l5.2 3v6L14 20l-5.2-3V11L14 8z" fill="rgba(6,182,212,0.2)"/></svg>
-    <div class="wordmark">ATL<em>A</em>S <span style="font-family:'Geist Mono',monospace;font-size:10px;color:var(--fg3);letter-spacing:1px;">v6 · build 2026-10-27a</span></div>
+    <div class="wordmark">ATL<em>A</em>S <span style="font-family:'Geist Mono',monospace;font-size:10px;color:var(--fg3);letter-spacing:1px;">v6 · build 2026-10-29a</span></div>
   </div>
   <div class="hdr-right">
     <button class="sync-btn active" onclick="syncAll()"><span class="sdot" id="syncDot"></span> Sync</button>
@@ -654,6 +654,21 @@ textarea.field{resize:vertical;min-height:60px;}
           <button class="btn btn-p" style="flex:1;" onclick="connectHevy()"><div class="spin" id="hevySpin" style="display:none;"></div>Conectar</button>
           <button class="btn btn-g btn-sm" onclick="disconnectHevy()">Borrar</button>
         </div>
+      </div>
+    </div>
+    <div class="card" id="garminCard">
+      <div class="card-hdr"><div><div class="t-md">Garmin (API personal)</div><div style="font-size:11px;color:var(--fg2);margin-top:2px;">Solo lectura · en sombra: no alimenta fatiga ni predictor</div></div><div class="status-dot" id="garminStatus"><span class="sdot-sm sdot-k"></span><span style="color:var(--fg3);">Sin conectar</span></div></div>
+      <div class="card-body">
+        <div class="info c" style="margin-bottom:12px;">Garmin Connect (web) → Ajustes → Personal API Token → crea la clave y cópiala (solo se muestra una vez; caduca según lo que elijas). Los datos que se descargan NO se usan todavía en ningún cálculo.</div>
+        <div class="fg"><label class="fg-label">Clave API personal de Garmin</label><input class="field" type="password" id="garminKey" placeholder="Tu clave de Garmin" autocomplete="off"></div>
+        <div class="fg" style="margin-bottom:12px;"><label class="fg-label">Días hacia atrás</label><input class="field" type="number" id="garminDias" value="14" min="1" max="60"></div>
+        <div style="display:flex;gap:8px;">
+          <button class="btn btn-p" style="flex:1;" onclick="garminProbar()"><div class="spin" id="garminSpin" style="display:none;"></div>Conectar y probar</button>
+          <button class="btn btn-g btn-sm" onclick="garminOlvidar()">Borrar</button>
+        </div>
+        <button class="btn btn-g btn-full btn-sm" style="margin-top:8px;" id="garminExportBtn" onclick="garminExportar()" disabled>📤 Exportar datos de Garmin (JSON)</button>
+        <div id="garminMsg" style="font-size:11px;color:var(--fg3);margin-top:8px;"></div>
+        <div id="garminRes" style="margin-top:8px;overflow-x:auto;"></div>
       </div>
     </div>
     <div class="card">
@@ -6334,6 +6349,90 @@ async function connectIntervals(){const aid=safeDOM('intAid')?.value?.trim();con
 function disconnectIntervals(){S.int={aid:'',key:'',ok:false};S._wellnessHistory=[];S._hrv=null;S._fatigue=null;save();setIntStatus('idle');safeDOM('intAid').value='';safeDOM('intKey').value='';toast('Intervals desconectado','','🔌');}
 async function connectHevy(){const key=safeDOM('hevyKey')?.value?.trim();if(!key)return;S.hevy={...(S.hevy||{}),key};await fetchHevy();}
 function disconnectHevy(){S.hevy=null;S.weeklyVol={};S._hevyRecent=[];save();renderMAV();safeDOM('hevyKey').value='';const st=safeDOM('hevyStatus');if(st)st.innerHTML='<span class="sdot-sm sdot-k"></span><span style="color:var(--fg3);">Sin conectar</span>';toast('Hevy desconectado','','🔌');}
+// ══ GARMIN (API personal oficial) — FASE E, EN SOMBRA ══
+// Solo lectura. NO alimenta ningún motor. Rutas y flujo de autenticación tomados del cliente oficial de Garmin
+// (garmin/connect-personal-api-python): POST token con "Authorization: ApiKey <clave>", después "Bearer <token>" (el token dura 24 h; no hay refresh).
+// Clave e inventario en localStorage 'atlas_garmin_v1' (fuera de 'atlas6' y fuera del backup). Los datos crudos solo se guardan en memoria y se exportan a archivo.
+const GARMIN_SHADOW_VERSION='garmin-shadow-1';
+const GARMIN_BASE='https://personal.connectapi.garmin.com';
+const GARMIN_TOKEN_PATH='/personalapitoken-service/personal-api/personal-api-key/token';
+const GARMIN_LS='atlas_garmin_v1';
+var GARMIN_RAW=null, GARMIN_TOK=null;
+function garminYMD(d){const p=n=>String(n).padStart(2,'0');return d.getFullYear()+'-'+p(d.getMonth()+1)+'-'+p(d.getDate());}
+function garminEndpoints(a,b){return [
+ ['Resumen diario (v2)','/usersummary-service/v2/dailysummaries?startDate='+a+'&endDate='+b],
+ ['Sueño (resúmenes)','/sleep-service/sleep/dailySleepSummariesByDate?startDate='+a+'&endDate='+b],
+ ['Sueño (detalle, último día)','/sleep-service/sleep/dailySleep?date='+b],
+ ['HRV (resúmenes)','/hrv-service/hrv/daily/'+a+'/'+b],
+ ['HRV (detalle, último día)','/hrv-service/hrv/'+b],
+ ['Body Battery','/wellness-service/wellness/bodyBattery/reports/daily?startDate='+a+'&endDate='+b],
+ ['Estrés','/usersummary-service/stats/stress/daily/'+a+'/'+b],
+ ['Pasos','/usersummary-service/stats/steps/daily/'+a+'/'+b],
+ ['FC diaria (último día)','/wellness-service/wellness/dailyHeartRate?date='+b],
+ ['SpO2 (último día)','/wellness-service/wellness/daily/spo2acclimation/'+b],
+ ['Peso','/weight-service/weight/range/'+a+'/'+b+'?includeAll=true'],
+ ['Zonas de FC','/biometric-service/heartRateZones/v2'],
+ ['Fitness age (último día)','/fitnessage-service/fitnessage/v2/'+b],
+ ['Actividades (últimas 20)','/activitylist-service/activities/search/activities?start=0&limit=20&startDate='+a+'&endDate='+b],
+ ['Perfil','/userprofile-service/userprofile/settings']];}
+function garminResumen(v,depth){if(v===null)return 'null';if(Array.isArray(v))return 'lista['+v.length+']'+(v.length?' de '+garminResumen(v[0],depth+1):'');if(typeof v==='object'){const k=Object.keys(v);return depth>=1?'{'+k.length+' campos}':'{'+k.join(', ')+'}';}return typeof v;}
+function garminNulos(v){const o=Array.isArray(v)?v[0]:v;if(!o||typeof o!=='object')return '';const k=Object.keys(o);return k.filter(x=>o[x]===null||o[x]===undefined).length+'/'+k.length+' campos nulos en el 1.º elemento';}
+function garminEsc(t){return String(t).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));}
+function garminLeerLS(){try{return JSON.parse(localStorage.getItem(GARMIN_LS)||'null')||{};}catch(e){return {};}}
+function garminEscribirLS(o){try{localStorage.setItem(GARMIN_LS,JSON.stringify(o));return true;}catch(e){return false;}}
+function garminSetStatus(state){const el=safeDOM('garminStatus'),sp=safeDOM('garminSpin');if(sp)sp.style.display=state==='loading'?'block':'none';if(!el)return;
+ if(state==='loading')el.innerHTML='<span class="sdot-sm sdot-y" style="animation:pd 1.5s infinite;"></span><span style="color:var(--y);">Conectando...</span>';
+ else if(state==='ok')el.innerHTML='<span class="sdot-sm sdot-g"></span><span style="color:var(--g);">Conectado</span>';
+ else if(state==='error')el.innerHTML='<span class="sdot-sm sdot-r"></span><span style="color:var(--r);">Error</span>';
+ else el.innerHTML='<span class="sdot-sm sdot-k"></span><span style="color:var(--fg3);">Sin conectar</span>';}
+function garminMsg(html){const el=safeDOM('garminMsg');if(el)el.innerHTML=html;}
+function garminJwtExp(t){try{const p=t.split('.')[1].replace(/-/g,'+').replace(/_/g,'/');return JSON.parse(atob(p+'='.repeat((4-p.length%4)%4))).exp*1000;}catch(e){return Date.now()+3600e3;}}
+async function garminToken(key){
+  if(GARMIN_TOK&&GARMIN_TOK.key===key&&GARMIN_TOK.exp-Date.now()>3600e3)return GARMIN_TOK.tok;
+  const r=await fetch(GARMIN_BASE+GARMIN_TOKEN_PATH,{method:'POST',headers:{'Accept':'*/*','Authorization':'ApiKey '+key}});
+  if(!r.ok){const e=new Error('HTTP '+r.status);e.http=r.status;throw e;}
+  const tok=(await r.text()).trim();GARMIN_TOK={key:key,tok:tok,exp:garminJwtExp(tok)};return tok;}
+async function garminProbar(){
+  let key=(safeDOM('garminKey')?.value||'').trim();const ls=garminLeerLS();
+  if(!key)key=ls.key||'';
+  if(!key){toast('Falta la clave','Pega la clave API personal de Garmin','⚠️');return;}
+  const dias=Math.min(60,Math.max(1,parseInt(safeDOM('garminDias')?.value,10)||14)),hoy=new Date(),b=garminYMD(hoy),a=garminYMD(new Date(hoy.getTime()-dias*864e5));
+  garminSetStatus('loading');garminMsg('Intercambiando la clave por un token…');
+  let tok;
+  try{tok=await garminToken(key);}
+  catch(e){garminSetStatus('error');
+    if(e.http)garminMsg('<span style="color:var(--r);">El token falló: '+garminEsc(e.message)+'.</span> Clave caducada, borrada o mal copiada.');
+    else garminMsg('<span style="color:var(--r);">No se pudo contactar con Garmin desde el navegador ('+garminEsc(e.message)+').</span> Lo más probable es que la API no admita llamadas desde el navegador (CORS): haría falta un intermediario. Cuéntaselo a Claude.');
+    return;}
+  garminMsg('<span style="color:var(--g);">CORS y token OK.</span> Consultando datos…');
+  const H={'Authorization':'Bearer '+tok,'Accept':'application/json'},raw={version:GARMIN_SHADOW_VERSION,generado:new Date().toISOString(),rango:[a,b],cors:true,token:200,endpoints:{}},inv={};
+  const rows=[];
+  for(const ep of garminEndpoints(a,b)){
+    const n=ep[0],p=ep[1];let st,info='';const t0=performance.now();
+    try{const r=await fetch(GARMIN_BASE+p,{headers:H});st=r.status;const txt=await r.text();const ms=Math.round(performance.now()-t0);let js=null;try{js=JSON.parse(txt);}catch(_){}
+      const est=js===null?'(no JSON, '+txt.length+' bytes)':garminResumen(js,0),nul=js===null?'':garminNulos(js);
+      raw.endpoints[n]={ruta:p,http:st,ms:ms,estructura:est,nulos:nul,muestra:js};inv[n]={http:st,estructura:est,nulos:nul};info=est+(nul?' · '+nul:'');}
+    catch(e){st='ERR';info=e.message;raw.endpoints[n]={ruta:p,http:'ERR',error:e.message};inv[n]={http:'ERR',estructura:e.message,nulos:''};}
+    rows.push('<tr><td style="padding:3px 6px;border:1px solid var(--line);">'+garminEsc(n)+'</td><td style="padding:3px 6px;border:1px solid var(--line);color:'+(st===200?'var(--g)':'var(--r)')+';">'+garminEsc(st)+'</td><td style="padding:3px 6px;border:1px solid var(--line);font-size:10px;word-break:break-word;">'+garminEsc(info)+'</td></tr>');
+    const res=safeDOM('garminRes');if(res)res.innerHTML='<table style="border-collapse:collapse;width:100%;font-size:11px;"><tr><th style="text-align:left;padding:3px 6px;">Dato</th><th style="text-align:left;padding:3px 6px;">HTTP</th><th style="text-align:left;padding:3px 6px;">Estructura</th></tr>'+rows.join('')+'</table>';}
+  GARMIN_RAW=raw;
+  garminEscribirLS({key:key,inv:inv,ultimo:raw.generado,rango:raw.rango});
+  const kf=safeDOM('garminKey');if(kf)kf.value='';
+  const bt=safeDOM('garminExportBtn');if(bt)bt.disabled=false;
+  garminSetStatus('ok');
+  garminMsg('<span style="color:var(--g);">Hecho.</span> Pulsa «Exportar datos de Garmin»: el archivo incluye tus datos de salud (no la clave). Los datos NO se han guardado en ATLAS ni se usan en ningún cálculo; la clave queda guardada en este navegador (puedes quitarla con Borrar).');}
+function garminExportar(){
+  if(!GARMIN_RAW){toast('Sin datos','Pulsa primero «Conectar y probar»','⚠️');return;}
+  const u=URL.createObjectURL(new Blob([JSON.stringify(GARMIN_RAW,null,1)],{type:'application/json'}));
+  const l=document.createElement('a');l.href=u;l.download='garmin_sondeo_'+garminYMD(new Date())+'.json';document.body.appendChild(l);l.click();l.remove();setTimeout(()=>URL.revokeObjectURL(u),2000);}
+function garminOlvidar(){
+  GARMIN_RAW=null;GARMIN_TOK=null;try{localStorage.removeItem(GARMIN_LS);}catch(e){}
+  const k=safeDOM('garminKey');if(k)k.value='';const r=safeDOM('garminRes');if(r)r.innerHTML='';const bt=safeDOM('garminExportBtn');if(bt)bt.disabled=true;
+  garminSetStatus('idle');garminMsg('');toast('Garmin','Clave y resultados borrados de este navegador','✅');}
+function garminInit(){try{const ls=garminLeerLS();if(ls.key){garminMsg('Clave guardada en este navegador. Último sondeo: '+garminEsc(ls.ultimo||'—')+'. Pulsa «Conectar y probar» para repetirlo.');
+  const inv=ls.inv||{},rows=Object.keys(inv).map(n=>'<tr><td style="padding:3px 6px;border:1px solid var(--line);">'+garminEsc(n)+'</td><td style="padding:3px 6px;border:1px solid var(--line);">'+garminEsc(inv[n].http)+'</td><td style="padding:3px 6px;border:1px solid var(--line);font-size:10px;word-break:break-word;">'+garminEsc(inv[n].estructura+(inv[n].nulos?' · '+inv[n].nulos:''))+'</td></tr>').join('');
+  const res=safeDOM('garminRes');if(res&&rows)res.innerHTML='<div style="font-size:10px;color:var(--fg3);margin-bottom:4px;">Inventario del último sondeo (sin datos):</div><table style="border-collapse:collapse;width:100%;font-size:11px;">'+rows+'</table>';}}catch(e){}}
+window.addEventListener('load',garminInit);
 function saveClaudeKey(){const key=safeDOM('claudeKey')?.value?.trim();if(!key||!key.startsWith('sk-ant')){toast('API Key inválida','Debe comenzar con sk-ant-...','⚠️');return;}S.claude.key=key;save();safeDOM('claudeKey').value='sk-ant-...guardada';toast('API Key guardada','IA lista','✅');}
 function setIntStatus(state){const el=safeDOM('intStatus');const sp=safeDOM('intSpin');const dot=safeDOM('syncDot');if(sp)sp.style.display=state==='loading'?'block':'none';if(!el)return;if(state==='loading')el.innerHTML='<span class="sdot-sm sdot-y" style="animation:pd 1.5s infinite;"></span><span style="color:var(--y);">Conectando...</span>';else if(state==='ok'){el.innerHTML='<span class="sdot-sm sdot-g"></span><span style="color:var(--g);">Conectado</span>';if(dot){dot.style.background='var(--g)';dot.style.animation='pd 2s ease-in-out infinite';}}else if(state==='error')el.innerHTML='<span class="sdot-sm sdot-r"></span><span style="color:var(--r);">Error</span>';else el.innerHTML='<span class="sdot-sm sdot-k"></span><span style="color:var(--fg3);">Sin conectar</span>';}
 function manualUpdate(){
